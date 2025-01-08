@@ -17,11 +17,17 @@ import (
 const help = `
 kool help to parse
 
-Usage: Prog x [OPTIONS]
+Usage: kool <cmd> x [OPTIONS]
+
+Available commands:
+  vscode                            print example vscode configs
+  vscode debug-go <prog> [args...]  print vscode config for debugging go program with args
+
 Options:
   --help   show help message
 `
 
+// install go build -o `which kool` ./
 func main() {
 	err := handle(os.Args[1:])
 	if err != nil {

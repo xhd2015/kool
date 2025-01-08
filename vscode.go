@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 const launchConfig = `{
     "configurations": [
@@ -75,6 +78,46 @@ const tasks = `{
 }`
 
 func handleVscode(args []string) error {
+	if len(args) > 0 && args[0] == "debug-go" {
+		remainArgs := args[1:]
+		if len(remainArgs) == 0 {
+			return fmt.Errorf("requires <program>\nusage: kool vscode debug-go <program> [args...]")
+		}
+		prog := remainArgs[0]
+		progArgs := remainArgs[1:]
+
+		var argJSON string = "[]"
+		if len(progArgs) > 0 {
+			argJSONData, err := json.MarshalIndent(progArgs, "", "  ")
+			if err != nil {
+				return err
+			}
+			argJSON = string(argJSONData)
+		}
+		exampleConfig := fmt.Sprintf(`{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": %q,
+            "cwd": "${workspaceFolder}",
+            "args": %s,
+            "env":{
+                // "GOROOT":"goXXX"
+                // "PATH":"goXXX/bin:${env:PATH}"
+            }
+        }
+    ]
+}`, prog, argJSON)
+		fmt.Printf(".vscode/launch.json\n%s\n", exampleConfig)
+		return nil
+	}
 	fmt.Printf(".vscode/launch.json\n%s\n", launchConfig)
 	fmt.Printf(".vscode/tasks.json\n%s\n", tasks)
 	return nil
