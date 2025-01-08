@@ -31,11 +31,14 @@ func main() {
 }
 
 func handle(args []string) error {
-
 	var cmd string
 	if len(args) > 0 && args[0] == "sample" {
 		cmd = "sample"
 		args = args[1:]
+	}
+
+	if len(args) > 0 && args[0] == "vscode" {
+		return handleVscode(args[1:])
 	}
 
 	var some string
