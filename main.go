@@ -20,6 +20,7 @@ kool help to parse
 Usage: kool <cmd> x [OPTIONS]
 
 Available commands:
+  unquote                           unquote string             
   vscode                            print example vscode configs
   vscode debug-go <prog> [args...]  print vscode config for debugging go program with args
 
@@ -37,14 +38,36 @@ func main() {
 }
 
 func handle(args []string) error {
-	var cmd string
-	if len(args) > 0 && args[0] == "sample" {
-		cmd = "sample"
-		args = args[1:]
+	var arg0 string
+	if len(args) > 0 {
+		arg0 = args[0]
 	}
 
-	if len(args) > 0 && args[0] == "vscode" {
+	var cmd string
+	switch arg0 {
+	case "sample":
+		cmd = arg0
+		args = args[1:]
+	case "vscode":
 		return handleVscode(args[1:])
+	case "unquote":
+		args = args[1:]
+		var str string
+		if len(args) == 0 {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
+			str = string(data)
+		} else {
+			str = strings.Join(args, " ")
+		}
+		unquoteStr, err := strconv.Unquote(str)
+		if err != nil {
+			return err
+		}
+		fmt.Println(unquoteStr)
+		return nil
 	}
 
 	var some string
