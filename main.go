@@ -20,9 +20,10 @@ kool help to parse
 Usage: kool <cmd> x [OPTIONS]
 
 Available commands:
-  unquote                           unquote string             
-  vscode                            print example vscode configs
-  vscode debug-go <prog> [args...]  print vscode config for debugging go program with args
+  unquote                            unquote string             
+  vscode                             print example vscode configs
+  vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
+  create <template> <project-name>   create new project
 
 Options:
   --help   show help message
@@ -68,6 +69,8 @@ func handle(args []string) error {
 		}
 		fmt.Println(unquoteStr)
 		return nil
+	case "create":
+		return create(args[1:])
 	}
 
 	var some string

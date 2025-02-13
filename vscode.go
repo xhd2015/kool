@@ -46,10 +46,6 @@ const launchConfig = `{
                 "POD_IP": "xhd.localhost",
                 "REGION": "ph",
                 "ENV": "uat",
-                "CAMPAIGN_GUARDIAN_ALLOW_DEBUG": "true",
-                "CAMPAIGN_GUARDIAN_ALLOW_TODO_REMOVE": "true",
-                "CAMPAIGN_GUARDIAN_DEBUG_SYNC_SCAN_LINK": "true",
-                "CAMPAIGN_GUARDIAN_DISABLE_TASK": "true"
                 // "GO_TEST_PROHIBIT_ARGS": "true",
             },
             "args": [

@@ -1,0 +1,3 @@
+module github.com/xhd2015/kool/server_template
+
+go 1.19

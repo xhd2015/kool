@@ -1,0 +1,60 @@
+{
+    "compilerOptions": {
+        // Language and Environment
+        "target": "ES2020",
+        "lib": [
+            "es2016",
+            "dom",
+            "dom.iterable",
+            "esnext"
+        ],
+        // Modules
+        "module": "ES2022",
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "allowJs": true,
+        "types": [
+            "d3"
+        ],
+        // Type Checking
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": false,
+        "strictFunctionTypes": true,
+        "strictBindCallApply": true,
+        // Emit
+        "sourceMap": true,
+        "outDir": "./dist",
+        // Interop Constraints
+        "forceConsistentCasingInFileNames": true,
+        "allowSyntheticDefaultImports": true,
+        // Projects
+        "incremental": true,
+        // Output Formatting
+        "pretty": true,
+        // Module Resolution
+        "baseUrl": ".",
+        "paths": {
+            // for developing
+            // "graph-drawing": [
+            //     "./third_party/graph/src"
+            // ],
+            "*": [
+                "node_modules/*"
+            ]
+        },
+        "rootDir": "./",
+        "resolveJsonModule": true,
+        "jsx": "react-jsx",
+        "skipLibCheck": true
+    },
+    "include": [
+        "**/*",
+    ],
+    "exclude": [
+        "node_modules",
+        "build"
+    ]
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background circle -->
+    <circle cx="256" cy="256" r="240" fill="#4A90E2"/>
+    
+    <!-- Graph lines representing data visualization -->
+    <path d="M128 384L192 256L256 320L320 192L384 128" 
+          stroke="white" 
+          stroke-width="24" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+    
+    <!-- Decorative dots at data points -->
+    <circle cx="128" cy="384" r="12" fill="white"/>
+    <circle cx="192" cy="256" r="12" fill="white"/>
+    <circle cx="256" cy="320" r="12" fill="white"/>
+    <circle cx="320" cy="192" r="12" fill="white"/>
+    <circle cx="384" cy="128" r="12" fill="white"/>
+</svg> 
