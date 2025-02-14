@@ -24,6 +24,7 @@ Available commands:
   vscode                             print example vscode configs
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   create <template> <project-name>   create new project
+  help                               show help message
 
 Options:
   --help   show help message
@@ -46,6 +47,9 @@ func handle(args []string) error {
 
 	var cmd string
 	switch arg0 {
+	case "help":
+		fmt.Println(strings.TrimSpace(help))
+		return nil
 	case "sample":
 		cmd = arg0
 		args = args[1:]

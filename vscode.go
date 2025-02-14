@@ -63,12 +63,57 @@ const tasks = `{
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Create dev terminals",
+            "dependsOn": [
+                "debug-main.bin",
+                "bun run watch",
+            ],
+            // Mark as the default build task so cmd/ctrl+shift+b will create them
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "runOptions": {}
+        },
+        {
             "label": "with-go1.19 go build -o debug-main.bin -mod=vendor ./src",
             "type": "shell",
             "command": "bash --login -i <<<'with-go1.19 go build  -mod=vendor -gcflags=all=\"-N -l\" -o ./debug-main.bin ./src'",
             "options": {
                 "cwd": "${workspaceFolder}",
             }
+        },
+        {
+            "type": "process",
+            "label": "debug-main.bin",
+            "command": "bash",
+            "args": [
+                "-c",
+                "echo './debug-main.bin' | bash --login -i"
+            ],
+            "isBackground": true,
+            "runOptions": {},
+            "presentation": {
+                "group": "dev"
+            },
+            "dependsOn": [
+                "with-go1.19 go build -o debug-main.bin -mod=vendor ./src",
+            ]
+        },
+        {
+            "type": "process",
+            "label": "bun run watch",
+            "command": "bash",
+            "args": [
+                "-c",
+                "echo 'cd frontend && bun run watch' | bash --login -i"
+            ],
+            "isBackground": true,
+            "runOptions": {},
+            "presentation": {
+                "group": "dev"
+            },
+            "dependsOn": []
         }
     ]
 }`
