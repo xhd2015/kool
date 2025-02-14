@@ -1,5 +1,5 @@
 import { App, Tabs } from "antd"
-import { Hello } from "../page/Hello"
+import { Hello } from "./page/Hello"
 import { useEffect, useState, ReactNode } from "react"
 import { Outlet, Route, Routes, useLocation, useNavigate } from "react-router"
 
@@ -63,7 +63,6 @@ function AppIndex({ displayTabs: tabs }: { displayTabs: { name: string, route: s
             items={appTabs.map((tab) => ({
                 key: tab.name,
                 label: tab.name,
-                children: tab.element
             }))} />
         <Outlet />
     </div>

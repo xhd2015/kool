@@ -27,13 +27,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize template handler: %v", err)
 	}
-	http.HandleFunc("/hello.html", templateHandler.Clone().AddProcess(func(content []byte) ([]byte, error) {
+	helloHandler := templateHandler.Clone()
+	http.HandleFunc("/hello.html", helloHandler.AddProcess(func(content []byte) ([]byte, error) {
 		content = bytes.ReplaceAll(content, []byte("__TITLE__"), []byte("Hello"))
 		content = bytes.ReplaceAll(content, []byte("__RENDER__"), []byte("renderRoute"))
 		content = bytes.ReplaceAll(content, []byte("__COMPONENT__"), []byte("AppRoutes"))
 		content = bytes.ReplaceAll(content, []byte("__INDEX_PATH__"), []byte(""))
 		return content, nil
 	}).ServeHTTP)
+
+	http.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		// refresh helleHandler
+		err := helloHandler.Refresh()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		err = indexHandler.Refresh()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok\n"))
+	})
 
 	fmt.Println("Server starting on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

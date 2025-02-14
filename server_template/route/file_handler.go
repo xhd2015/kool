@@ -17,20 +17,15 @@ type FileHandler struct {
 }
 
 func NewFileHandler(filePath string) (*FileHandler, error) {
-	content, err := os.ReadFile(filePath)
+	f := &FileHandler{
+		FilePath: filePath,
+	}
+
+	err := f.Refresh()
 	if err != nil {
 		return nil, fmt.Errorf("reading template file: %w", err)
 	}
-
-	// Calculate etag from content
-	md5sum := md5.Sum(content)
-	etag := hex.EncodeToString(md5sum[:])
-
-	return &FileHandler{
-		FilePath: filePath,
-		Content:  content,
-		Etag:     etag,
-	}, nil
+	return f, nil
 }
 
 func (c *FileHandler) AddProcess(process func(content []byte) ([]byte, error)) *FileHandler {
@@ -50,6 +45,20 @@ func (c *FileHandler) Clone() *FileHandler {
 		Etag:      c.Etag,
 		processes: processes,
 	}
+}
+
+func (c *FileHandler) Refresh() error {
+	content, err := os.ReadFile(c.FilePath)
+	if err != nil {
+		return fmt.Errorf("reading template file: %w", err)
+	}
+
+	// Calculate etag from content
+	md5sum := md5.Sum(content)
+	etag := hex.EncodeToString(md5sum[:])
+	c.Etag = etag
+	c.Content = content
+	return nil
 }
 
 func (h *FileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
