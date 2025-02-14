@@ -45,6 +45,7 @@ func (c *FileHandler) Clone() *FileHandler {
 		copy(processes, c.processes)
 	}
 	return &FileHandler{
+		FilePath:  c.FilePath,
 		Content:   c.Content,
 		Etag:      c.Etag,
 		processes: processes,

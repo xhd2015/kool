@@ -24,6 +24,7 @@ Available commands:
   vscode                             print example vscode configs
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   create <template> <project-name>   create new project
+  snippet <name>                     print snippet
   help                               show help message
 
 Options:
@@ -75,6 +76,8 @@ func handle(args []string) error {
 		return nil
 	case "create":
 		return create(args[1:])
+	case "snippet":
+		return handleSnippet(args[1:])
 	}
 
 	var some string
@@ -109,6 +112,11 @@ func handle(args []string) error {
 	// TTY:     go run ./
 	// NOT TTY: echo yes | go run ./
 	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
+
+	if isTTY && n == 0 {
+		fmt.Println(strings.TrimSpace(help))
+		return nil
+	}
 
 	if !isTTY {
 		data, err := io.ReadAll(os.Stdin)

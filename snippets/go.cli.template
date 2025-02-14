@@ -1,0 +1,69 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+// install: go build -o $GOPATH/bin/my_cli
+const help = `
+my_cli help to parse
+
+Usage: my_cli <cmd> [OPTIONS]
+
+Available commands:
+  do_something                       do something
+  help                               show help message
+
+Options:
+  --help   show help message
+`
+
+func main() {
+	err := handle(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handle(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("requires command")
+	}
+	cmd := args[0]
+	args = args[1:]
+
+	var flag string
+	var remainArgs []string
+	n := len(args)
+	for i := 0; i < n; i++ {
+		if args[i] == "--flag" {
+			if i+1 >= n {
+				return fmt.Errorf("%v requires arg", args[i])
+			}
+			flag = args[i+1]
+			i++
+			continue
+		}
+		if args[i] == "--help" {
+			fmt.Println(strings.TrimSpace(help))
+			return nil
+		}
+		if args[i] == "--" {
+			remainArgs = append(remainArgs, args[i+1:]...)
+			break
+		}
+		if strings.HasPrefix(args[i], "-") {
+			return fmt.Errorf("unrecognized flag: %v", args[i])
+		}
+		remainArgs = append(remainArgs, args[i])
+	}
+	// TODO handle
+	_ = flag
+
+	fmt.Printf("Hello %s\n", cmd)
+
+	return nil
+}

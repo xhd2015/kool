@@ -1,4 +1,5 @@
 import { App, Tabs } from "antd"
+import { Hello } from "../page/Hello"
 import { useEffect, useState, ReactNode } from "react"
 import { Outlet, Route, Routes, useLocation, useNavigate } from "react-router"
 
@@ -9,11 +10,11 @@ export function AppRoutes() {
     return <App>
         <Routes>
             <Route path="/" element={<AppIndex displayTabs={[
-                { name: "Tab 1", route: "/tab1" },
+                { name: "Hello", route: "/hello" },
                 { name: "Tab 2", route: "/tab2" },
                 { name: "Tab 3", route: "/tab3" },
             ]} />} >
-                <Route path="tab1" element={<div>Tab 1</div>} />
+                <Route path="hello" element={<Hello />} />
                 <Route path="tab2" element={<div>Tab 2</div>} />
                 <Route path="tab3" element={<div>Tab 3</div>} />
             </Route>
