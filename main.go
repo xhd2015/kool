@@ -25,6 +25,10 @@ Available commands:
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   create <template> <project-name>   create new project
   snippet <name>                     print snippet
+  go
+    replace <dir>                    replace go module in the given directory
+  git
+    tag-next                         tag next
   help                               show help message
 
 Options:
@@ -78,6 +82,10 @@ func handle(args []string) error {
 		return create(args[1:])
 	case "snippet":
 		return handleSnippet(args[1:])
+	case "go":
+		return handleGo(args[1:])
+	case "git":
+		return handleGit(args[1:])
 	}
 
 	var some string
