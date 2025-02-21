@@ -27,6 +27,7 @@ Available commands:
   snippet <name>                     print snippet
   go
     replace <dir>                    replace go module in the given directory
+    update <dir>                     update to the latest tag of the module in dir
   git
     tag-next                         tag next
   help                               show help message

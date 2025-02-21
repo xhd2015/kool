@@ -1,4 +1,4 @@
-package go_replace
+package go_update
 
 import (
 	"encoding/json"
