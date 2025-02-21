@@ -56,6 +56,7 @@ func Replace(dir string) (absDir string, modulePath string, err error) {
 
 	// Run 'go mod edit -json' in the directory
 	cmd := exec.Command("go", "mod", "edit", "-json")
+	cmd.Stderr = os.Stderr
 	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
@@ -73,6 +74,8 @@ func Replace(dir string) (absDir string, modulePath string, err error) {
 	}
 	// executing go mod edit -replace "$mod=$absDir"
 	editCmd := exec.Command("go", "mod", "edit", "-replace", fmt.Sprintf("%s=%s", modInfo.Module.Path, absDir))
+	editCmd.Stderr = os.Stderr
+	editCmd.Stdout = os.Stdout
 	err = editCmd.Run()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to execute go mod edit -replace: %v", err)

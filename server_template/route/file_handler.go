@@ -10,9 +10,11 @@ import (
 )
 
 type FileHandler struct {
-	FilePath  string
-	Content   []byte
-	Etag      string
+	Initialized bool
+	FilePath    string
+	Content     []byte
+	Etag        string
+
 	processes []func(content []byte) ([]byte, error)
 }
 
@@ -20,10 +22,9 @@ func NewFileHandler(filePath string) (*FileHandler, error) {
 	f := &FileHandler{
 		FilePath: filePath,
 	}
-
 	err := f.Refresh()
 	if err != nil {
-		return nil, fmt.Errorf("reading template file: %w", err)
+		return nil, err
 	}
 	return f, nil
 }
@@ -40,28 +41,47 @@ func (c *FileHandler) Clone() *FileHandler {
 		copy(processes, c.processes)
 	}
 	return &FileHandler{
-		FilePath:  c.FilePath,
-		Content:   c.Content,
-		Etag:      c.Etag,
-		processes: processes,
+		Initialized: c.Initialized,
+		FilePath:    c.FilePath,
+		Content:     c.Content,
+		Etag:        c.Etag,
+		processes:   processes,
 	}
 }
 
 func (c *FileHandler) Refresh() error {
 	content, err := os.ReadFile(c.FilePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			c.Initialized = false
+			return nil
+		}
 		return fmt.Errorf("reading template file: %w", err)
 	}
 
 	// Calculate etag from content
 	md5sum := md5.Sum(content)
 	etag := hex.EncodeToString(md5sum[:])
+	c.Initialized = true
 	c.Etag = etag
 	c.Content = content
 	return nil
 }
 
 func (h *FileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !h.Initialized {
+		// try refresh on demand
+		err := h.Refresh()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !h.Initialized {
+			http.Error(w, fmt.Sprintf("%s not found", h.FilePath), http.StatusNotFound)
+			return
+		}
+	}
+
 	// Handle cache properly
 	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 
@@ -96,5 +116,8 @@ func (h *FileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	w.Write(content)
+	_, err := w.Write(content)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "write content error: %v", err)
+	}
 }

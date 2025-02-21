@@ -17,7 +17,7 @@ import (
 const help = `
 kool help to parse
 
-Usage: kool <cmd> x [OPTIONS]
+Usage: kool <cmd> [OPTIONS]
 
 Available commands:
   unquote                            unquote string             

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 func AbortWithErr(w http.ResponseWriter, err error) {
@@ -13,7 +14,10 @@ func AbortWithErr(w http.ResponseWriter, err error) {
 func AbortWithErrCode(w http.ResponseWriter, code int, err error) {
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
-	w.Write([]byte(fmt.Sprintf(`{"code":%d, "msg":%q}`, code, err.Error())))
+	_, writeErr := w.Write([]byte(fmt.Sprintf(`{"code":%d, "msg":%q}`, code, err.Error())))
+	if writeErr != nil {
+		fmt.Fprintf(os.Stderr, "write error: %v", writeErr)
+	}
 }
 
 func ResponseJSON(w http.ResponseWriter, data interface{}) {
@@ -24,5 +28,8 @@ func ResponseJSON(w http.ResponseWriter, data interface{}) {
 	}
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write(jsonData)
+	_, writeErr := w.Write(jsonData)
+	if writeErr != nil {
+		fmt.Fprintf(os.Stderr, "write error: %v", writeErr)
+	}
 }

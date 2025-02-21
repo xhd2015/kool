@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/xhd2015/kool/server_template/handle/model"
+	"git.garena.com/shopee/loan-service/credit_backend/credit-pricing-center/test/server/handle/model"
 )
 
 var errType = reflect.TypeOf((*error)(nil)).Elem()
 
-func Gin(handler interface{}) func(w http.ResponseWriter, r *http.Request) {
+func Wrap(handler interface{}) func(w http.ResponseWriter, r *http.Request) {
 	v := reflect.ValueOf(handler)
 	if v.Kind() != reflect.Func {
 		panic(fmt.Errorf("requires func, actual: %T", handler))
@@ -56,7 +56,7 @@ func Gin(handler interface{}) func(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 		req := reflect.New(t.Elem())
-		if !ParseRequest(w, r, req.Interface()) {
+		if err = ParseRequest(w, r, req.Interface()); err != nil {
 			return
 		}
 		ctx := context.Background()

@@ -2,6 +2,7 @@ package git_tag_next
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -88,7 +89,7 @@ func handleGitTag(opts *Options) error {
 	}
 
 	// Create new tag
-	if err := execGitCmd("tag", nextTag); err != nil {
+	if err := runGitCmdPipeOutput("tag", nextTag); err != nil {
 		return fmt.Errorf("failed to create tag: %v", err)
 	}
 
@@ -100,11 +101,11 @@ func handleGitTag(opts *Options) error {
 		}
 
 		// Push changes
-		if err := execGitCmd("push", "origin", fmt.Sprintf("HEAD:%s", branch)); err != nil {
+		if err := runGitCmdPipeOutput("push", "origin", fmt.Sprintf("HEAD:%s", branch)); err != nil {
 			return fmt.Errorf("failed to push changes: %v", err)
 		}
 
-		if err := execGitCmd("push", "origin", nextTag); err != nil {
+		if err := runGitCmdPipeOutput("push", "origin", nextTag); err != nil {
 			return fmt.Errorf("failed to push tag: %v", err)
 		}
 	}
@@ -151,8 +152,11 @@ func execGit(args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func execGitCmd(args ...string) error {
+func runGitCmdPipeOutput(args ...string) error {
+	fmt.Println("git", strings.Join(args, " "))
 	cmd := exec.Command("git", args...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git %s failed: %v", strings.Join(args, " "), err)
 	}
