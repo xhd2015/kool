@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const launchConfig = `{
@@ -122,44 +123,132 @@ func handleVscode(args []string) error {
 	if len(args) > 0 && args[0] == "debug-go" {
 		remainArgs := args[1:]
 		if len(remainArgs) == 0 {
-			return fmt.Errorf("requires <program>\nusage: kool vscode debug-go <program> [args...]")
+			return fmt.Errorf("requires <program>\nusage: kool vscode debug-go [--dlv] <program> [args...]")
 		}
+
+		var debugConfTemplate string
+		var formatConf func(prog string, progArgs []string) (string, string)
+		if remainArgs[0] == "--dlv" {
+			debugConfTemplate = `{
+    "name": "Debug dlv localhost:2345",
+    "type": "go",
+    "debugAdapter": "dlv-dap",
+    "request": "attach",
+    "mode": "remote",
+    "port": 2345,
+    "host": "127.0.0.1",
+    "cwd":"./",
+    "preLaunchTask": "check dlv ready on localhost:2345"
+}`
+			remainArgs = remainArgs[1:]
+			if len(remainArgs) == 0 {
+				return fmt.Errorf("requires <program>\nusage: kool vscode debug-go --dlv <program> [args...]")
+			}
+			taskConfigTemplate := `{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "go build -o __debug-main.bin ./",
+            "type": "shell",
+            "command": "bash --login -i <<<'go build -gcflags=all=\"-N -l\" -o ./__debug-main.bin ./'",
+            "options": {
+                "cwd": "${workspaceFolder}",
+            }
+        },
+        {
+            "label": "dlv exec --listen=localhost:2345",
+            "type": "shell",
+            "isBackground": true,
+            "command": "bash --login -i <<<'dlv exec --api-version=2 --listen=localhost:2345  --headless ./__debug-main.bin%s >dlv.log 2>&1 &'",
+            "options": {
+                "cwd": "${workspaceFolder}",
+            },
+            "dependsOn": [
+                "go build -o __debug-main.bin ./",
+            ]
+        },
+        {
+            "label": "check dlv ready on localhost:2345",
+            "type": "shell",
+            "command": "bash --login -i <<<'while true;do if grep -q \"API server listening at\" dlv.log;then echo ready; exit;fi ;sleep 1;done'",
+            "options": {
+                "cwd": "${workspaceFolder}",
+            },
+            "dependsOn": [
+                "dlv exec --listen=localhost:2345",
+            ]
+        }
+    ]
+}`
+
+			formatConf = func(prog string, progArgs []string) (debugConf string, taskConfig string) {
+				debugConf = debugConfTemplate
+				taskArg := ""
+				if len(progArgs) > 0 {
+					// TODO: proper quote
+					taskArg = " -- " + strings.Join(progArgs, " ")
+				}
+				taskConfig = fmt.Sprintf(taskConfigTemplate, taskArg)
+				return
+			}
+
+		} else {
+			debugConfTemplate = `{
+    "name": "Launch Package",
+    "type": "go",
+    "request": "launch",
+    "mode": "auto",
+    "program": %q,
+    "cwd": "${workspaceFolder}",
+    "args": %s,
+    "env":{
+        // "GOROOT":"goXXX"
+        // "PATH":"goXXX/bin:${env:PATH}"
+    }
+}`
+			formatConf = func(prog string, progArgs []string) (string, string) {
+				var argJSON string = "[]"
+				if len(progArgs) > 0 {
+					argJSONData, err := json.MarshalIndent(progArgs, "", "  ")
+					if err != nil {
+						panic(err)
+					}
+					argJSON = string(argJSONData)
+				}
+				debugConf := fmt.Sprintf(debugConfTemplate, prog, argJSON)
+				return debugConf, ""
+			}
+		}
+
 		prog := remainArgs[0]
 		progArgs := remainArgs[1:]
 
-		var argJSON string = "[]"
-		if len(progArgs) > 0 {
-			argJSONData, err := json.MarshalIndent(progArgs, "", "  ")
-			if err != nil {
-				return err
-			}
-			argJSON = string(argJSONData)
-		}
+		debugConf, taskConf := formatConf(prog, progArgs)
 		exampleConfig := fmt.Sprintf(`{
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        {
-            "name": "Launch Package",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": %q,
-            "cwd": "${workspaceFolder}",
-            "args": %s,
-            "env":{
-                // "GOROOT":"goXXX"
-                // "PATH":"goXXX/bin:${env:PATH}"
-            }
-        }
+%s
     ]
-}`, prog, argJSON)
+}`, IndentLines(debugConf, "        "))
 		fmt.Printf(".vscode/launch.json\n%s\n", exampleConfig)
+		if taskConf != "" {
+			fmt.Printf(".vscode/tasks.json\n%s\n", taskConf)
+		}
 		return nil
 	}
 	fmt.Printf(".vscode/launch.json\n%s\n", launchConfig)
 	fmt.Printf(".vscode/tasks.json\n%s\n", tasks)
 	return nil
+}
+
+func IndentLines(content string, prefix string) string {
+	lines := strings.Split(content, "\n")
+	n := len(lines)
+	for i := 0; i < n; i++ {
+		lines[i] = prefix + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
