@@ -20,7 +20,8 @@ kool help to parse
 Usage: kool <cmd> [OPTIONS]
 
 Available commands:
-  unquote                            unquote string             
+  unquote                            unquote string
+  compress                           compress json string
   vscode                             print example vscode configs
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   create <template> <project-name>   create new project
@@ -79,6 +80,9 @@ func handle(args []string) error {
 		}
 		fmt.Println(unquoteStr)
 		return nil
+	case "compress":
+		cmd = arg0
+		args = args[1:]
 	case "create":
 		return create(args[1:])
 	case "snippet":
@@ -128,6 +132,22 @@ func handle(args []string) error {
 	}
 
 	if !isTTY {
+		if cmd == "compress" {
+			var v interface{}
+			decoder := json.NewDecoder(os.Stdin)
+			decoder.UseNumber()
+			err := decoder.Decode(&v)
+			if err != nil {
+				return err
+			}
+			encoder := json.NewEncoder(os.Stdout)
+			encoder.SetEscapeHTML(false)
+			err = encoder.Encode(v)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
