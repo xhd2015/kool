@@ -58,8 +58,9 @@ func Update(dir string) error {
 		return fmt.Errorf("no tag at HEAD: %s", dir)
 	}
 
-	editCmd := exec.Command("go", "mod", "edit", "-dropreplace", mod.Module.Path)
-	editCmd.Dir = dir
+	dropArgs := []string{"mod", "edit", "-dropreplace", mod.Module.Path}
+	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(dropArgs, " "))
+	editCmd := exec.Command("go", dropArgs...)
 	editCmd.Stderr = os.Stderr
 	editCmd.Stdout = os.Stdout
 	err = editCmd.Run()
@@ -67,8 +68,10 @@ func Update(dir string) error {
 		return fmt.Errorf("failed to edit go mod: %v", err)
 	}
 
-	getCmd := exec.Command("go", "get", fmt.Sprintf("%s@%s", mod.Module.Path, tag))
-	getCmd.Dir = dir
+	// do not use go get, not always work
+	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", mod.Module.Path, tag)}
+	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(requireArgs, " "))
+	getCmd := exec.Command("go", requireArgs...)
 	getCmd.Stderr = os.Stderr
 	getCmd.Stdout = os.Stdout
 	err = getCmd.Run()
