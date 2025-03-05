@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/iancoleman/strcase v0.3.0
+	github.com/xhd2015/xgo v1.0.52
 	golang.org/x/term v0.26.0
 )
 

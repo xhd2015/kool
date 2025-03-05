@@ -8,7 +8,7 @@ import (
 
 func handleGo(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: replace")
+		return fmt.Errorf("commands: replace,update")
 	}
 	switch args[0] {
 	case "replace":

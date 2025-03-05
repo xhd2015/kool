@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/xhd2015/kool/tools/with_go"
 	"golang.org/x/term"
 )
 
@@ -31,6 +34,8 @@ Available commands:
     update <dir>                     update to the latest tag of the module in dir
   git
     tag-next                         tag next
+  with
+    goX.Y                            install goX.Y and set GOROOT
   help                               show help message
 
 Options:
@@ -89,8 +94,22 @@ func handle(args []string) error {
 		return handleSnippet(args[1:])
 	case "go":
 		return handleGo(args[1:])
+	case "go-replace":
+		return handleGoReplace(args[1:])
+	case "go-update":
+		return handleGoUpdate(args[1:])
 	case "git":
 		return handleGit(args[1:])
+	case "with":
+		return handleWith(args[1:])
+	default:
+		if strings.HasPrefix(arg0, "with-") {
+			withCmd := strings.TrimPrefix(arg0, "with-")
+			if withCmd == "" {
+				return fmt.Errorf("example: kool with-go1.23")
+			}
+			return handleWithCmd(withCmd, args[1:])
+		}
 	}
 
 	var some string
@@ -298,4 +317,48 @@ func isSpace(b byte) bool {
 		return true
 	}
 	return false
+}
+
+func handleWith(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("example: kool with go1.23")
+	}
+	return handleWithCmd(args[0], args[1:])
+}
+
+func handleWithCmd(cmd string, args []string) error {
+	if strings.HasPrefix(cmd, "go") {
+		// TODO: use current go if match
+		goVersion := cmd
+		if goVersion == "go1.23" {
+			goVersion = "go1.23.6"
+		}
+		goRoot, err := with_go.InstallGo(goVersion, "")
+		if err != nil {
+			return err
+		}
+		envs := os.Environ()
+		PATH := filepath.Join(goRoot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
+		envs = append(envs, "GOROOT="+goRoot, "PATH="+PATH)
+
+		var targetCmd string
+		var targetArgs []string
+		if len(args) == 0 {
+			targetCmd = "env"
+		} else {
+			targetCmd = args[0]
+			targetArgs = args[1:]
+
+			// to make go lookup ok
+			os.Setenv("PATH", PATH)
+		}
+
+		execCmd := exec.Command(targetCmd, targetArgs...)
+		execCmd.Env = envs
+		execCmd.Stdin = os.Stdin
+		execCmd.Stdout = os.Stdout
+		execCmd.Stderr = os.Stderr
+		return execCmd.Run()
+	}
+	return fmt.Errorf("unknown command: %s", cmd)
 }
