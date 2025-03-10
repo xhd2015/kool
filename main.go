@@ -23,10 +23,18 @@ kool help to parse
 Usage: kool <cmd> [OPTIONS]
 
 Available commands:
+  help                               show help message
+
+String commands:
   unquote                            unquote string
   compress                           compress json string
+  uniq_lines                         uniq lines without sorting, last preserved 
+
+VSCode:
   vscode                             print example vscode configs
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
+
+Project:  
   create <template> <project-name>   create new project
   snippet <name>                     print snippet
   go
@@ -36,13 +44,12 @@ Available commands:
     tag-next                         tag next
   with
     goX.Y                            install goX.Y and set GOROOT
-  help                               show help message
 
 Options:
   --help   show help message
 `
 
-// install go build -o `which kool` ./
+// install: go build -o `which kool` ./
 func main() {
 	err := handle(os.Args[1:])
 	if err != nil {
@@ -56,6 +63,10 @@ func handle(args []string) error {
 	if len(args) > 0 {
 		arg0 = args[0]
 	}
+
+	// TTY:     go run ./
+	// NOT TTY: echo yes | go run ./
+	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
 	var cmd string
 	switch arg0 {
@@ -102,6 +113,49 @@ func handle(args []string) error {
 		return handleGit(args[1:])
 	case "with":
 		return handleWith(args[1:])
+	case "uniq_lines":
+
+		var useArgs bool
+		var inputLines []string
+		if !isTTY {
+			// not tty, try read from stdin
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return err
+			}
+			if len(data) == 0 {
+				useArgs = true
+			} else {
+				inputLines = strings.Split(string(data), "\n")
+			}
+		} else {
+			useArgs = true
+		}
+		if useArgs {
+			for _, arg := range args[1:] {
+				argLines := strings.Split(arg, "\n")
+				inputLines = append(inputLines, argLines...)
+			}
+		}
+		mapping := make(map[string]int, len(inputLines))
+
+		n := len(inputLines)
+		for i := n - 1; i >= 0; i-- {
+			line := strings.TrimSpace(inputLines[i])
+			inputLines[i] = line
+			if _, ok := mapping[line]; ok {
+				continue
+			}
+			mapping[line] = i
+		}
+		for i, line := range inputLines {
+			idx := mapping[line]
+			if idx != i {
+				continue
+			}
+			fmt.Println(line)
+		}
+		return nil
 	default:
 		if strings.HasPrefix(arg0, "with-") {
 			withCmd := strings.TrimPrefix(arg0, "with-")
@@ -112,19 +166,9 @@ func handle(args []string) error {
 		}
 	}
 
-	var some string
-
 	var remainArgs []string
 	n := len(args)
 	for i := 0; i < n; i++ {
-		if args[i] == "--some" {
-			if i+1 >= n {
-				return fmt.Errorf("%v requires arg", args[i])
-			}
-			some = args[i+1]
-			i++
-			continue
-		}
 		if args[i] == "--help" {
 			fmt.Println(strings.TrimSpace(help))
 			return nil
@@ -138,12 +182,6 @@ func handle(args []string) error {
 		}
 		remainArgs = append(remainArgs, args[i])
 	}
-	// TODO handle
-	_ = some
-
-	// TTY:     go run ./
-	// NOT TTY: echo yes | go run ./
-	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
 	if isTTY && n == 0 {
 		fmt.Println(strings.TrimSpace(help))
