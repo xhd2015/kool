@@ -30,7 +30,11 @@ Utility commands:
 String commands:
   unquote                            unquote string
   compress                           compress json string
-  uniq_lines                         uniq lines without sorting, last preserved 
+  lines
+    uniq                             uniq lines without sorting, last preserved 
+	reverse                          reverse lines
+	sort                             sort lines
+  NOTE: lines accept multiple commands toggether: kool lines uniq sort
 
 VSCode:
   vscode                             print example vscode configs
@@ -115,48 +119,8 @@ func handle(args []string) error {
 		return handleGit(args[1:])
 	case "with":
 		return handleWith(args[1:])
-	case "uniq_lines":
-		var useArgs bool
-		var inputLines []string
-		if !isTTY {
-			// not tty, try read from stdin
-			data, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return err
-			}
-			if len(data) == 0 {
-				useArgs = true
-			} else {
-				inputLines = strings.Split(string(data), "\n")
-			}
-		} else {
-			useArgs = true
-		}
-		if useArgs {
-			for _, arg := range args[1:] {
-				argLines := strings.Split(arg, "\n")
-				inputLines = append(inputLines, argLines...)
-			}
-		}
-		mapping := make(map[string]int, len(inputLines))
-
-		n := len(inputLines)
-		for i := n - 1; i >= 0; i-- {
-			line := strings.TrimSpace(inputLines[i])
-			inputLines[i] = line
-			if _, ok := mapping[line]; ok {
-				continue
-			}
-			mapping[line] = i
-		}
-		for i, line := range inputLines {
-			idx := mapping[line]
-			if idx != i {
-				continue
-			}
-			fmt.Println(line)
-		}
-		return nil
+	case "lines":
+		return handleLines(args[1:])
 	case "kill-port":
 		// lsof -iTCP:15000 -sTCP:LISTEN -t
 		//   -iTCP:15000: only TCP listen on port 15000
