@@ -48,6 +48,7 @@ Project:
     update <dir>                     update to the latest tag of the module in dir
   git
     tag-next                         tag next
+	show-tag [<dir>]                 show the tag of the given directory
   with
     goX.Y                            install goX.Y and set GOROOT
 
@@ -161,6 +162,11 @@ func handle(args []string) error {
 			}
 			return handleWithCmd(withCmd, args[1:])
 		}
+
+		// TODO: capture unknown command
+		// if arg0 != "" {
+		// 	return fmt.Errorf("unknown command: %s", arg0)
+		// }
 	}
 
 	var remainArgs []string

@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/xhd2015/kool/tools/git_tag_next"
 )
 
 type GoMod struct {
@@ -46,6 +48,7 @@ func Update(dir string) error {
 		return fmt.Errorf("not a go module: %s", dir)
 	}
 
+	// try best effort to get the tag
 	tagCmd := exec.Command("git", "tag", "-l", "--points-at", "HEAD")
 	tagCmd.Dir = dir
 	tagCmd.Stderr = os.Stderr
@@ -54,6 +57,9 @@ func Update(dir string) error {
 		return fmt.Errorf("failed to get tag: %v", err)
 	}
 	tag := strings.TrimSpace(string(tagOutput))
+	if tag == "" {
+		tag, _ = git_tag_next.ShowHeadTag(dir)
+	}
 	if tag == "" {
 		return fmt.Errorf("no tag at HEAD: %s", dir)
 	}
