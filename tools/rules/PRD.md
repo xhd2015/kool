@@ -9,3 +9,6 @@ add two subcommands:
 - `kool rule rm SOME_FILE.mdc` --> remove the specified file
 
 improve the kool add so that when there is existsing file, append a date-time suffix to the copied file
+
+TODO:
+- when executing `kool rule`, enter a bash sub-shell(like python's venv), user can execute all commands, plus a special `use`.

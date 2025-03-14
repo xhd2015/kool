@@ -52,7 +52,7 @@ Project:
 	show-tag [<dir>]                 show the tag of the given directory
   with
     goX.Y                            install goX.Y and set GOROOT
-  rule
+  rule,rules
     add <file>                       add a rule file to ~/.kool/rules/files/
     list                             list all available rule files
     use <file>                       copy a rule file to .cursor/rules/ if not exists
@@ -129,8 +129,8 @@ func handle(args []string) error {
 		return handleWith(args[1:])
 	case "lines":
 		return handleLines(args[1:])
-	case "rule":
-		return handleRule(args[1:])
+	case "rule", "rules":
+		return rules.Handle(args[1:])
 	case "kill-port":
 		// lsof -iTCP:15000 -sTCP:LISTEN -t
 		//   -iTCP:15000: only TCP listen on port 15000
@@ -411,61 +411,4 @@ func handleWithCmd(cmd string, args []string) error {
 		return execCmd.Run()
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
-}
-
-func handleRule(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: kool rule [add|list|use|dir|rm] [ARGS...]")
-	}
-
-	cmd := args[0]
-	args = args[1:]
-
-	switch cmd {
-	case "add":
-		if len(args) == 0 {
-			return fmt.Errorf("usage: kool rule add <file>")
-		}
-		rulePath := args[0]
-		resultName, err := rules.Add(rulePath)
-		if err != nil {
-			return err
-		}
-
-		inputName := filepath.Base(rulePath)
-		if resultName != inputName {
-			fmt.Fprintf(os.Stderr, "file with name '%s' already exists, added as '%s'\n", inputName, resultName)
-		}
-		return nil
-	case "list":
-		files, err := rules.List()
-		if err != nil {
-			return err
-		}
-		for _, file := range files {
-			fmt.Println(file)
-		}
-		return nil
-	case "use":
-		if len(args) == 0 {
-			return fmt.Errorf("usage: kool rule use <file>")
-		}
-		ruleName := args[0]
-		return rules.Use(ruleName)
-	case "dir":
-		rulesDir, err := rules.GetRulesDir()
-		if err != nil {
-			return err
-		}
-		fmt.Println(rulesDir)
-		return nil
-	case "rm":
-		if len(args) == 0 {
-			return fmt.Errorf("usage: kool rule rm <file>")
-		}
-		ruleName := args[0]
-		return rules.Remove(ruleName)
-	default:
-		return fmt.Errorf("unknown rule command: %s", cmd)
-	}
 }

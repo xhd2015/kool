@@ -8,6 +8,63 @@ import (
 	"time"
 )
 
+func Handle(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: kool rule [add|list|use|dir|rm] [ARGS...]")
+	}
+
+	cmd := args[0]
+	args = args[1:]
+
+	switch cmd {
+	case "add":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: kool rule add <file>")
+		}
+		rulePath := args[0]
+		resultName, err := Add(rulePath)
+		if err != nil {
+			return err
+		}
+
+		inputName := filepath.Base(rulePath)
+		if resultName != inputName {
+			fmt.Fprintf(os.Stderr, "file with name '%s' already exists, added as '%s'\n", inputName, resultName)
+		}
+		return nil
+	case "list":
+		files, err := List()
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			fmt.Println(file)
+		}
+		return nil
+	case "use":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: kool rule use <file>")
+		}
+		ruleName := args[0]
+		return Use(ruleName)
+	case "dir":
+		rulesDir, err := GetRulesDir()
+		if err != nil {
+			return err
+		}
+		fmt.Println(rulesDir)
+		return nil
+	case "rm":
+		if len(args) == 0 {
+			return fmt.Errorf("usage: kool rule rm <file>")
+		}
+		ruleName := args[0]
+		return Remove(ruleName)
+	default:
+		return fmt.Errorf("unknown rule command: %s", cmd)
+	}
+}
+
 // GetRulesDir returns the path to the .kool/rules directory in the user's home directory
 func GetRulesDir() (string, error) {
 	home, err := os.UserHomeDir()
