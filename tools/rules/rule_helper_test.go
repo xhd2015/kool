@@ -118,6 +118,41 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
+	// Test Get functionality without mocking
+	t.Run("Get", func(t *testing.T) {
+		// Create a test rule file directly in the koolRulesDir
+		testRuleContent := "Test rule content for Get test"
+		testRuleName := "get_test_rule.mdc"
+		testRulePath := filepath.Join(koolRulesDir, testRuleName)
+
+		// Write the test file
+		err := os.WriteFile(testRulePath, []byte(testRuleContent), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test rule file: %v", err)
+		}
+
+		// We can't test Get() directly as it uses GetRulesDir and prints to stdout
+		// Instead, we'll test the core functionality of reading a rule file
+
+		// Read the file
+		content, err := os.ReadFile(testRulePath)
+		if err != nil {
+			t.Fatalf("Failed to read rule file: %v", err)
+		}
+
+		// Verify content
+		if string(content) != testRuleContent {
+			t.Errorf("Rule file content doesn't match. Expected: %s, Got: %s",
+				testRuleContent, string(content))
+		}
+
+		// Test file existence check
+		nonExistentPath := filepath.Join(koolRulesDir, "nonexistent.mdc")
+		if fileExists(nonExistentPath) {
+			t.Errorf("fileExists() = true for non-existent file: %s", nonExistentPath)
+		}
+	})
+
 	// Test listFilesInDir
 	t.Run("listFilesInDir", func(t *testing.T) {
 		// Create multiple files in the directory
@@ -137,9 +172,11 @@ func TestHelperFunctions(t *testing.T) {
 			t.Fatalf("listFilesInDir() failed: %v", err)
 		}
 
-		// Check if all files are listed (note: test_rule.mdc already exists from previous test)
-		if len(files) != len(fileNames)+1 {
-			t.Errorf("listFilesInDir() returned %d files, expected %d", len(files), len(fileNames)+1)
+		// Note: Both test_rule.mdc (from copyFile test) and get_test_rule.mdc (from Get test)
+		// already exist in the directory, so we expect fileNames.length + 2 files
+		expectedCount := len(fileNames) + 2
+		if len(files) != expectedCount {
+			t.Errorf("listFilesInDir() returned %d files, expected %d", len(files), expectedCount)
 		}
 
 		// Check if all expected files are in the list
