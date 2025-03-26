@@ -104,7 +104,7 @@ if [ -f ~/.bash_profile ]; then
 fi
 
 # Set custom prompt to show current directory
-PS1='(kool rules)'"$PS1"
+PS1="(kool rules)$PS1"
 
 # Define special use command
 function use {

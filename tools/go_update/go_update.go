@@ -58,7 +58,7 @@ func Update(dir string) error {
 	}
 	tag := strings.TrimSpace(string(tagOutput))
 	if tag == "" {
-		tag, _ = git_tag_next.ShowHeadTag(dir)
+		tag, _ = git_tag_next.ShowCurrentBranch(dir)
 	}
 	if tag == "" {
 		return fmt.Errorf("no tag at HEAD: %s", dir)
