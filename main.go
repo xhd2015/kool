@@ -123,6 +123,8 @@ func handle(args []string) error {
 		return handleGoReplace(args[1:])
 	case "go-update":
 		return handleGoUpdate(args[1:])
+	case "go-resolve":
+		return handleGoResolve(args[1:])
 	case "git":
 		return handleGit(args[1:])
 	case "with":

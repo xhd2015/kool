@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/xhd2015/kool/tools/git_tag_next"
 )
@@ -57,10 +58,23 @@ func Update(dir string) error {
 		return fmt.Errorf("failed to get tag: %v", err)
 	}
 	tag := strings.TrimSpace(string(tagOutput))
+	var usePlainReplace bool
+	var plainReplaceWith string
+	gitRef := tag
 	if tag == "" {
-		tag, _ = git_tag_next.ShowCurrentBranch(dir)
+		branch, _ := git_tag_next.ShowCurrentBranch(dir)
+		if branch != "" {
+			gitRef = branch
+			resolvedTag, _ := GoResolve(dir, mod.Module.Path, branch)
+			if resolvedTag != "" {
+				tag = resolvedTag
+			} else {
+				usePlainReplace = true
+				plainReplaceWith = branch
+			}
+		}
 	}
-	if tag == "" {
+	if tag == "" && !usePlainReplace {
 		return fmt.Errorf("no tag at HEAD: %s", dir)
 	}
 
@@ -75,7 +89,13 @@ func Update(dir string) error {
 	}
 
 	// do not use go get, not always work
-	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", mod.Module.Path, tag)}
+	t := time.Now()
+	var PLACEHOLDER = fmt.Sprintf("v1.0.%s%d-FAKE", t.Format("20060102150405"), t.Nanosecond())
+	editRef := tag
+	if usePlainReplace {
+		editRef = PLACEHOLDER
+	}
+	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", mod.Module.Path, editRef)}
 	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(requireArgs, " "))
 	getCmd := exec.Command("go", requireArgs...)
 	getCmd.Stderr = os.Stderr
@@ -85,7 +105,20 @@ func Update(dir string) error {
 		return fmt.Errorf("failed to get module: %v", err)
 	}
 
-	msgCmd := exec.Command("git", "log", "-1", "--format=%s", tag)
+	if usePlainReplace {
+		modFile, err := os.ReadFile("go.mod")
+		if err != nil {
+			return fmt.Errorf("failed to read go mod: %v", err)
+		}
+		fmt.Fprintf(os.Stderr, "replace %s %s => %s\n", mod.Module.Path, PLACEHOLDER, plainReplaceWith)
+		newModFile := strings.ReplaceAll(string(modFile), PLACEHOLDER, plainReplaceWith)
+		err = os.WriteFile("go.mod", []byte(newModFile), 0644)
+		if err != nil {
+			return fmt.Errorf("failed to write go mod: %v", err)
+		}
+	}
+
+	msgCmd := exec.Command("git", "log", "-1", "--format=%s", gitRef)
 	msgCmd.Dir = dir
 	msgCmd.Stderr = os.Stderr
 	msgOutput, err := msgCmd.Output()
