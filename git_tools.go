@@ -21,7 +21,7 @@ func handleGit(args []string) error {
 		remainArgs = args[1:]
 	case "show":
 		if len(args) < 2 {
-			return fmt.Errorf("expected subcommand for show: exclude,tag")
+			return fmt.Errorf("expected subcommand for show: exclude,tag,children")
 		}
 		if args[1] == "tag" {
 			isShowTag = true
@@ -31,9 +31,13 @@ func handleGit(args []string) error {
 		switch args[1] {
 		case "exclude":
 			return git_show_exclude.Handle()
+		case "children":
+			return handleGitShowChildren(args[2:])
 		default:
 			return fmt.Errorf("unknown show subcommand: %s", args[1])
 		}
+	case "show-children":
+		return handleGitShowChildren(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
@@ -48,6 +52,24 @@ func handleGit(args []string) error {
 			return err
 		}
 		fmt.Println(tag)
+	}
+	return nil
+}
+
+func handleGitShowChildren(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: git show-children [commit hash]")
+	}
+	if len(args) > 1 {
+		return fmt.Errorf("expected only one commit hash")
+	}
+	commit := args[0]
+	children, err := git_tag_next.ShowChildren("", commit)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		fmt.Println(child)
 	}
 	return nil
 }
