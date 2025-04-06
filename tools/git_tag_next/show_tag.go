@@ -19,3 +19,14 @@ func ShowHeadTag(dir string) (string, error) {
 	}
 	return strings.TrimSpace(string(output)), nil
 }
+
+func ShowHeadCommitHash(dir string) (string, error) {
+	gitRevParse := exec.Command("git", "rev-parse", "HEAD")
+	gitRevParse.Dir = dir
+	gitRevParse.Stderr = os.Stderr
+	output, err := gitRevParse.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}

@@ -62,15 +62,15 @@ func Update(dir string) error {
 	var plainReplaceWith string
 	gitRef := tag
 	if tag == "" {
-		branch, _ := git_tag_next.ShowCurrentBranch(dir)
-		if branch != "" {
-			gitRef = branch
-			resolvedTag, _ := GoResolve(dir, mod.Module.Path, branch)
+		commitHash, _ := git_tag_next.ShowHeadCommitHash(dir)
+		if commitHash != "" {
+			gitRef = commitHash
+			resolvedTag, _ := GoResolve(dir, mod.Module.Path, commitHash)
 			if resolvedTag != "" {
 				tag = resolvedTag
 			} else {
 				usePlainReplace = true
-				plainReplaceWith = branch
+				plainReplaceWith = commitHash
 			}
 		}
 	}
