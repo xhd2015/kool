@@ -8,6 +8,8 @@ import (
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
+const downloadGo = "github.com/xhd2015/xgo/script/download-go@master"
+
 func GetInstallDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -33,8 +35,7 @@ func InstallGo(goVersion string, prompt string) (goRoot string, err error) {
 	if prompt != "" {
 		fmt.Fprint(os.Stderr, prompt)
 	}
-	// TODO: change 1d8b33c2ca5f to master
-	err = cmd.Debug().Run("go", "run", "github.com/xhd2015/xgo/script/download-go@1d8b33c2ca5f", "download", "--dir", installDir, goVersion)
+	err = cmd.Debug().Run("go", "run", downloadGo, "download", "--dir", installDir, goVersion)
 	if err != nil {
 		return "", err
 	}
@@ -42,4 +43,8 @@ func InstallGo(goVersion string, prompt string) (goRoot string, err error) {
 	fmt.Fprintf(os.Stderr, "downloaded: %s, try: \n", goRoot)
 	fmt.Fprintf(os.Stderr, "  %s/bin/go version\n", goRoot)
 	return goRoot, nil
+}
+
+func List() error {
+	return cmd.Debug().Run("go", "run", downloadGo, "list")
 }

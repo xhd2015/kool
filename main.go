@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/with_go"
 	"golang.org/x/term"
@@ -26,6 +27,7 @@ Usage: kool <cmd> [OPTIONS]
 
 Utility commands:
   kill-port <port>                   kill process on the given port
+  check-port-ready <port>            check if the port is ready
   help                               show help message
 
 String commands:
@@ -50,8 +52,11 @@ Project:
   git
     tag-next                         tag next
 	show-tag [<dir>]                 show the tag of the given directory
+	show-exclude                     show the exclude rules
+	show-children <commit>           show the children of the given commit
   with
-    goX.Y                            install goX.Y and set GOROOT
+    goX.Y <commands>                install goX.Y and execute the given command
+  with-goroot <GOROOT> <commands>   set GOROOT and execute the given command
   rule,rules
     add <file>                       add a rule file to ~/.kool/rules/files/
     list                             list all available rule files
@@ -59,8 +64,9 @@ Project:
     dir                              show the rules directory location
     rm <file>                        remove a rule file from ~/.kool/rules/files/
 
-Options:
-  --help   show help message
+Help:
+  kool help                        show help message
+  kool <cmd> --help                show help message for the given command
 `
 
 // install: go build -o `which kool` ./
@@ -129,10 +135,16 @@ func handle(args []string) error {
 		return handleGit(args[1:])
 	case "with":
 		return handleWith(args[1:])
+	case "with-go":
+		return handleWithGo(args[1:])
+	case "with-goroot":
+		return handleWithGoroot(args[1:])
 	case "lines":
 		return handleLines(args[1:])
 	case "rule", "rules":
 		return rules.Handle(args[1:])
+	case "check-port-ready":
+		return port.CheckReady(args[1:])
 	case "kill-port":
 		// lsof -iTCP:15000 -sTCP:LISTEN -t
 		//   -iTCP:15000: only TCP listen on port 15000
@@ -174,10 +186,10 @@ func handle(args []string) error {
 			return handleWithCmd(withCmd, args[1:])
 		}
 
-		// TODO: capture unknown command
-		// if arg0 != "" {
-		// 	return fmt.Errorf("unknown command: %s", arg0)
-		// }
+		// capture unknown command
+		if arg0 != "" {
+			return fmt.Errorf("unknown command: %s", arg0)
+		}
 	}
 
 	var remainArgs []string
@@ -381,36 +393,104 @@ func handleWith(args []string) error {
 func handleWithCmd(cmd string, args []string) error {
 	if strings.HasPrefix(cmd, "go") {
 		// TODO: use current go if match
-		goVersion := cmd
-		if goVersion == "go1.23" {
-			goVersion = "go1.23.6"
-		}
-		goRoot, err := with_go.InstallGo(goVersion, "")
+		goroot, err := resolveGoroot(cmd)
 		if err != nil {
 			return err
 		}
-		envs := os.Environ()
-		PATH := filepath.Join(goRoot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
-		envs = append(envs, "GOROOT="+goRoot, "PATH="+PATH)
-
-		var targetCmd string
-		var targetArgs []string
-		if len(args) == 0 {
-			targetCmd = "env"
-		} else {
-			targetCmd = args[0]
-			targetArgs = args[1:]
-
-			// to make go lookup ok
-			os.Setenv("PATH", PATH)
-		}
-
-		execCmd := exec.Command(targetCmd, targetArgs...)
-		execCmd.Env = envs
-		execCmd.Stdin = os.Stdin
-		execCmd.Stdout = os.Stdout
-		execCmd.Stderr = os.Stderr
-		return execCmd.Run()
+		return execGoroot(goroot, args)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
+}
+
+func handleWithGo(args []string) error {
+	if len(args) == 0 {
+		return errors.New("example: kool with-go [GOROOT=<X> | goX.Y] ...")
+	}
+	var goroot string
+	var err error
+	arg0 := args[0]
+	if arg0 == "list" {
+		return with_go.List()
+	}
+	args = args[1:]
+	if strings.HasPrefix(arg0, "GOROOT=") {
+		goroot = strings.TrimSpace(strings.TrimPrefix(arg0, "GOROOT="))
+		if goroot == "" {
+			return errors.New("example: kool with-go GOROOT=<X> ...")
+		}
+	} else {
+		goVersion := "go" + strings.TrimPrefix(arg0, "go")
+		if goVersion == "" {
+			return errors.New("example: kool with-go go1.18 ...")
+		}
+		goroot, err = resolveGoroot(goVersion)
+		if err != nil {
+			return err
+		}
+	}
+	return execGoroot(goroot, args)
+}
+
+func handleWithGoroot(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("example: kool with-goroot <GOROOT>")
+	}
+	return execGoroot(args[0], args[1:])
+}
+
+func resolveGoroot(goVersion string) (string, error) {
+	switch goVersion {
+	case "go1.24":
+		goVersion = "go1.24.1"
+	case "go1.23":
+		goVersion = "go1.23.6"
+	case "go1.22":
+		goVersion = "go1.22.12"
+	case "go1.21":
+		goVersion = "go1.21.13"
+	case "go1.20":
+		goVersion = "go1.20.14"
+	case "go1.19":
+		goVersion = "go1.19.13"
+	case "go1.18":
+		goVersion = "go1.18.10"
+	case "go1.17":
+		goVersion = "go1.17.13"
+	}
+	return with_go.InstallGo(goVersion, "")
+}
+
+func execGoroot(goroot string, args []string) error {
+	absGoroot, err := filepath.Abs(goroot)
+	if err != nil {
+		return err
+	}
+	envs := os.Environ()
+	PATH := absGoroot + string(os.PathListSeparator) + os.Getenv("PATH")
+	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
+
+	var targetCmd string
+	var targetArgs []string
+	if len(args) == 0 {
+		targetCmd = "env"
+	} else {
+		targetCmd = args[0]
+		targetArgs = args[1:]
+
+		strip := strings.TrimPrefix(targetCmd, "./")
+		if strip == filepath.Base(targetCmd) {
+			// try lookup in $GOROOT/bin
+			fullCmd := filepath.Join(absGoroot, "bin", targetCmd)
+			if _, err := os.Stat(fullCmd); err == nil {
+				targetCmd = fullCmd
+			}
+		}
+	}
+
+	execCmd := exec.Command(targetCmd, targetArgs...)
+	execCmd.Env = envs
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+	return execCmd.Run()
 }

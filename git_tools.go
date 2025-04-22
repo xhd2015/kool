@@ -38,6 +38,8 @@ func handleGit(args []string) error {
 		}
 	case "show-children":
 		return handleGitShowChildren(args[1:])
+	case "show-exlcude":
+		return git_show_exclude.Handle()
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
