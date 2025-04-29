@@ -1,9 +1,16 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"go/types"
+	"os"
+	"time"
 
 	"github.com/xhd2015/kool/tools/go_update"
+	"github.com/xhd2015/kool/tools/go_view_typed"
+	"golang.org/x/tools/go/packages"
 )
 
 func handleGo(args []string) error {
@@ -17,6 +24,8 @@ func handleGo(args []string) error {
 		return handleGoUpdate(args[1:])
 	case "resolve":
 		return handleGoResolve(args[1:])
+	case "view":
+		return handleGoView(args[1:])
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
 }
@@ -58,5 +67,62 @@ func handleGoResolve(args []string) error {
 		return err
 	}
 	fmt.Printf("%s@%s\n", modPath, version)
+	return nil
+}
+
+func handleGoView(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usaage: go view <pkg> <T>")
+	}
+	if len(args) > 2 {
+		return fmt.Errorf("unrecognized extra argments: %v", args[2:])
+	}
+	pkg := args[0]
+	typeName := args[1]
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-done:
+			return
+		case <-time.After(1 * time.Second):
+			fmt.Fprintf(os.Stderr, "loading type info...\n")
+		}
+	}()
+
+	pkgs, err := packages.Load(&packages.Config{
+		Mode: packages.LoadAllSyntax,
+	}, pkg)
+	close(done)
+	if err != nil {
+		return err
+	}
+	if len(pkgs) == 0 {
+		return fmt.Errorf("package not found: %s", pkg)
+	}
+	if len(pkgs) > 1 {
+		return fmt.Errorf("multiple packages found: %v", pkgs)
+	}
+	actPkg := pkgs[0]
+
+	scope := actPkg.Types.Scope()
+	obj := scope.Lookup(typeName)
+	if obj == nil {
+		return fmt.Errorf("type not found: %s", typeName)
+	}
+
+	resolvedType, ok := obj.(*types.TypeName)
+	if !ok {
+		return fmt.Errorf("%s is not a named type: %s %T", typeName, obj, obj)
+	}
+	t := resolvedType.Type()
+
+	v := go_view_typed.MakeDefault(t, go_view_typed.MakeDefaultOptions{})
+
+	jsonData, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(jsonData))
 	return nil
 }

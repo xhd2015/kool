@@ -9,6 +9,16 @@ import (
 const launchConfig = `{
     "configurations": [
         {
+            "name": "Debug dlv localhost:2345",
+            "type": "go",
+            "debugAdapter": "dlv-dap",
+            "request": "attach",
+            "mode": "remote",
+            "port": 2345,
+            "host": "127.0.0.1",
+            "cwd":"./"
+        },
+        {
             "name": "Launch src/cmd/promq",
             "type": "go",
             "request": "launch",
