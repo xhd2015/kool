@@ -71,14 +71,73 @@ func handleGoResolve(args []string) error {
 }
 
 func handleGoView(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usaage: go view <pkg> <T>")
-	}
 	if len(args) > 2 {
 		return fmt.Errorf("unrecognized extra argments: %v", args[2:])
 	}
+	if len(args) == 0 {
+		return fmt.Errorf("usage: go view <pkg> <T>")
+	}
 	pkg := args[0]
-	typeName := args[1]
+
+	var typeName string
+	if len(args) == 2 {
+		typeName = args[1]
+	}
+
+	actPkg, err := resolveOnlyPkg(pkg)
+	if err != nil {
+		return err
+	}
+	var t types.Type
+
+	scope := actPkg.Types.Scope()
+
+	if typeName != "" {
+		obj := scope.Lookup(typeName)
+		if obj == nil {
+			return fmt.Errorf("type not found: %s", typeName)
+		}
+		resolvedType, ok := obj.(*types.TypeName)
+		if !ok {
+			return fmt.Errorf("%s is not a named type: %s %T", typeName, obj, obj)
+		}
+		t = resolvedType.Type()
+	} else {
+		// all
+		var fields []*types.Var
+		for _, name := range scope.Names() {
+			obj := scope.Lookup(name)
+			if obj == nil {
+				continue
+			}
+			typeName, ok := obj.(*types.TypeName)
+			if !ok {
+				continue
+			}
+			fields = append(fields, types.NewVar(obj.Pos(), obj.Pkg(), obj.Name(), typeName.Type()))
+		}
+		t = types.NewStruct(fields, nil)
+	}
+
+	v := go_view_typed.MakeDefault(t, go_view_typed.MakeDefaultOptions{})
+	jsonData, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(jsonData))
+	return nil
+}
+
+func resolveOnlyPkg(pkg string) (*packages.Package, error) {
+	var loadDir string
+	var loadPkg string
+	pkgStat, _ := os.Stat(pkg)
+	if pkgStat != nil && pkgStat.IsDir() {
+		loadDir = pkg
+		loadPkg = "./"
+	} else {
+		loadPkg = pkg
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -89,40 +148,19 @@ func handleGoView(args []string) error {
 			fmt.Fprintf(os.Stderr, "loading type info...\n")
 		}
 	}()
-
 	pkgs, err := packages.Load(&packages.Config{
+		Dir:  loadDir,
 		Mode: packages.LoadAllSyntax,
-	}, pkg)
+	}, loadPkg)
 	close(done)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(pkgs) == 0 {
-		return fmt.Errorf("package not found: %s", pkg)
+		return nil, fmt.Errorf("package not found: %s", pkg)
 	}
 	if len(pkgs) > 1 {
-		return fmt.Errorf("multiple packages found: %v", pkgs)
+		return nil, fmt.Errorf("multiple packages found: %v", pkgs)
 	}
-	actPkg := pkgs[0]
-
-	scope := actPkg.Types.Scope()
-	obj := scope.Lookup(typeName)
-	if obj == nil {
-		return fmt.Errorf("type not found: %s", typeName)
-	}
-
-	resolvedType, ok := obj.(*types.TypeName)
-	if !ok {
-		return fmt.Errorf("%s is not a named type: %s %T", typeName, obj, obj)
-	}
-	t := resolvedType.Type()
-
-	v := go_view_typed.MakeDefault(t, go_view_typed.MakeDefaultOptions{})
-
-	jsonData, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(jsonData))
-	return nil
+	return pkgs[0], nil
 }

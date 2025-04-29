@@ -1,9 +1,13 @@
 package go_view_typed
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/types"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type MakeDefaultOptions struct {
@@ -74,18 +78,37 @@ func makeDefault(t types.Type, path []string, opts MakeDefaultOptions, seen map[
 		val = m
 	case *types.Struct:
 		// For structs, create a map with default values for exported fields
-		m := make(map[string]interface{})
+		strct := &structType{}
 		for i := 0; i < t.NumFields(); i++ {
 			field := t.Field(i)
-			if !field.Exported() {
-				continue
-			}
-			fieldVal := makeDefault(field.Type(), append(path, field.Name()), opts, seen)
-			if fieldVal != nil {
-				m[field.Name()] = fieldVal
+			if field.Embedded() {
+				fieldVal := makeDefault(field.Type(), append(path, field.Name()), opts, seen)
+
+				v := fieldVal
+				ptr, ok := fieldVal.(*interface{})
+				if ok {
+					if ptr == nil {
+						continue
+					}
+					v = *ptr
+				}
+
+				// check if fieldVal is a structType or pointer to structType
+				embed, ok := v.(*structType)
+				if !ok {
+					continue
+				}
+				for _, item := range embed.items {
+					strct.Add(item.key, item.val)
+				}
+			} else if field.Exported() {
+				fieldVal := makeDefault(field.Type(), append(path, field.Name()), opts, seen)
+				if fieldVal != nil {
+					strct.Add(field.Name(), fieldVal)
+				}
 			}
 		}
-		val = m
+		val = strct
 	case *types.Basic:
 		// Handle basic types
 		switch t.Kind() {
@@ -105,12 +128,54 @@ func makeDefault(t types.Type, path []string, opts MakeDefaultOptions, seen map[
 			val = nil
 		}
 	case *types.Named:
-		// For named types, use the underlying type
-		val = makeDefault(t.Underlying(), path, opts, seen)
+		obj := t.Obj()
+		// time.Time
+		if obj.Pkg() != nil && obj.Pkg().Path() == "time" && obj.Name() == "Time" {
+			// now
+			val = time.Now()
+		} else {
+			// For named types, use the underlying type
+			val = makeDefault(t.Underlying(), path, opts, seen)
+		}
 	default:
 		val = nil
 	}
 
 	seen[t] = val
 	return val
+}
+
+type structType struct {
+	items []*rawMapItem
+}
+
+type rawMapItem struct {
+	key string
+	val interface{}
+}
+
+func (m *structType) Add(key string, val interface{}) {
+	m.items = append(m.items, &rawMapItem{key: key, val: val})
+}
+
+func (m *structType) MarshalJSON() ([]byte, error) {
+	if m == nil {
+		return []byte("null"), nil
+	}
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	for i, item := range m.items {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(strconv.Quote(item.key))
+		buf.WriteString(":")
+		jsonVal, err := json.Marshal(item.val)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(jsonVal)
+	}
+	buf.WriteString("}")
+	return buf.Bytes(), nil
 }
