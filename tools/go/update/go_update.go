@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xhd2015/kool/tools/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/git_tag_next"
 	"github.com/xhd2015/kool/tools/go/resolve"
 )
 

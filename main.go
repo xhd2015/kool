@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/xhd2015/kool/tools/dlv"
+	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/port"
@@ -136,8 +138,10 @@ func handle(args []string) error {
 		return go_tools.HandleUpdate(args[1:])
 	case "go-resolve":
 		return go_tools.HandleResolve(args[1:])
+	case "dlv":
+		return dlv.Handle(args[1:])
 	case "git":
-		return handleGit(args[1:])
+		return git.Handle(args[1:])
 	case "with":
 		return handleWith(args[1:])
 	case "with-go":

@@ -1,13 +1,13 @@
-package main
+package git
 
 import (
 	"fmt"
 
-	"github.com/xhd2015/kool/tools/git_show_exclude"
-	"github.com/xhd2015/kool/tools/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/git_show_exclude"
+	"github.com/xhd2015/kool/tools/git/git_tag_next"
 )
 
-func handleGit(args []string) error {
+func Handle(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("commands: tag-next, show-tag, show exclude")
 	}
@@ -32,12 +32,12 @@ func handleGit(args []string) error {
 		case "exclude":
 			return git_show_exclude.Handle()
 		case "children":
-			return handleGitShowChildren(args[2:])
+			return HandleShowChildren(args[2:])
 		default:
 			return fmt.Errorf("unknown show subcommand: %s", args[1])
 		}
 	case "show-children":
-		return handleGitShowChildren(args[1:])
+		return HandleShowChildren(args[1:])
 	case "show-exlcude":
 		return git_show_exclude.Handle()
 	default:
@@ -58,7 +58,7 @@ func handleGit(args []string) error {
 	return nil
 }
 
-func handleGitShowChildren(args []string) error {
+func HandleShowChildren(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: git show-children [commit hash]")
 	}
