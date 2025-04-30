@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"git.garena.com/shopee/loan-service/credit_backend/credit-pricing-center/test/server/handle/model"
+	"github.com/xhd2015/kool/server_template/handle/model"
 )
 
 var errType = reflect.TypeOf((*error)(nil)).Elem()

@@ -1,4 +1,4 @@
-package go_view
+package inspect
 
 import (
 	"fmt"

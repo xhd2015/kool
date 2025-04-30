@@ -1,4 +1,4 @@
-package go_update
+package update
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xhd2015/kool/tools/git_tag_next"
+	"github.com/xhd2015/kool/tools/go/resolve"
 )
 
 type GoMod struct {
@@ -65,7 +66,7 @@ func Update(dir string) error {
 		commitHash, _ := git_tag_next.ShowHeadCommitHash(dir)
 		if commitHash != "" {
 			gitRef = commitHash
-			resolvedTag, _ := GoResolve(dir, mod.Module.Path, commitHash)
+			resolvedTag, _ := resolve.GoResolve(dir, mod.Module.Path, commitHash)
 			if resolvedTag != "" {
 				tag = resolvedTag
 			} else {

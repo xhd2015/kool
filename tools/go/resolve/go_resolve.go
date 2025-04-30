@@ -1,4 +1,4 @@
-package go_update
+package resolve
 
 import (
 	"fmt"

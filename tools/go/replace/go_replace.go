@@ -1,11 +1,12 @@
-package go_update
+package replace
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/xhd2015/kool/tools/go/resolve"
 )
 
 // equivalent to go mod edit -replace "$mod=$absDir":
@@ -29,16 +30,6 @@ import (
 // absDir=$(cd "$dir" && pwd)
 // go mod edit -replace "$mod=$absDir"
 
-type ModuleInfo struct {
-	Module struct {
-		Path string `json:"Path"`
-	} `json:"Module"`
-	Require []struct {
-		Path    string `json:"Path"`
-		Version string `json:"Version"`
-	} `json:"Require"`
-}
-
 // Replace checks if the given directory exists and contains a valid Go module,
 // returns the absolute path of the directory and the module path
 func Replace(dir string) (absDir string, modulePath string, err error) {
@@ -58,7 +49,7 @@ func Replace(dir string) (absDir string, modulePath string, err error) {
 		return "", "", fmt.Errorf("failed to get absolute path: %v", err)
 	}
 
-	modInfo, err := GetModuleInfo(dir)
+	modInfo, err := resolve.GetModuleInfo(dir)
 	if err != nil {
 		return "", "", err
 	}
@@ -76,23 +67,4 @@ func Replace(dir string) (absDir string, modulePath string, err error) {
 	}
 
 	return absDir, modInfo.Module.Path, nil
-}
-
-func GetModuleInfo(dir string) (*ModuleInfo, error) {
-	// Run 'go mod edit -json' in the directory
-	cmd := exec.Command("go", "mod", "edit", "-json")
-	cmd.Stderr = os.Stderr
-	cmd.Dir = dir
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("resolve go mod: %s %w", dir, err)
-	}
-
-	// Parse the JSON output
-	var modInfo ModuleInfo
-	if err := json.Unmarshal(output, &modInfo); err != nil {
-		return nil, fmt.Errorf("failed to parse module info: %v", err)
-	}
-
-	return &modInfo, nil
 }

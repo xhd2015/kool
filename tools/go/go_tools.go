@@ -1,4 +1,4 @@
-package main
+package go_tools
 
 import (
 	_ "embed"
@@ -8,40 +8,42 @@ import (
 	"os"
 	"time"
 
-	"github.com/xhd2015/kool/tools/go_update"
-	"github.com/xhd2015/kool/tools/go_view_typed"
+	"github.com/xhd2015/kool/tools/go/inspect/typed"
+	"github.com/xhd2015/kool/tools/go/replace"
+	"github.com/xhd2015/kool/tools/go/resolve"
+	go_update "github.com/xhd2015/kool/tools/go/update"
 	"golang.org/x/tools/go/packages"
 )
 
-func handleGo(args []string) error {
+func Handle(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("commands: replace,update")
 	}
 	switch args[0] {
 	case "replace":
-		return handleGoReplace(args[1:])
+		return HandleReplace(args[1:])
 	case "update":
-		return handleGoUpdate(args[1:])
+		return HandleUpdate(args[1:])
 	case "resolve":
-		return handleGoResolve(args[1:])
-	case "view":
-		return handleGoView(args[1:])
+		return HandleResolve(args[1:])
+	case "inspect":
+		return HandleInspect(args[1:])
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
 }
 
-func handleGoReplace(args []string) error {
+func HandleReplace(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
 	if len(args) != 1 {
 		return fmt.Errorf("too many argments: %v", args)
 	}
-	_, _, err := go_update.Replace(args[0])
+	_, _, err := replace.Replace(args[0])
 	return err
 }
 
-func handleGoUpdate(args []string) error {
+func HandleUpdate(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
@@ -51,18 +53,18 @@ func handleGoUpdate(args []string) error {
 	return go_update.Update(args[0])
 }
 
-func handleGoResolve(args []string) error {
+func HandleResolve(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
 	if len(args) != 2 {
 		return fmt.Errorf("requires mod path and version")
 	}
-	dir, modPath, err := go_update.ResolveModPathFromPossibleDir(args[0])
+	dir, modPath, err := resolve.ResolveModPathFromPossibleDir(args[0])
 	if err != nil {
 		return err
 	}
-	version, err := go_update.GoResolve(dir, modPath, args[1])
+	version, err := resolve.GoResolve(dir, modPath, args[1])
 	if err != nil {
 		return err
 	}
@@ -70,12 +72,12 @@ func handleGoResolve(args []string) error {
 	return nil
 }
 
-func handleGoView(args []string) error {
+func HandleInspect(args []string) error {
 	if len(args) > 2 {
 		return fmt.Errorf("unrecognized extra argments: %v", args[2:])
 	}
 	if len(args) == 0 {
-		return fmt.Errorf("usage: go view <pkg> <T>")
+		return fmt.Errorf("usage: go inspect <pkg> <T>")
 	}
 	pkg := args[0]
 
@@ -119,7 +121,7 @@ func handleGoView(args []string) error {
 		t = types.NewStruct(fields, nil)
 	}
 
-	v := go_view_typed.MakeDefault(t, go_view_typed.MakeDefaultOptions{})
+	v := typed.MakeDefault(t, typed.MakeDefaultOptions{})
 	jsonData, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err

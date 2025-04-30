@@ -13,9 +13,11 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	go_tools "github.com/xhd2015/kool/tools/go"
+	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/rules"
-	"github.com/xhd2015/kool/tools/with_go"
+	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
 )
 
@@ -49,6 +51,7 @@ Project:
   go
     replace <dir>                    replace go module in the given directory
     update <dir>                     update to the latest tag of the module in dir
+	inspect <pkg> <T>                inspect the given package and type
   git
     tag-next                         tag next
 	show-tag [<dir>]                 show the tag of the given directory
@@ -93,6 +96,8 @@ func handle(args []string) error {
 	case "help":
 		fmt.Println(strings.TrimSpace(help))
 		return nil
+	case "upgrade":
+		return xgo_cmd.Debug().Run("go", "install", "github.com/xhd2015/kool@latest")
 	case "sample":
 		cmd = arg0
 		args = args[1:]
@@ -124,13 +129,13 @@ func handle(args []string) error {
 	case "snippet":
 		return handleSnippet(args[1:])
 	case "go":
-		return handleGo(args[1:])
+		return go_tools.Handle(args[1:])
 	case "go-replace":
-		return handleGoReplace(args[1:])
+		return go_tools.HandleReplace(args[1:])
 	case "go-update":
-		return handleGoUpdate(args[1:])
+		return go_tools.HandleUpdate(args[1:])
 	case "go-resolve":
-		return handleGoResolve(args[1:])
+		return go_tools.HandleResolve(args[1:])
 	case "git":
 		return handleGit(args[1:])
 	case "with":
