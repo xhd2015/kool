@@ -66,7 +66,7 @@ func Update(dir string) error {
 		commitHash, _ := git_tag_next.ShowHeadCommitHash(dir)
 		if commitHash != "" {
 			gitRef = commitHash
-			resolvedTag, _ := resolve.GoResolve(dir, mod.Module.Path, commitHash)
+			resolvedTag, _ := resolve.GoResolveVersion(dir, mod.Module.Path, commitHash)
 			if resolvedTag != "" {
 				tag = resolvedTag
 			} else {

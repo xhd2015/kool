@@ -23,7 +23,7 @@ const PROMPT_TEMPLATE = `
                         "host": "127.0.0.1",
                         "cwd":"./"
                 }
-        }
+        ]
     }
     And set a breakpoint at: __DEBUG_POINT__
   > GoLand: click Add Configuration > Go Remote > localhost:2345

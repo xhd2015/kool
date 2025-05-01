@@ -28,6 +28,8 @@ func Handle(args []string) error {
 		return HandleResolve(args[1:])
 	case "inspect":
 		return HandleInspect(args[1:])
+	case "refactor":
+		return HandleRefactor(args[1:])
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
 }
@@ -54,17 +56,17 @@ func HandleUpdate(args []string) error {
 }
 
 func HandleResolve(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("requires dir")
+	if len(args) < 2 {
+		return fmt.Errorf("usage: kool go resolve <dir|mod_path> <version>")
 	}
-	if len(args) != 2 {
-		return fmt.Errorf("requires mod path and version")
+	if len(args) > 2 {
+		return fmt.Errorf("unrecognized extra argments: %v", args[2:])
 	}
 	dir, modPath, err := resolve.ResolveModPathFromPossibleDir(args[0])
 	if err != nil {
 		return err
 	}
-	version, err := resolve.GoResolve(dir, modPath, args[1])
+	version, err := resolve.GoResolveVersion(dir, modPath, args[1])
 	if err != nil {
 		return err
 	}

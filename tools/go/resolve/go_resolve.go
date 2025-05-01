@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-func GoResolve(dir string, modPath string, version string) (string, error) {
+// resolve version to a normalized version representation
+func GoResolveVersion(dir string, modPath string, version string) (string, error) {
 	if modPath == "" {
 		return "", fmt.Errorf("requires mod path")
 	}
