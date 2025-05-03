@@ -25,7 +25,7 @@ const PROMPT_TEMPLATE = `
                 }
         ]
     }
-    And set a breakpoint at: __DEBUG_POINT__
+    And set breakpoint at: __DEBUG_POINT__
   > GoLand: click Add Configuration > Go Remote > localhost:2345
   > Terminal: dlv connect localhost:2345
 `

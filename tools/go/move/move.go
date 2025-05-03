@@ -112,9 +112,10 @@ func Handle(args []string) error {
 
 	origName := srcPkg.Name
 	dstName := filepath.Base(dst)
+
 	var oldUseName string
-	// TODO: allow rename
-	if origName != dstName {
+	// allow package rename, unless it's main
+	if origName != "main" && dstName != "main" && origName != dstName {
 		oldUseName = origName
 
 		for _, goFile := range srcPkg.GoFiles {
