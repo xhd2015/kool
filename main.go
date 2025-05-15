@@ -74,10 +74,22 @@ Help:
   kool <cmd> --help                show help message for the given command
 `
 
+type ExitCodeAware interface {
+	SilenceExitCode() int
+}
+
 // install: go build -o `which kool` ./
 func main() {
 	err := handle(os.Args[1:])
 	if err != nil {
+		// Check for custom exit code
+		var exitCodeErr ExitCodeAware
+		if errors.As(err, &exitCodeErr) {
+			os.Exit(exitCodeErr.SilenceExitCode())
+			return
+		}
+
+		// Regular error
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}

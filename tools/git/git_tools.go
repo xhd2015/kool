@@ -3,13 +3,14 @@ package git
 import (
 	"fmt"
 
+	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
 )
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: tag-next, show-tag, show exclude")
+		return fmt.Errorf("commands: tag-next, show-tag, show exclude, check-merge")
 	}
 	var isShowTag bool
 	var remainArgs []string
@@ -40,6 +41,8 @@ func Handle(args []string) error {
 		return HandleShowChildren(args[1:])
 	case "show-exlcude":
 		return git_show_exclude.Handle()
+	case "check-merge":
+		return git_check_merge.Handle(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
