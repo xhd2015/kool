@@ -17,6 +17,7 @@ import (
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/with_go"
+	"github.com/xhd2015/kool/tools/http"
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/rules"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
@@ -59,6 +60,10 @@ Project:
 	show-tag [<dir>]                 show the tag of the given directory
 	show-exclude                     show the exclude rules
 	show-children <commit>           show the children of the given commit
+	check-merge <ref1> <ref2> ...    check if refs are merged into HEAD
+  http
+    serve [--port <port>] [DIR]      start a static HTTP server (default port: 8080)
+                                     DIR is the directory to serve (default: current directory)
   with
     goX.Y <commands>                install goX.Y and execute the given command
   with-goroot <GOROOT> <commands>   set GOROOT and execute the given command
@@ -154,6 +159,8 @@ func handle(args []string) error {
 		return dlv.Handle(args[1:])
 	case "git":
 		return git.Handle(args[1:])
+	case "http":
+		return http.Handle(args[1:])
 	case "with":
 		return handleWith(args[1:])
 	case "with-go":
