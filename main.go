@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,7 +55,9 @@ Project:
   go
     replace <dir>                    replace go module in the given directory
     update <dir>                     update to the latest tag of the module in dir
-	inspect <pkg> <T>                inspect the given package and type
+    inspect <pkg> <T>                inspect the given package and type
+    example
+	  parse-flag                     code snippet for parsing flag
   git
     tag-next                         tag next
 	show-tag [<dir>]                 show the tag of the given directory
@@ -82,6 +85,9 @@ Help:
 type ExitCodeAware interface {
 	SilenceExitCode() int
 }
+
+//go:embed pkgs/flag/parse.go
+var flagSnippet string
 
 // install: go build -o `which kool` ./
 func main() {
@@ -113,7 +119,7 @@ func handle(args []string) error {
 	var cmd string
 	switch arg0 {
 	case "help":
-		fmt.Println(strings.TrimSpace(help))
+		fmt.Println(strings.TrimSpace(strings.ReplaceAll(help, "\t", "    ")))
 		return nil
 	case "upgrade":
 		return xgo_cmd.Debug().Run("go", "install", "github.com/xhd2015/kool@latest")
@@ -148,7 +154,7 @@ func handle(args []string) error {
 	case "snippet":
 		return handleSnippet(args[1:])
 	case "go":
-		return go_tools.Handle(args[1:])
+		return go_tools.Handle(args[1:], flagSnippet)
 	case "go-replace":
 		return go_tools.HandleReplace(args[1:])
 	case "go-update":

@@ -7,13 +7,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/xhd2015/kool/pkgs/flag"
 )
 
 const help = `
 Usage: check-port-ready [OPTIONS] <PORT>
 
 Options:
-  -t, --timeout <duration>  timeout for the check (default: 100ms), duration can be a number with unit (e.g. 1s, 100ms), or "forever"
+  -t, --timeout <duration>  timeout for the check (default: 100ms), duration can be a number with unit (e.g. 1s, 100ms), or "never"
   --wait                    wait until port is ready
 
 Examples:
@@ -25,35 +27,40 @@ Examples:
 func CheckReady(args []string) error {
 	const DEFAULT_NO_TIMEOUT = 100 * time.Millisecond
 	var timeout time.Duration = DEFAULT_NO_TIMEOUT
+
+	var verbose bool
 	n := len(args)
 	var remainArgs []string
 	for i := 0; i < n; i++ {
-		arg := args[i]
-		switch arg {
+		flag, value := flag.ParseFlag(args, &i)
+		if flag == "" {
+			remainArgs = append(remainArgs, args[i])
+			continue
+		}
+		switch flag {
 		case "-t", "--timeout":
-			if i+1 >= n {
-				return fmt.Errorf("%s requires a timeout value", arg)
+			value, ok := value()
+			if !ok {
+				return fmt.Errorf("%s requires a value", flag)
 			}
-			if args[i+1] == "forever" {
+			if value == "never" {
 				timeout = 0
 			} else {
 				var err error
-				timeout, err = time.ParseDuration(args[i+1])
+				timeout, err = time.ParseDuration(value)
 				if err != nil {
 					return fmt.Errorf("invalid timeout: %w", err)
 				}
 			}
-			i++
 		case "-h", "--help":
 			fmt.Print(strings.TrimPrefix(help, "\n"))
 			return nil
 		case "--wait":
 			timeout = 0
+		case "-v", "--verbose":
+			verbose = true
 		default:
-			if strings.HasPrefix(arg, "-") {
-				return fmt.Errorf("unknown argument: %s", arg)
-			}
-			remainArgs = append(remainArgs, arg)
+			return fmt.Errorf("unknown flag: %s", flag)
 		}
 	}
 	if len(remainArgs) == 0 {
@@ -91,6 +98,9 @@ func CheckReady(args []string) error {
 		}
 		if strings.Contains(string(output), addr) {
 			// ok
+			if verbose {
+				fmt.Printf("port %d is ready\n", port)
+			}
 			return nil
 		}
 		if timeout == DEFAULT_NO_TIMEOUT {
@@ -98,6 +108,9 @@ func CheckReady(args []string) error {
 		}
 		if timeout > 0 && time.Since(start) > timeout {
 			return fmt.Errorf("port %d is not ready after %v", port, time.Since(start))
+		}
+		if verbose {
+			fmt.Printf("port %d is not ready\n", port)
 		}
 		time.Sleep(1 * time.Second)
 	}

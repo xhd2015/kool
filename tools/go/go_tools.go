@@ -15,7 +15,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func Handle(args []string) error {
+func Handle(args []string, flagSnippet string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("commands: replace,update")
 	}
@@ -30,6 +30,8 @@ func Handle(args []string) error {
 		return HandleInspect(args[1:])
 	case "refactor":
 		return HandleRefactor(args[1:])
+	case "example":
+		return HandleExample(args[1:], flagSnippet)
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
 }
@@ -167,4 +169,16 @@ func resolveOnlyPkg(pkg string) (*packages.Package, error) {
 		return nil, fmt.Errorf("multiple packages found: %v", pkgs)
 	}
 	return pkgs[0], nil
+}
+
+func HandleExample(args []string, flagSnippet string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: kool go example <snippet>\navailable snippets: parse-flag")
+	}
+	snippet := args[0]
+	switch snippet {
+	case "parse-flag":
+		fmt.Print(flagSnippet)
+	}
+	return nil
 }
