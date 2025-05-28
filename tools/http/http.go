@@ -5,7 +5,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/xhd2015/kool/pkgs/flag"
 )
 
 // Handle is the entry point for the HTTP tools
@@ -31,38 +32,27 @@ func handleServe(args []string) error {
 	var remainArgs []string
 	n := len(args)
 	for i := 0; i < n; i++ {
-		arg := args[i]
-		if !strings.HasPrefix(arg, "-") {
-			remainArgs = append(remainArgs, arg)
+		flag, value := flag.ParseFlag(args, &i)
+		if flag == "" {
+			remainArgs = append(remainArgs, args[i])
 			continue
 		}
-		if arg == "--port" {
-			if i+1 >= n {
-				return fmt.Errorf("--port requires a port number")
+		switch flag {
+		case "--port":
+			value, ok := value()
+			if !ok {
+				return fmt.Errorf("%s requires a port number", flag)
 			}
-			p, err := strconv.Atoi(args[i+1])
+			p, err := strconv.Atoi(value)
 			if err != nil {
-				return fmt.Errorf("invalid port number: %s", args[i+1])
+				return fmt.Errorf("invalid port number: %s", value)
 			}
 			if p < 1 || p > 65535 {
 				return fmt.Errorf("port number must be between 1 and 65535")
 			}
 			port = p
-			i++ // Skip the next argument
-			continue
-		} else if strings.HasPrefix(arg, "--port=") {
-			portStr := strings.TrimPrefix(arg, "--port=")
-			p, err := strconv.Atoi(portStr)
-			if err != nil {
-				return fmt.Errorf("invalid port number: %s", portStr)
-			}
-			if p < 1 || p > 65535 {
-				return fmt.Errorf("port number must be between 1 and 65535")
-			}
-			port = p
-			continue
-		} else {
-			return fmt.Errorf("unrecognized option: %s", arg)
+		default:
+			return fmt.Errorf("unrecognized: %s", flag)
 		}
 	}
 

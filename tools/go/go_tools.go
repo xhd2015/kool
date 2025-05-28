@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xhd2015/kool/tools/go/inspect/typed"
@@ -17,7 +18,7 @@ import (
 
 func Handle(args []string, flagSnippet string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: replace,update")
+		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,example")
 	}
 	switch args[0] {
 	case "replace":
@@ -171,14 +172,23 @@ func resolveOnlyPkg(pkg string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
-func HandleExample(args []string, flagSnippet string) error {
+//go:embed parse_flag_template.go
+var parseFlagTemplate string
+
+func HandleExample(args []string, legacyFlagSnippet string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: kool go example <snippet>\navailable snippets: parse-flag")
 	}
 	snippet := args[0]
 	switch snippet {
+	case "parse-flag-legacy":
+		fmt.Print(legacyFlagSnippet)
 	case "parse-flag":
-		fmt.Print(flagSnippet)
+		code := parseFlagTemplate
+		if idx := strings.Index(parseFlagTemplate, "import ("); idx >= 0 {
+			code = parseFlagTemplate[idx:]
+		}
+		fmt.Print(strings.ReplaceAll(code, "\t", "  "))
 	}
 	return nil
 }
