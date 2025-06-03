@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/xhd2015/xgo/support/cmd"
 )
 
 //go:embed frontend_template
@@ -27,6 +29,23 @@ func create(args []string) error {
 	if template == "" {
 		return fmt.Errorf("requires template name, e.g. kool create frontend <project-name>")
 	}
+	if template == "react" {
+		// npx create-react-app my-app
+		runArgs := []string{"-y", "create-react-app"}
+		runArgs = append(runArgs, args[1])
+		// @chakra-ui/typescript
+		rcTemplate := "typescript"
+		if false {
+			rcTemplate = "@chakra-ui/typescript"
+		}
+		runArgs = append(runArgs, "--template", rcTemplate)
+		runArgs = append(runArgs, args[2:]...)
+		err := cmd.Debug().Run("npx", runArgs...)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	if template != "frontend" && template != "server" {
 		return fmt.Errorf("unsupported template: %s", template)
 	}
@@ -36,10 +55,10 @@ func create(args []string) error {
 		return fmt.Errorf("requires project name, e.g. kool create frontend <project-name>")
 	}
 
-	targetPath := filepath.Join(".", projectName)
+	targetPath := projectName
 
 	// Check if target directory already exists
-	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(targetPath); err == nil {
 		return fmt.Errorf("directory %s already exists", projectName)
 	}
 
@@ -120,9 +139,18 @@ func create(args []string) error {
 				}
 			}
 		}
+	} else if template == "frontend" {
+		// run bun install
+		err := cmd.Debug().Dir(targetPath).Run("bun", "install")
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Successfully created new project: %s\n", projectName)
+	if template == "frontend" {
+		fmt.Printf("To get started: \n  cd %s \n  bun watch\n", projectName)
+	}
 	return nil
 }
 

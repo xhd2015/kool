@@ -14,12 +14,14 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/xhd2015/kool/tools/ai"
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/http"
 	"github.com/xhd2015/kool/tools/port"
+	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
@@ -30,6 +32,13 @@ const help = `
 kool help to parse
 
 Usage: kool <cmd> [OPTIONS]
+
+Commands category:
+  go
+  git
+  vscode
+  http
+  ai
 
 Utility commands:
   kill-port <port>                   kill process on the given port
@@ -173,12 +182,16 @@ func handle(args []string) error {
 		return handleWithGo(args[1:])
 	case "with-goroot":
 		return handleWithGoroot(args[1:])
+	case "ai":
+		return ai.Handle(args[1:])
 	case "lines":
 		return handleLines(args[1:])
 	case "rule", "rules":
 		return rules.Handle(args[1:])
 	case "check-port-ready":
 		return port.CheckReady(args[1:])
+	case "react":
+		return react.Handle(args[1:])
 	case "kill-port":
 		// lsof -iTCP:15000 -sTCP:LISTEN -t
 		//   -iTCP:15000: only TCP listen on port 15000
