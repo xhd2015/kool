@@ -6,13 +6,19 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/xhd2015/kool/tools/go/find"
+
+	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/go/inspect/typed"
 	"github.com/xhd2015/kool/tools/go/replace"
 	"github.com/xhd2015/kool/tools/go/resolve"
 	go_update "github.com/xhd2015/kool/tools/go/update"
+	"github.com/xhd2015/xgo/support/cmd"
+	"github.com/xhd2015/xgo/support/netutil"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -31,10 +37,82 @@ func Handle(args []string, flagSnippet string) error {
 		return HandleInspect(args[1:])
 	case "refactor":
 		return HandleRefactor(args[1:])
+	case "find":
+		return find.Handle(args[1:])
 	case "example":
 		return HandleExample(args[1:], flagSnippet)
+	case "run":
+		return HandleRun(args[1:])
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
+}
+
+func HandleRun(args []string) error {
+	var debug bool
+	n := len(args)
+	goArgs := make([]string, 0, n)
+	var remainArgs []string
+
+	var hasGCflags bool
+	for i := 0; i < n; i++ {
+		arg := args[i]
+		if arg == "--debug" {
+			debug = true
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
+				hasGCflags = true
+			}
+			goArgs = append(goArgs, arg)
+			if !strings.Contains(arg, "=") {
+				if i+1 < n && !strings.HasPrefix(args[i+1], "-") {
+					goArgs = append(goArgs, args[i+1])
+					i++
+				}
+			}
+			continue
+		}
+		remainArgs = append(remainArgs, arg)
+	}
+
+	if !debug {
+		runArgs := []string{"run"}
+		runArgs = append(runArgs, args...)
+		return cmd.Debug().Run("go", runArgs...)
+	}
+
+	tempDir, err := os.MkdirTemp("", "go-run")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tempDir)
+	debugBin := filepath.Join(tempDir, "__debug_bin")
+
+	buildArgs := []string{
+		"build", "-o", debugBin,
+	}
+	if !hasGCflags {
+		buildArgs = append(buildArgs, "-gcflags=all=-N -l")
+	}
+	if len(remainArgs) > 0 {
+		buildArgs = append(buildArgs, remainArgs[0])
+		remainArgs = remainArgs[1:]
+	}
+	err = cmd.Debug().Run("go", buildArgs...)
+	if err != nil {
+		return err
+	}
+	return netutil.ServePort("localhost", 2345, true, 500*time.Millisecond, func(port int) {
+		// fmt.Fprintln(os.Stdout, debug_util.FormatDlvPrompt(port))
+	}, func(port int) error {
+
+		// dlv exec --api-version=2 --listen=localhost:2345 --accept-multiclient --headless ./debug.bin
+		return dlv.Debug(debugBin, dlv.DebugOptions{
+			Port: port,
+			Args: remainArgs,
+		})
+	})
 }
 
 func HandleReplace(args []string) error {

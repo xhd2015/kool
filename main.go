@@ -15,6 +15,7 @@ import (
 
 	"github.com/iancoleman/strcase"
 	"github.com/xhd2015/kool/tools/ai"
+	"github.com/xhd2015/kool/tools/create"
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
@@ -65,6 +66,7 @@ Project:
     replace <dir>                    replace go module in the given directory
     update <dir>                     update to the latest tag of the module in dir
     inspect <pkg> <T>                inspect the given package and type
+	run --debug <flags> [args...]    run the given program with debug mode
     example
 	  parse-flag                     code snippet for parsing flag
   git
@@ -127,7 +129,7 @@ func handle(args []string) error {
 
 	var cmd string
 	switch arg0 {
-	case "help":
+	case "help", "--help":
 		fmt.Println(strings.TrimSpace(strings.ReplaceAll(help, "\t", "    ")))
 		return nil
 	case "upgrade":
@@ -159,7 +161,7 @@ func handle(args []string) error {
 		cmd = arg0
 		args = args[1:]
 	case "create":
-		return create(args[1:])
+		return create.Handle(args[1:])
 	case "snippet":
 		return handleSnippet(args[1:])
 	case "go":

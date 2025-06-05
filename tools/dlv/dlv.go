@@ -65,13 +65,34 @@ func Handle(args []string) error {
 	binary := remainArgs[0]
 	remainArgs = remainArgs[1:]
 
+	return Debug(binary, DebugOptions{
+		Port:          2345,
+		Args:          remainArgs,
+		ExtraDlvFlags: dlvFlags,
+	})
+}
+
+type DebugOptions struct {
+	Port          int
+	Args          []string
+	ExtraDlvFlags []string
+}
+
+func Debug(binary string, opts DebugOptions) error {
+	port := opts.Port
+	dlvFlags := opts.ExtraDlvFlags
+	args := opts.Args
 	binPath, _ := exec.LookPath(binary)
 	if binPath != "" {
 		binary = binPath
 	}
 
+	if port == 0 {
+		port = 2345
+	}
+
 	dlvArgs := []string{"exec",
-		"--listen=:2345",
+		fmt.Sprintf("--listen=:%d", port),
 		"--api-version=2",
 		"--check-go-version=false",
 		"--headless",
@@ -79,16 +100,15 @@ func Handle(args []string) error {
 	dlvArgs = append(dlvArgs, dlvFlags...)
 	dlvArgs = append(dlvArgs, "--")
 	dlvArgs = append(dlvArgs, binary)
-	dlvArgs = append(dlvArgs, remainArgs...)
+	dlvArgs = append(dlvArgs, args...)
 
 	// let dlv print first
 	go func() {
 		time.Sleep(1 * time.Second)
 		fmt.Print(formatPrompt(binary))
 	}()
-	cmd.Debug().Run("dlv", dlvArgs...)
 
-	return nil
+	return cmd.Debug().Run("dlv", dlvArgs...)
 }
 
 func formatPrompt(binary string) string {

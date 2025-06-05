@@ -1,4 +1,4 @@
-package main
+package create
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ var templateFS embed.FS
 //go:embed server_template
 var serverTemplateFS embed.FS
 
-func create(args []string) error {
+func Handle(args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: frontend, server")
 	}
@@ -30,21 +30,7 @@ func create(args []string) error {
 		return fmt.Errorf("requires template name, e.g. kool create frontend <project-name>")
 	}
 	if template == "react" {
-		// npx create-react-app my-app
-		runArgs := []string{"-y", "create-react-app"}
-		runArgs = append(runArgs, args[1])
-		// @chakra-ui/typescript
-		rcTemplate := "typescript"
-		if false {
-			rcTemplate = "@chakra-ui/typescript"
-		}
-		runArgs = append(runArgs, "--template", rcTemplate)
-		runArgs = append(runArgs, args[2:]...)
-		err := cmd.Debug().Run("npx", runArgs...)
-		if err != nil {
-			return err
-		}
-		return nil
+		return HandleCreateReact(args[1:])
 	}
 	if template != "frontend" && template != "server" {
 		return fmt.Errorf("unsupported template: %s", template)

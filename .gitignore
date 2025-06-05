@@ -8,4 +8,4 @@ __debug-main.bin
 /kool
 **/.xgo/gen
 
-/server_template/go.mod
+/tools/create/server_template/go.mod
