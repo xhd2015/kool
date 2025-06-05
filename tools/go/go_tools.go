@@ -56,24 +56,24 @@ func HandleRun(args []string) error {
 	var hasGCflags bool
 	for i := 0; i < n; i++ {
 		arg := args[i]
+		if !strings.HasPrefix(arg, "-") {
+			remainArgs = append(remainArgs, args[i:]...)
+			break
+		}
 		if arg == "--debug" || arg == "-debug" {
 			debug = true
 			continue
 		}
-		if strings.HasPrefix(arg, "-") {
-			if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
-				hasGCflags = true
-			}
-			goArgs = append(goArgs, arg)
-			if !strings.Contains(arg, "=") {
-				if i+1 < n && !strings.HasPrefix(args[i+1], "-") {
-					goArgs = append(goArgs, args[i+1])
-					i++
-				}
-			}
-			continue
+		if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
+			hasGCflags = true
 		}
-		remainArgs = append(remainArgs, arg)
+		goArgs = append(goArgs, arg)
+		if !strings.Contains(arg, "=") {
+			if i+1 < n && !strings.HasPrefix(args[i+1], "-") {
+				goArgs = append(goArgs, args[i+1])
+				i++
+			}
+		}
 	}
 
 	if !debug {

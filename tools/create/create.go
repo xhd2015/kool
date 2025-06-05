@@ -140,7 +140,7 @@ func Handle(args []string) error {
 	return nil
 }
 
-const defaultMod = "github.com/xhd2015/kool/server_template"
+const defaultMod = "github.com/xhd2015/kool/tools/create/server_template"
 
 func suggestGoModPath(dir string) (string, error) {
 	cmd := exec.Command("git", "remote", "get-url", "origin")

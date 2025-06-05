@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/xhd2015/kool/server_template/route"
+	"github.com/xhd2015/kool/tools/create/server_template/route"
 )
 
 func main() {

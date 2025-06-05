@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/xhd2015/kool/server_template/handle/model"
+	"github.com/xhd2015/kool/tools/create/server_template/handle/model"
 )
 
 var errType = reflect.TypeOf((*error)(nil)).Elem()
