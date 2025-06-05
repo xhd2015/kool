@@ -515,7 +515,7 @@ func execGoroot(goroot string, args []string) error {
 		return err
 	}
 	envs := os.Environ()
-	PATH := absGoroot + string(os.PathListSeparator) + os.Getenv("PATH")
+	PATH := filepath.Join(absGoroot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
 	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
 
 	var targetCmd string

@@ -43,6 +43,10 @@ func Handle(args []string, flagSnippet string) error {
 		return HandleExample(args[1:], flagSnippet)
 	case "run":
 		return HandleRun(args[1:])
+	case "version":
+		return cmd.Debug().Run("go", args...)
+	case "env":
+		return cmd.Debug().Run("go", args...)
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
 }
