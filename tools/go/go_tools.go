@@ -56,7 +56,7 @@ func HandleRun(args []string) error {
 	var hasGCflags bool
 	for i := 0; i < n; i++ {
 		arg := args[i]
-		if arg == "--debug" {
+		if arg == "--debug" || arg == "-debug" {
 			debug = true
 			continue
 		}
