@@ -138,20 +138,46 @@ func HandleLs(args []string) error {
 }
 
 func lsCommitFiles(dir string) error {
+	seen := make(map[string]bool)
+
+	printFile := func(file string) {
+		if seen[file] {
+			return
+		}
+		seen[file] = true
+		fmt.Println(file)
+	}
+
+	addedFiles, err := git.ListAddedFile(dir, git.COMMIT_WORKING, "HEAD", nil)
+	if err != nil {
+		return err
+	}
+	for _, file := range addedFiles {
+		printFile(file)
+	}
 
 	files, err := git.ListModifiedFiles(dir, git.COMMIT_WORKING, "HEAD", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 	for _, file := range files {
-		fmt.Println(file)
+		printFile(file)
 	}
+
+	renamedFiles, err := git.ListRenamedFiles(dir, git.COMMIT_WORKING, "HEAD", nil)
+	if err != nil {
+		return err
+	}
+	for _, file := range renamedFiles {
+		printFile(file.File)
+	}
+
 	untrackedFiles, err := git.ListUntrackedFiles(dir, "HEAD", nil)
 	if err != nil {
 		fmt.Println(err)
 	}
 	for _, file := range untrackedFiles {
-		fmt.Println(file)
+		printFile(file)
 	}
 	return nil
 }
