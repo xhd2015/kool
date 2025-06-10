@@ -17,6 +17,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/replace"
 	"github.com/xhd2015/kool/tools/go/resolve"
 	go_update "github.com/xhd2015/kool/tools/go/update"
+	"github.com/xhd2015/xgo/cmd/xgo/pathsum"
 	"github.com/xhd2015/xgo/support/cmd"
 	"github.com/xhd2015/xgo/support/netutil"
 	"golang.org/x/tools/go/packages"
@@ -86,12 +87,11 @@ func HandleRun(args []string) error {
 		return cmd.Debug().Run("go", runArgs...)
 	}
 
-	tempDir, err := os.MkdirTemp("", "go-run")
+	buildDir, err := getConsistentBuildDir()
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
-	debugBin := filepath.Join(tempDir, "__debug_bin")
+	debugBin := filepath.Join(buildDir, "__debug_bin")
 
 	buildArgs := []string{
 		"build", "-o", debugBin,
@@ -117,6 +117,22 @@ func HandleRun(args []string) error {
 			Args: remainArgs,
 		})
 	})
+}
+
+func getConsistentBuildDir() (string, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	absWd, err := filepath.Abs(wd)
+	if err != nil {
+		return "", err
+	}
+	sum, err := pathsum.PathSum("go-build", absWd)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(os.TempDir(), "kool-go-build", sum), nil
 }
 
 func HandleReplace(args []string) error {

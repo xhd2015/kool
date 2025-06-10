@@ -30,9 +30,10 @@ import (
 
 // install: go build -o $GOPATH/bin/kool
 const help = `
-kool help to parse
+kool facalitate the use of common CLI tools.
 
-Usage: kool <cmd> [OPTIONS]
+Usage: kool <cmd> [OPTIONS]          execute command
+       kool ? <question>             search for the question in it's knowledge
 
 Commands category:
   go
@@ -89,6 +90,8 @@ Project:
     rm <file>                        remove a rule file from ~/.kool/rules/files/
 
 Help:
+  kool ?
+  kool ? mermaid to image
   kool help                        show help message
   kool <cmd> --help                show help message for the given command
 `
@@ -226,6 +229,8 @@ func handle(args []string) error {
 		killCmd.Stdout = os.Stdout
 		killCmd.Stderr = os.Stderr
 		return killCmd.Run()
+	case "?":
+		return handleQuestion(args[1:])
 	default:
 		if strings.HasPrefix(arg0, "with-") {
 			withCmd := strings.TrimPrefix(arg0, "with-")
@@ -542,4 +547,72 @@ func execGoroot(goroot string, args []string) error {
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	return execCmd.Run()
+}
+
+type Topic struct {
+	Title       string
+	Keywords    []string
+	Description string
+	SubTopics   []*Topic
+}
+
+var topics = []*Topic{
+	{
+		Title:       "mermaid",
+		Keywords:    []string{"mermaid"},
+		Description: "mermaid to image",
+		SubTopics: []*Topic{
+			{
+				Title:    "mermaid to image",
+				Keywords: []string{"mermaid to image"},
+				Description: `# install mmdc
+npm install -g @mermaid-js/mermaid-cli
+
+# set a large width so resolution
+# won't compromise
+mmdc -i input.mmd -o output.png --width 10000
+
+# on MacOS, paste from clipboard
+mmdc -i <(pbpaste) -o output.png --width 10000
+
+check https://github.com/mermaid-js/mermaid-cli
+`,
+			},
+		},
+	},
+}
+
+func traverseTopics(topic *Topic, unit string, indent string) {
+	fmt.Printf("%s- %s\n", indent, topic.Title)
+	nextIndent := unit + indent
+	for _, subTopic := range topic.SubTopics {
+		traverseTopics(subTopic, unit, nextIndent)
+	}
+}
+
+func handleQuestion(args []string) error {
+	if len(args) == 0 {
+		for _, topic := range topics {
+			traverseTopics(topic, "  ", "")
+		}
+		return nil
+	}
+
+	question := strings.Join(args, " ")
+
+	var answerQuestion func(topic *Topic)
+	answerQuestion = func(topic *Topic) {
+		if topic.Title == question {
+			fmt.Printf(topic.Description)
+		}
+		for _, subTopic := range topic.SubTopics {
+			answerQuestion(subTopic)
+		}
+	}
+
+	for _, topic := range topics {
+		answerQuestion(topic)
+	}
+
+	return nil
 }
