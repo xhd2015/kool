@@ -1,8 +1,6 @@
 module github.com/xhd2015/kool
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.23.6
 
 require (
 	github.com/iancoleman/strcase v0.3.0

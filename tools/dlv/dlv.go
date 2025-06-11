@@ -73,12 +73,14 @@ func Handle(args []string) error {
 }
 
 type DebugOptions struct {
+	Dir           string
 	Port          int
 	Args          []string
 	ExtraDlvFlags []string
 }
 
 func Debug(binary string, opts DebugOptions) error {
+	dir := opts.Dir
 	port := opts.Port
 	dlvFlags := opts.ExtraDlvFlags
 	args := opts.Args
@@ -108,7 +110,7 @@ func Debug(binary string, opts DebugOptions) error {
 		fmt.Print(formatPrompt(binary))
 	}()
 
-	return cmd.Debug().Run("dlv", dlvArgs...)
+	return cmd.Debug().Dir(dir).Run("dlv", dlvArgs...)
 }
 
 func formatPrompt(binary string) string {
