@@ -19,6 +19,7 @@ import (
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
+	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/http"
 	"github.com/xhd2015/kool/tools/port"
@@ -522,6 +523,20 @@ func execGoroot(goroot string, args []string) error {
 	envs := os.Environ()
 	PATH := filepath.Join(absGoroot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
 	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
+
+	if len(args) >= 2 && args[0] == "go" && args[1] == "run" {
+		err := os.Setenv("PATH", PATH)
+		if err != nil {
+			return err
+		}
+		err = os.Setenv("GOROOT", absGoroot)
+		if err != nil {
+			return err
+		}
+
+		// use kool go
+		return run.Handle(args[2:])
+	}
 
 	var targetCmd string
 	var targetArgs []string
