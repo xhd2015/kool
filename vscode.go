@@ -146,7 +146,7 @@ const createTaskTemplate = `{
         },
         {
             "label": "__CMD_NAME__",
-            "type": "shell",
+            "type": "process", // available "shell"
             "command": "bash",
             "args": [
                 "-c",
@@ -156,6 +156,7 @@ const createTaskTemplate = `{
                 "cwd": "${workspaceFolder}",
             }
         }
+    ]
 }`
 
 func handleVscode(args []string) error {

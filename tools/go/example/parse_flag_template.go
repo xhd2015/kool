@@ -6,7 +6,6 @@ package go_tools
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/xhd2015/less-gen/flags"
 )
@@ -38,32 +37,14 @@ func main() {
 }
 
 func handle(args []string) error {
-	n := len(args)
-	var remainArgs []string
 	var verbose bool
 	var dir string
-	for i := 0; i < n; i++ {
-		flag, value := flags.ParseIndex(args, &i)
-		if flag == "" {
-			remainArgs = append(remainArgs, args[i])
-			continue
-		}
-		switch flag {
-		case "--dir":
-			value, ok := value()
-			if !ok {
-				return fmt.Errorf("%s requires a value", flag)
-			}
-			dir = value
-		case "-v", "--verbose":
-			verbose = true
-		case "-h", "--help":
-			fmt.Print(strings.TrimPrefix(help, "\n"))
-			return nil
-		// ...
-		default:
-			return fmt.Errorf("unrecognized flag: %s", flag)
-		}
+	args, err := flags.String("--dir", &dir).
+		Bool("-v,--verbose", &verbose).
+		Help("-h,--help", help).
+		Parse(args)
+	if err != nil {
+		return err
 	}
 	_ = dir
 	_ = verbose

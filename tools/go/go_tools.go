@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"go/types"
 	"os"
-	"strings"
 	"time"
 
+	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
 	"github.com/xhd2015/kool/tools/go/run"
 
@@ -38,7 +38,7 @@ func Handle(args []string, flagSnippet string) error {
 	case "find":
 		return find.Handle(args[1:])
 	case "example":
-		return HandleExample(args[1:], flagSnippet)
+		return example.Handle(args[1:], flagSnippet)
 	case "run":
 		return run.Handle(args[1:])
 	case "version":
@@ -182,25 +182,4 @@ func resolveOnlyPkg(pkg string) (*packages.Package, error) {
 		return nil, fmt.Errorf("multiple packages found: %v", pkgs)
 	}
 	return pkgs[0], nil
-}
-
-//go:embed parse_flag_template.go
-var parseFlagTemplate string
-
-func HandleExample(args []string, legacyFlagSnippet string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: kool go example <snippet>\navailable snippets: parse-flag")
-	}
-	snippet := args[0]
-	switch snippet {
-	case "parse-flag-legacy":
-		fmt.Print(legacyFlagSnippet)
-	case "parse-flag":
-		code := parseFlagTemplate
-		if idx := strings.Index(parseFlagTemplate, "import ("); idx >= 0 {
-			code = parseFlagTemplate[idx:]
-		}
-		fmt.Print(strings.ReplaceAll(code, "\t", "  "))
-	}
-	return nil
 }
