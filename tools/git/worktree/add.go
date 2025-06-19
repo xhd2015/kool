@@ -7,15 +7,36 @@ import (
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
+const help = `
+kool git worktree facility
+
+Usage: kool git worktree <cmd> [OPTIONS]
+
+Available commands:
+  add <path> [branch]              add a new worktree, with optional setting new branch
+  help                             show help message
+
+Options:
+  --dir <dir>                      set the output directory
+  -v,--verbose                     show verbose info  
+
+Examples:
+  kool git worktree help                           show help message
+  kool git worktree add ../working-v1.2.0 v1.2.0   create a new project named my_project
+`
+
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("requires subcommands: add")
+		return fmt.Errorf("requires subcommands: help, add")
 	}
 	commd := args[0]
 	args = args[1:]
 	switch commd {
 	case "add":
 		return add(args)
+	case "help", "--help", "-h":
+		fmt.Print(strings.TrimPrefix(help, "\n"))
+		return nil
 	}
 	return fmt.Errorf("unrecognized subcommand: %s", commd)
 }
