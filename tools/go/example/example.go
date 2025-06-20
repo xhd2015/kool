@@ -10,9 +10,12 @@ import (
 //go:embed parse_flag_template.go
 var parseFlagTemplate string
 
+//go:embed debug_template.txt
+var debugTemplate string
+
 func Handle(args []string, legacyFlagSnippet string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool go example <snippet>\navailable snippets: parse-flag")
+		return fmt.Errorf("usage: kool go example <snippet>\navailable snippets: parse-flag, debug")
 	}
 	snippet := args[0]
 	args = args[1:]
@@ -35,6 +38,8 @@ func Handle(args []string, legacyFlagSnippet string) error {
 		}
 		code = strings.ReplaceAll(code, "cli", cliName)
 		fmt.Print(strings.ReplaceAll(code, "\t", "  "))
+	case "debug":
+		fmt.Print(debugTemplate)
 	}
 	return nil
 }

@@ -1,0 +1,18 @@
+> VSCode: add the following config to .vscode/launch.json configurations:
+{
+    "configurations": [
+            {
+                    "name": "Debug dlv localhost:2345",
+                    "type": "go",
+                    "debugAdapter": "dlv-dap",
+                    "request": "attach",
+                    "mode": "remote",
+                    "port": 2345,
+                    "host": "127.0.0.1",
+                    "cwd":"./"
+            }
+    ]
+}
+And set breakpoint at: main.main
+> GoLand: click Add Configuration > Go Remote > localhost:2345
+> Terminal: dlv connect localhost:2345
