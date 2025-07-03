@@ -23,9 +23,11 @@ import (
 	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/http"
+	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
+	"github.com/xhd2015/kool/tools/yaml2json"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
 )
@@ -237,6 +239,10 @@ func handle(args []string) error {
 		return encoding.HandleDecode(args[1:])
 	case "encode":
 		return encoding.HandleEncode(args[1:])
+	case "yaml2json", "yml2json":
+		return yaml2json.Handle(args[1:])
+	case "json2yaml", "json2yml":
+		return json2yaml.Handle(args[1:])
 	default:
 		if strings.HasPrefix(arg0, "with-") {
 			withCmd := strings.TrimPrefix(arg0, "with-")
