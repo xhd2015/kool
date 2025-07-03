@@ -6,41 +6,68 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
 	"github.com/xhd2015/kool/tools/go/run"
+	"github.com/xhd2015/xgo/support/cmd"
 
 	"github.com/xhd2015/kool/tools/go/inspect/typed"
 	"github.com/xhd2015/kool/tools/go/replace"
 	"github.com/xhd2015/kool/tools/go/resolve"
 	go_update "github.com/xhd2015/kool/tools/go/update"
-	"github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/tools/go/packages"
 )
 
+const help = `
+kool go run helps to debug go command easily
+
+Commands:
+  replace
+  update
+  resolve
+  inspect
+  refactor
+  find
+  example
+  run
+
+Run kool <cmd> --help for more information.
+
+Example:
+  kool go run --debug --debug-cwd=<dir> ./ ...
+`
+
 func Handle(args []string, flagSnippet string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,example")
+		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,example,run")
 	}
-	switch args[0] {
+	gocmd := args[0]
+	args = args[1:]
+	if gocmd == "help" || gocmd == "--help" {
+		fmt.Println(strings.TrimPrefix(help, "\n"))
+		return nil
+	}
+
+	switch gocmd {
 	case "replace":
-		return HandleReplace(args[1:])
+		return HandleReplace(args)
 	case "update":
-		return HandleUpdate(args[1:])
+		return HandleUpdate(args)
 	case "resolve":
-		return HandleResolve(args[1:])
+		return HandleResolve(args)
 	case "inspect":
-		return HandleInspect(args[1:])
+		return HandleInspect(args)
 	case "refactor":
-		return HandleRefactor(args[1:])
+		return HandleRefactor(args)
 	case "find":
-		return find.Handle(args[1:])
+		return find.Handle(args)
 	case "example":
-		return example.Handle(args[1:], flagSnippet)
+		return example.Handle(args, flagSnippet)
 	case "run":
-		return run.Handle(args[1:])
+		return run.Handle(args)
 	case "version":
 		return cmd.Debug().Run("go", args...)
 	case "env":
