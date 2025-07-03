@@ -17,6 +17,7 @@ import (
 	"github.com/xhd2015/kool/tools/ai"
 	"github.com/xhd2015/kool/tools/create"
 	"github.com/xhd2015/kool/tools/dlv"
+	"github.com/xhd2015/kool/tools/encoding"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/run"
@@ -232,6 +233,10 @@ func handle(args []string) error {
 		return killCmd.Run()
 	case "?":
 		return handleQuestion(args[1:])
+	case "decode":
+		return encoding.HandleDecode(args[1:])
+	case "encode":
+		return encoding.HandleEncode(args[1:])
 	default:
 		if strings.HasPrefix(arg0, "with-") {
 			withCmd := strings.TrimPrefix(arg0, "with-")
