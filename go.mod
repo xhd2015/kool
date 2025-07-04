@@ -3,6 +3,7 @@ module github.com/xhd2015/kool
 go 1.23.6
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/xhd2015/gitops v0.0.10
 	github.com/xhd2015/less-gen v0.0.16

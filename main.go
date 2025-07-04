@@ -27,6 +27,8 @@ import (
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
+	"github.com/xhd2015/kool/tools/stringtool"
+	"github.com/xhd2015/kool/tools/uuid"
 	"github.com/xhd2015/kool/tools/yaml2json"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
@@ -195,6 +197,8 @@ func handle(args []string) error {
 		return ai.Handle(args[1:])
 	case "lines":
 		return handleLines(args[1:])
+	case "split":
+		return stringtool.HandleSplit(args[1:])
 	case "rule", "rules":
 		return rules.Handle(args[1:])
 	case "check-port-ready":
@@ -233,8 +237,6 @@ func handle(args []string) error {
 		killCmd.Stdout = os.Stdout
 		killCmd.Stderr = os.Stderr
 		return killCmd.Run()
-	case "?":
-		return handleQuestion(args[1:])
 	case "decode":
 		return encoding.HandleDecode(args[1:])
 	case "encode":
@@ -243,6 +245,10 @@ func handle(args []string) error {
 		return yaml2json.Handle(args[1:])
 	case "json2yaml", "json2yml":
 		return json2yaml.Handle(args[1:])
+	case "uuid":
+		return uuid.Handle(args[1:])
+	case "?":
+		return handleQuestion(args[1:])
 	default:
 		if strings.HasPrefix(arg0, "with-") {
 			withCmd := strings.TrimPrefix(arg0, "with-")

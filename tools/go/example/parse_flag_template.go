@@ -29,10 +29,28 @@ Examples:
 `
 
 func main() {
-	err := handle(os.Args[1:])
+	err := Handle(os.Args[1:])
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+}
+
+func Handle(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("requires sub command: create")
+	}
+	cmd := args[0]
+	args = args[1:]
+	if cmd == "help" || cmd == "--help" {
+		fmt.Print(strings.TrimPrefix(help, "\n"))
+		return nil
+	}
+	switch cmd {
+	case "create":
+		return handle(args)
+	default:
+		return fmt.Errorf("unrecognized: %s", cmd)
 	}
 }
 
