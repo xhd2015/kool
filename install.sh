@@ -11,6 +11,15 @@ error() {
     exit 1
 }
 
+# command bypass builtin alias, looking for real command
+if [[ $PREFER_GO = true ]];then
+    if command -v go >/dev/null ;then
+        echo "go install github.com/xhd2015/kool@latest"
+        go install github.com/xhd2015/kool@latest
+        exit
+    fi
+fi
+
 command -v tar >/dev/null || error 'tar is required to install kool'
 
 case $(uname -ms) in
