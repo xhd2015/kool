@@ -1,19 +1,14 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/iancoleman/strcase"
 	"github.com/xhd2015/kool/tools/ai"
 	"github.com/xhd2015/kool/tools/create"
 	"github.com/xhd2015/kool/tools/dlv"
@@ -24,6 +19,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/http"
 	"github.com/xhd2015/kool/tools/json2yaml"
+	"github.com/xhd2015/kool/tools/jsontool"
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
@@ -31,7 +27,6 @@ import (
 	"github.com/xhd2015/kool/tools/uuid"
 	"github.com/xhd2015/kool/tools/yaml2json"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
-	"golang.org/x/term"
 )
 
 // install: go build -o $GOPATH/bin/kool
@@ -127,332 +122,99 @@ func main() {
 }
 
 func handle(args []string) error {
-	var arg0 string
-	if len(args) > 0 {
-		arg0 = args[0]
+	if len(args) == 0 {
+		// to suppress lint warning
+		var DOT = "."
+		return errors.New("requires command, try 'kool --help'" + DOT)
 	}
-
-	// TTY:     go run ./
-	// NOT TTY: echo yes | go run ./
-	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
-
-	var cmd string
-	switch arg0 {
-	case "help", "--help":
+	cmd := args[0]
+	if cmd == "help" || cmd == "--help" || cmd == "-h" {
 		fmt.Println(strings.TrimSpace(strings.ReplaceAll(help, "\t", "    ")))
 		return nil
+	}
+	args = args[1:]
+	switch cmd {
 	case "upgrade":
 		return xgo_cmd.Debug().Run("go", "install", "github.com/xhd2015/kool@latest")
-	case "sample":
-		cmd = arg0
-		args = args[1:]
 	case "vscode":
-		return handleVscode(args[1:])
-	case "unquote":
-		args = args[1:]
-		var str string
-		if len(args) == 0 {
-			data, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return err
-			}
-			str = string(data)
-		} else {
-			str = strings.Join(args, " ")
-		}
-		unquoteStr, err := strconv.Unquote(str)
-		if err != nil {
-			return err
-		}
-		fmt.Println(unquoteStr)
-		return nil
-	case "compress":
-		cmd = arg0
-		args = args[1:]
+		return handleVscode(args)
 	case "create":
-		return create.Handle(args[1:])
+		return create.Handle(args)
 	case "snippet":
-		return handleSnippet(args[1:])
+		return handleSnippet(args)
 	case "go":
-		return go_tools.Handle(args[1:], flagSnippet)
+		return go_tools.Handle(args, flagSnippet)
 	case "go-replace":
-		return go_tools.HandleReplace(args[1:])
+		return go_tools.HandleReplace(args)
 	case "go-update":
-		return go_tools.HandleUpdate(args[1:])
+		return go_tools.HandleUpdate(args)
 	case "go-resolve":
-		return go_tools.HandleResolve(args[1:])
+		return go_tools.HandleResolve(args)
 	case "dlv":
-		return dlv.Handle(args[1:])
+		return dlv.Handle(args)
 	case "git":
-		return git.Handle(args[1:])
+		return git.Handle(args)
 	case "http":
-		return http.Handle(args[1:])
+		return http.Handle(args)
 	case "with":
-		return handleWith(args[1:])
+		return handleWith(args)
 	case "with-go":
-		return handleWithGo(args[1:])
+		return handleWithGo(args)
 	case "with-goroot":
-		return handleWithGoroot(args[1:])
+		return handleWithGoroot(args)
 	case "ai":
-		return ai.Handle(args[1:])
-	case "lines":
-		return handleLines(args[1:])
-	case "split":
-		return stringtool.HandleSplit(args[1:])
+		return ai.Handle(args)
 	case "rule", "rules":
-		return rules.Handle(args[1:])
+		return rules.Handle(args)
 	case "check-port-ready":
-		return port.CheckReady(args[1:])
+		return port.CheckReady(args)
 	case "react":
-		return react.Handle(args[1:])
+		return react.Handle(args)
 	case "kill-port":
-		// lsof -iTCP:15000 -sTCP:LISTEN -t
-		//   -iTCP:15000: only TCP listen on port 15000
-		//   -sTCP:LISTEN: only show listening socket
-		//   -t: only show pid
-		killPortArgs := args[1:]
-		if len(killPortArgs) == 0 {
-			return fmt.Errorf("usage: kool kill-port <port>")
-		}
-		port, err := strconv.Atoi(killPortArgs[0])
-		if err != nil {
-			return err
-		}
-		pidOutput, err := exec.Command("lsof", "-iTCP:"+strconv.Itoa(port), "-sTCP:LISTEN", "-t").Output()
-		if err != nil {
-			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-				fmt.Fprintf(os.Stderr, "no process on port %d\n", port)
-				return nil
-			}
-			return err
-		}
-		pid := strings.TrimSpace(string(pidOutput))
-		if pid == "" {
-			fmt.Fprintf(os.Stderr, "no process on port %d\n", port)
-			return nil
-		}
-		fmt.Printf("kill -9 %s\n", pid)
-		killCmd := exec.Command("kill", "-9", pid)
-		killCmd.Stdout = os.Stdout
-		killCmd.Stderr = os.Stderr
-		return killCmd.Run()
+		return port.HandleKill(args)
+		// strings
+	case "lines":
+		return stringtool.HandleLines(args)
+	case "strcase":
+		return stringtool.HandleStrCase(args)
+	case "unquote":
+		return stringtool.HandleUnquote(args)
+	case "split":
+		return stringtool.HandleSplit(args)
 	case "decode":
-		return encoding.HandleDecode(args[1:])
+		return encoding.HandleDecode(args)
 	case "encode":
-		return encoding.HandleEncode(args[1:])
+		return encoding.HandleEncode(args)
+		// jsons
+	case "sample":
+		return jsontool.HandleSample(args)
+	case "pretty":
+		return jsontool.HandlePretty(args)
+	case "compress":
+		return jsontool.HandleCompress(args)
 	case "yaml2json", "yml2json":
-		return yaml2json.Handle(args[1:])
+		return yaml2json.Handle(args)
 	case "json2yaml", "json2yml":
-		return json2yaml.Handle(args[1:])
+		return json2yaml.Handle(args)
 	case "uuid":
-		return uuid.Handle(args[1:])
+		return uuid.Handle(args)
 	case "?":
-		return handleQuestion(args[1:])
+		return handleQuestion(args)
 	default:
-		if strings.HasPrefix(arg0, "with-") {
-			withCmd := strings.TrimPrefix(arg0, "with-")
+		if strings.HasPrefix(cmd, "with-") {
+			withCmd := strings.TrimPrefix(cmd, "with-")
 			if withCmd == "" {
 				return fmt.Errorf("example: kool with-go1.23")
 			}
-			return handleWithCmd(withCmd, args[1:])
+			return handleWithCmd(withCmd, args)
 		}
 
 		// capture unknown command
-		if arg0 != "" {
-			return fmt.Errorf("unknown command: %s", arg0)
+		if cmd != "" {
+			return fmt.Errorf("unrecognized command: %s", cmd)
 		}
 	}
-
-	var remainArgs []string
-	n := len(args)
-	for i := 0; i < n; i++ {
-		if args[i] == "--help" {
-			fmt.Println(strings.TrimSpace(help))
-			return nil
-		}
-		if args[i] == "--" {
-			remainArgs = append(remainArgs, args[i+1:]...)
-			break
-		}
-		if strings.HasPrefix(args[i], "-") {
-			return fmt.Errorf("unrecognized flag: %v", args[i])
-		}
-		remainArgs = append(remainArgs, args[i])
-	}
-
-	if isTTY && n == 0 {
-		fmt.Println(strings.TrimSpace(help))
-		return nil
-	}
-
-	if !isTTY {
-		if cmd == "compress" {
-			var v interface{}
-			decoder := json.NewDecoder(os.Stdin)
-			decoder.UseNumber()
-			err := decoder.Decode(&v)
-			if err != nil {
-				return err
-			}
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetEscapeHTML(false)
-			err = encoder.Encode(v)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		data, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		if enclosedBy(data, [][2]byte{{'"', '"'}}) {
-			if unquoted, err := strconv.Unquote(string(data)); err == nil {
-				fmt.Println(unquoted)
-				return nil
-			}
-		}
-		if enclosedBy(data, [][2]byte{{'{', '}'}, {'[', ']'}}) {
-			// json
-			if cmd == "sample" {
-				var match string
-				if len(remainArgs) > 0 {
-					match = remainArgs[0]
-				}
-				return sampleJSON(data, match)
-			}
-			// try pretty
-			if v, err := decodeJSON(data); err == nil {
-				if data, err := prettyJSON(v); err == nil {
-					fmt.Println(string(data))
-					return nil
-				}
-			}
-			return nil
-		}
-		lines := strings.Split(string(data), "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			fmt.Println(strcase.ToSnake(line))
-			fmt.Println(strcase.ToCamel(line))
-			fmt.Println(strcase.ToLowerCamel(line))
-			fmt.Println(strcase.ToScreamingSnake(line))
-			fmt.Println(strcase.ToKebab(line))
-		}
-	}
-
 	return nil
-}
-
-func sampleJSON(data []byte, match string) error {
-	v, err := decodeJSON(data)
-	if err != nil {
-		return err
-	}
-
-	_, sample := traverseSample(v, match)
-	sampleData, err := prettyJSON(sample)
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(sampleData))
-	return nil
-}
-func prettyJSON(v interface{}) ([]byte, error) {
-	return json.MarshalIndent(v, "", "  ")
-}
-
-func traverseSample(v interface{}, match string) (bool, interface{}) {
-	if v == nil {
-		return match == "", nil
-	}
-	switch v := v.(type) {
-	case []interface{}:
-		var newV []interface{}
-		var hasMatch bool
-		for _, e := range v {
-			ok, x := traverseSample(e, match)
-			if !ok {
-				continue
-			}
-			hasMatch = true
-			newV = append(newV, x)
-			if match == "" && len(newV) >= 2 {
-				break
-			}
-		}
-		return hasMatch, newV
-	case map[string]interface{}:
-		var hasAnyMatch bool
-		newMap := make(map[string]interface{}, len(v))
-		for k, e := range v {
-			ok, x := traverseSample(e, match)
-			if ok {
-				hasAnyMatch = true
-			}
-			newMap[k] = x
-		}
-		return hasAnyMatch, newMap
-	case string:
-		hasMatch := match == "" || strings.Contains(v, match)
-		return hasMatch, v
-	default:
-		return match == "", v
-	}
-}
-
-func decodeJSON(data []byte) (interface{}, error) {
-	var v interface{}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
-	err := dec.Decode(&v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-func enclosedBy(data []byte, pairs [][2]byte) bool {
-	if len(data) < 2 {
-		return false
-	}
-	i := 0
-	n := len(data)
-	for ; i < n && isSpace(data[i]); i++ {
-	}
-	if i >= n {
-		return false
-	}
-	var match [2]byte
-	var found bool
-	for _, pair := range pairs {
-		if data[i] == pair[0] {
-			match = pair
-			found = true
-			break
-		}
-	}
-	if !found {
-		return false
-	}
-	j := n - 1
-	for ; j > i && isSpace(data[j]); j-- {
-	}
-	if j <= i {
-		return false
-	}
-	return data[j] == match[1]
-}
-func isSpace(b byte) bool {
-	switch b {
-	case ' ', '\t', '\n', '\r':
-		return true
-	}
-	return false
 }
 
 func handleWith(args []string) error {

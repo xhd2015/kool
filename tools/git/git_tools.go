@@ -19,15 +19,22 @@ Usage: kool git <cmd> [OPTIONS]
 
 Available commands:
   ls                               list files that is able to be committed with git add -A
+  worktree                         worktree commands
+  tag-next                         tag next version
+  show-tag                         show tag of current commit
   help                             show help message
 
 Options:
   --dir <dir>                      set the output directory
-  -v,--verbose                     show verbose info  
+  -v,--verbose                     show verbose info
+
+Options for tag-next:
+  --push                           tag and push to remote
 
 Examples:
   kool git help                    show help message
   kool git ls                      list files
+  kool git tag-next --push
 `
 
 func Handle(args []string) error {

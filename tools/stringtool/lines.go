@@ -1,4 +1,4 @@
-package main
+package stringtool
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"golang.org/x/term"
 )
 
-func handleLines(args []string) error {
+func HandleLines(args []string) error {
 	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
 	var actions []string

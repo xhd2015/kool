@@ -5,6 +5,7 @@
 dlv.log
 __debug-main.bin
 
+/kool-*
 /kool
 **/.xgo/gen
 
