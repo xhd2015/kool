@@ -40,7 +40,7 @@ Example:
   kool go run --debug --debug-cwd=<dir> ./ ...
 `
 
-func Handle(args []string, flagSnippet string) error {
+func Handle(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,example,run")
 	}
@@ -65,7 +65,7 @@ func Handle(args []string, flagSnippet string) error {
 	case "find":
 		return find.Handle(args)
 	case "example":
-		return example.Handle(args, flagSnippet)
+		return example.Handle(args)
 	case "run":
 		return run.Handle(args)
 	case "version":

@@ -4,13 +4,22 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/xhd2015/kool/pkgs/jsondecode"
+	"github.com/xhd2015/kool/pkgs/terminal"
+	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
 )
 
 func HandleLines(args []string) error {
+	if len(args) > 0 && args[0] == "diff" {
+		return handleDiff(args[1:])
+	}
 	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
 	var actions []string
@@ -73,6 +82,41 @@ func HandleLines(args []string) error {
 	}
 	return nil
 }
+func handleDiff(args []string) error {
+	var jsonFlag bool
+
+	var wordDiff bool
+	args, err := flags.Bool("--json", &jsonFlag).
+		Bool("--word-diff", &wordDiff).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+
+	content, err := terminal.ReadOrTerminalDataOrFile(args)
+	if err != nil {
+		return err
+	}
+	content = strings.TrimSuffix(content, "\n")
+	lines := strings.Split(content, "\n")
+	if len(lines) != 2 {
+		return fmt.Errorf("requires 2 lines to compare, given: %d", len(lines))
+	}
+
+	line1 := lines[0]
+	line2 := lines[1]
+	if jsonFlag {
+		line1 = jsondecode.MustPrettyString(line1)
+		line2 = jsondecode.MustPrettyString(line2)
+	}
+
+	diff, err := diff(line1, line2, wordDiff)
+	if err != nil {
+		return err
+	}
+	fmt.Println(diff)
+	return nil
+}
 
 type SortType int
 
@@ -119,4 +163,40 @@ func reverse(lines []string) []string {
 		reversedLines[n-1-i] = line
 	}
 	return reversedLines
+}
+
+func diff(line1 string, line2 string, wordDiff bool) (string, error) {
+	tmpDir, err := os.MkdirTemp("", "stringtool-diff")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	err = os.WriteFile(filepath.Join(tmpDir, "line1.txt"), []byte(line1), 0644)
+	if err != nil {
+		return "", err
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, "line2.txt"), []byte(line2), 0644)
+	if err != nil {
+		return "", err
+	}
+
+	cmdFlags := []string{
+		"diff",
+		"--no-index",
+	}
+	if wordDiff {
+		cmdFlags = append(cmdFlags, "--word-diff")
+	}
+	cmdFlags = append(cmdFlags, "line1.txt", "line2.txt")
+	diffOutput, err := cmd.Dir(tmpDir).Output("git", cmdFlags...)
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			if exitErr.ExitCode() == 1 {
+				return diffOutput, nil
+			}
+		}
+		return "", err
+	}
+	return diffOutput, nil
 }

@@ -23,7 +23,7 @@ func Handle(args []string) error {
 }
 
 func jsonToYaml(jsonData []byte) ([]byte, error) {
-	v, err := jsondecode.SafeUnmarshalJson(jsonData)
+	v, err := jsondecode.UnmarshalSafeAny(jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %v", err)
 	}

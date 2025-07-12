@@ -101,9 +101,6 @@ type ExitCodeAware interface {
 	SilenceExitCode() int
 }
 
-//go:embed pkgs/flag/parse.go
-var flagSnippet string
-
 // install: go build -o `which kool` ./
 func main() {
 	err := handle(os.Args[1:])
@@ -143,7 +140,7 @@ func handle(args []string) error {
 	case "snippet":
 		return handleSnippet(args)
 	case "go":
-		return go_tools.Handle(args, flagSnippet)
+		return go_tools.Handle(args)
 	case "go-replace":
 		return go_tools.HandleReplace(args)
 	case "go-update":
@@ -373,6 +370,13 @@ check https://github.com/mermaid-js/mermaid-cli
 `,
 			},
 		},
+	},
+	{
+		Title:    "cursor",
+		Keywords: []string{"cursor", "ide"},
+		Description: `# cursor history
+~/Library/Application Support/Cursor/User/History
+`,
 	},
 }
 

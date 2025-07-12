@@ -14,7 +14,7 @@ func HandlePretty(args []string) error {
 		return err
 	}
 
-	v, err := jsondecode.SafeUnmarshalJson([]byte(data))
+	v, err := jsondecode.UnmarshalSafeAny([]byte(data))
 	if err != nil {
 		return err
 	}
