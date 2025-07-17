@@ -20,6 +20,7 @@ import (
 	"github.com/xhd2015/kool/tools/html/html2markdown"
 	"github.com/xhd2015/kool/tools/html/html2text"
 	"github.com/xhd2015/kool/tools/http"
+	"github.com/xhd2015/kool/tools/js"
 	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/jsontool"
 	"github.com/xhd2015/kool/tools/port"
@@ -209,6 +210,8 @@ func handle(args []string) error {
 		return html2markdown.Handle(args)
 	case "uuid":
 		return uuid.Handle(args)
+	case "js":
+		return js.Handle(args)
 	case "?":
 		return handleQuestion(args)
 	default:
