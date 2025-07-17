@@ -49,7 +49,7 @@ func init() {
 	}
 }
 
-func Serve(dir string) error {
+func Serve(dir string, plantumlServer string) error {
 	// Convert to absolute path
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -111,8 +111,13 @@ func Serve(dir string) error {
 			return
 		}
 
+		plantServer := strings.TrimSuffix(plantumlServer, "/")
+		if plantServer == "" {
+			plantServer = "https://www.plantuml.com/plantuml"
+		}
+
 		// File not in cache, fetch from PlantUML service
-		plantUMLURL := fmt.Sprintf("https://www.plantuml.com/plantuml/svg/%s", path)
+		plantUMLURL := fmt.Sprintf("%s/svg/%s", plantServer, path)
 
 		// Create HTTP client with timeout
 		client := &http.Client{

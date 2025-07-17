@@ -13,7 +13,7 @@ import (
 //go:embed index.html
 var indexHtml string
 
-func Serve(file string) error {
+func Serve(file string, plantumlServer string) error {
 	content, err := os.ReadFile(file)
 	if err != nil {
 		return err
