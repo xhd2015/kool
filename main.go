@@ -23,6 +23,7 @@ import (
 	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/jsontool"
 	"github.com/xhd2015/kool/tools/port"
+	"github.com/xhd2015/kool/tools/preview"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/stringtool"
@@ -50,6 +51,7 @@ Utility commands:
   kill-port <port>                   kill process on the given port
   check-port-ready <port>            check if the port is ready
   watch <command> [args...]      watch files and restart command on changes
+  preview <file>                     preview a file, currently supports .uml and .puml
   help                               show help message
 
 String commands:
@@ -171,6 +173,8 @@ func handle(args []string) error {
 		return port.CheckReady(args)
 	case "react":
 		return react.Handle(args)
+	case "preview":
+		return preview.Handle(args)
 	case "kill-port":
 		return port.HandleKill(args)
 	case "watch":

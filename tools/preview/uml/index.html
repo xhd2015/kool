@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UML Diagram Preview</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        #container {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        #error {
+            color: red;
+            background-color: #ffebeb;
+            padding: 10px;
+            border: 1px solid red;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        #diagram {
+            max-width: 100%;
+            height: auto;
+            overflow: auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        img {
+            max-width: 100%;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+</head>
+
+<body>
+    <div id="container">
+        <h1>UML Diagram Preview</h1>
+        <div id="error" style="display: none;"></div>
+        <div id="diagram">
+            <p>Loading diagram...</p>
+        </div>
+    </div>
+
+    <script>
+        async function renderDiagram() {
+            const errorDiv = document.getElementById('error');
+            const diagramDiv = document.getElementById('diagram');
+
+            try {
+                const response = await fetch('/api/content');
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch UML content: ${response.statusText}`);
+                }
+                const content = await response.text();
+
+                if (!content) {
+                    throw new Error('UML content is empty.');
+                }
+
+                // plantuml-encoder is loaded from CDN
+                const encoded = plantumlEncoder.encode(content);
+                const url = `https://www.plantuml.com/plantuml/svg/${encoded}`;
+
+                diagramDiv.innerHTML = `<img src="${url}" alt="UML Diagram" onerror="handleImageError()" />`;
+                errorDiv.style.display = 'none';
+
+            } catch (err) {
+                console.error('Failed to render PlantUML diagram:', err);
+                errorDiv.textContent = 'Failed to render UML diagram: ' + err.message;
+                errorDiv.style.display = 'block';
+                diagramDiv.innerHTML = '';
+            }
+        }
+
+        function handleImageError() {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = 'Failed to load diagram image. The UML syntax might be invalid.';
+            errorDiv.style.display = 'block';
+        }
+
+        window.onload = renderDiagram;
+    </script>
+</body>
+
+</html>
