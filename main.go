@@ -17,6 +17,8 @@ import (
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/with_go"
+	"github.com/xhd2015/kool/tools/html/html2markdown"
+	"github.com/xhd2015/kool/tools/html/html2text"
 	"github.com/xhd2015/kool/tools/http"
 	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/jsontool"
@@ -25,6 +27,7 @@ import (
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/kool/tools/uuid"
+	"github.com/xhd2015/kool/tools/watch"
 	"github.com/xhd2015/kool/tools/yaml2json"
 	xgo_cmd "github.com/xhd2015/xgo/support/cmd"
 )
@@ -46,6 +49,7 @@ Commands category:
 Utility commands:
   kill-port <port>                   kill process on the given port
   check-port-ready <port>            check if the port is ready
+  watch <command> [args...]      watch files and restart command on changes
   help                               show help message
 
 String commands:
@@ -169,6 +173,8 @@ func handle(args []string) error {
 		return react.Handle(args)
 	case "kill-port":
 		return port.HandleKill(args)
+	case "watch":
+		return watch.Handle(args)
 		// strings
 	case "lines":
 		return stringtool.HandleLines(args)
@@ -193,6 +199,10 @@ func handle(args []string) error {
 		return yaml2json.Handle(args)
 	case "json2yaml", "json2yml":
 		return json2yaml.Handle(args)
+	case "html2text":
+		return html2text.Handle(args)
+	case "html2md", "html2markdown":
+		return html2markdown.Handle(args)
 	case "uuid":
 		return uuid.Handle(args)
 	case "?":

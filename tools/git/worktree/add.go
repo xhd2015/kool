@@ -76,7 +76,11 @@ func add(args []string) error {
 	}
 
 	if branch != "" {
-		err := cmd.Debug().Dir(pathName).Run("git", "branch", "-u", "origin/"+branch)
+		err := cmd.Debug().Dir(pathName).Run("git", "reset", "--hard", "origin/"+branch)
+		if err != nil {
+			return err
+		}
+		err = cmd.Debug().Dir(pathName).Run("git", "branch", "-u", "origin/"+branch)
 		if err != nil {
 			return err
 		}
