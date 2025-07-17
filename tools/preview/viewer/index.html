@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory Preview</title>
+    <style>
+        __CSS__
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <span>Directory Preview</span>
+        <div class="theme-switcher">
+            <span>Theme:</span>
+            <button class="theme-toggle" id="theme-toggle">Dark</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">Explorer</div>
+            <div id="tree-container">
+                <div class="loading">Loading directory tree...</div>
+            </div>
+        </div>
+
+        <div class="resizer"></div>
+
+        <div class="content">
+            <div class="content-header">
+                <span id="content-title">Select a file to preview</span>
+            </div>
+            <div class="content-body">
+                <div id="preview-container">
+                    <div class="empty-state">Select a file from the explorer to preview its contents</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
+    <script>
+        __SCRIPT__
+    </script>
+</body>
+
+</html>
