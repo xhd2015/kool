@@ -207,6 +207,40 @@ func Serve(dir string, plantumlServer string) error {
 			return
 		}
 
+		// Handle Mermaid files
+		if ext == ".mmd" {
+			content, err := os.ReadFile(absFilePath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			response := map[string]interface{}{
+				"type":    "mermaid",
+				"content": string(content),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		// Handle Markdown files
+		if ext == ".md" {
+			content, err := os.ReadFile(absFilePath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			response := map[string]interface{}{
+				"type":    "markdown",
+				"content": string(content),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
 		// For other files, return as text (could be extended for other types)
 		content, err := os.ReadFile(absFilePath)
 		if err != nil {

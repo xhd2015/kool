@@ -110,6 +110,72 @@ body.dark-theme .uml-error-compact {
     color: #ffcc02;
 }
 
+/* Dark theme for Mermaid previews */
+body.dark-theme .preview-mermaid {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .mermaid-error {
+    background-color: #3d2914;
+    border-color: #5d4037;
+    color: #ffcc02;
+}
+
+body.dark-theme .mermaid-error pre {
+    background-color: #2d2d30;
+    border-color: #3e3e42;
+    color: #cccccc;
+}
+
+/* Dark theme for Markdown previews */
+body.dark-theme .preview-markdown {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .markdown-content {
+    color: #cccccc;
+}
+
+body.dark-theme .markdown-content h1,
+body.dark-theme .markdown-content h2 {
+    border-bottom-color: #3e3e42;
+}
+
+body.dark-theme .markdown-content h6 {
+    color: #999;
+}
+
+body.dark-theme .markdown-content blockquote {
+    border-left-color: #555;
+    color: #999;
+}
+
+body.dark-theme .markdown-content code {
+    background-color: #2d2d30;
+    color: #f8f8f2;
+}
+
+body.dark-theme .markdown-content pre {
+    background-color: #2d2d30;
+}
+
+body.dark-theme .markdown-content th,
+body.dark-theme .markdown-content td {
+    border-color: #3e3e42;
+}
+
+body.dark-theme .markdown-content th {
+    background-color: #2d2d30;
+}
+
+body.dark-theme .markdown-content a {
+    color: #58a6ff;
+}
+
+body.dark-theme .markdown-content hr {
+    border-top-color: #3e3e42;
+}
+
 body.dark-theme .retry-button {
     background-color: #ff9800;
     border-color: #f57c00;

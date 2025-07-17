@@ -76,5 +76,10 @@ func Handle(args []string) error {
 		return uml.Serve(path, plantumlServer)
 	}
 
+	if ext == ".mmd" || ext == ".md" {
+		// For Mermaid and Markdown files, use the viewer (directory viewer can handle individual files)
+		return viewer.Serve(filepath.Dir(path), plantumlServer)
+	}
+
 	return fmt.Errorf("unsupported file type: %s", ext)
 }

@@ -141,6 +141,10 @@ async function loadPreview(filePath) {
 
         if (data.type === 'uml') {
             renderUMLPreview(data.content, container);
+        } else if (data.type === 'mermaid') {
+            renderMermaidPreview(data.content, container);
+        } else if (data.type === 'markdown') {
+            renderMarkdownPreview(data.content, container);
         } else {
             renderTextPreview(data.content, container);
         }
@@ -199,6 +203,102 @@ function renderTextPreview(content, container) {
 
     container.innerHTML = '';
     container.appendChild(textarea);
+}
+
+// Render Mermaid preview
+function renderMermaidPreview(content, container) {
+    try {
+        // Show loading state
+        container.innerHTML = `
+            <div class="preview-mermaid">
+                <div class="mermaid-loading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Generating Mermaid diagram...</div>
+                </div>
+            </div>
+        `;
+
+        // Initialize Mermaid if not already done
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: document.body.classList.contains('dark-theme') ? 'dark' : 'default',
+                securityLevel: 'loose'
+            });
+
+            // Create a unique ID for the diagram
+            const diagramId = 'mermaid-diagram-' + Date.now();
+
+            // Create container for the diagram
+            const diagramContainer = document.createElement('div');
+            diagramContainer.innerHTML = `<div id="${diagramId}" class="mermaid-diagram">${content}</div>`;
+
+            // Render the diagram
+            mermaid.render(diagramId + '-svg', content).then(({ svg }) => {
+                container.innerHTML = `
+                    <div class="preview-mermaid">
+                        <div class="mermaid-container">${svg}</div>
+                    </div>
+                `;
+            }).catch(error => {
+                container.innerHTML = `
+                    <div class="preview-mermaid">
+                        <div class="mermaid-error">
+                            ⚠️ Failed to render Mermaid diagram: ${error.message}
+                            <details>
+                                <summary>Mermaid content:</summary>
+                                <pre>${content}</pre>
+                            </details>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            container.innerHTML = `<div class="error">Mermaid library not loaded</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="error">Failed to render Mermaid: ${error.message}</div>`;
+    }
+}
+
+// Render Markdown preview
+function renderMarkdownPreview(content, container) {
+    try {
+        // Show loading state
+        container.innerHTML = `
+            <div class="preview-markdown">
+                <div class="markdown-loading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Rendering Markdown...</div>
+                </div>
+            </div>
+        `;
+
+        // Initialize marked if not already done
+        if (typeof marked !== 'undefined') {
+            // Configure marked options
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                sanitize: false,
+                smartLists: true,
+                smartypants: false
+            });
+
+            // Render the markdown
+            const htmlContent = marked.parse(content);
+
+            container.innerHTML = `
+                <div class="preview-markdown">
+                    <div class="markdown-content">${htmlContent}</div>
+                </div>
+            `;
+        } else {
+            container.innerHTML = `<div class="error">Marked library not loaded</div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="error">Failed to render Markdown: ${error.message}</div>`;
+    }
 }
 
 // Handle UML image load errors - updated to work with container
