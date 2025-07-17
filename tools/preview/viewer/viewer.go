@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/xhd2015/kool/pkgs/web"
 )
 
@@ -46,8 +48,8 @@ func Serve(dir string) error {
 		return err
 	}
 
-	htmlContent := strings.ReplaceAll(indexHtml, "__CSS__", indexCss)
-	htmlContent = strings.ReplaceAll(htmlContent, "__SCRIPT__", indexJs)
+	htmlContent := strings.ReplaceAll(indexHtml, "__CSS__", "<style>\n"+indexCss+"\n</style>\n")
+	htmlContent = strings.ReplaceAll(htmlContent, "__SCRIPT__", "<script>\n"+indexJs+"\n</script>\n")
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
@@ -129,10 +131,105 @@ func Serve(dir string) error {
 		json.NewEncoder(w).Encode(response)
 	})
 
+	// API to execute terminal commands via WebSocket streaming
+	http.HandleFunc("/api/terminal/stream", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("WebSocket connection request received")
+
+		// Upgrade HTTP connection to WebSocket
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Allow all connections for now
+			},
+		}
+
+		// Check if this is a WebSocket upgrade request
+		if r.Header.Get("Upgrade") != "websocket" {
+			fmt.Printf("Not a WebSocket upgrade request. Headers: %+v\n", r.Header)
+			http.Error(w, "Expected WebSocket upgrade", http.StatusBadRequest)
+			return
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			fmt.Printf("Failed to upgrade to WebSocket: %v\n", err)
+			return
+		}
+		defer ws.Close()
+		fmt.Println("WebSocket connection established")
+
+		// Get or create bash session
+		session, err := initBashSession(absDir)
+		if err != nil {
+			fmt.Printf("Failed to create bash session: %v\n", err)
+			ws.WriteJSON(map[string]string{"error": "Failed to create bash session: " + err.Error()})
+			return
+		}
+		fmt.Println("Bash session obtained")
+
+		// Create a context for this connection
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+
+		// Handle incoming messages from WebSocket (user input)
+		go func() {
+			defer cancel()
+			for {
+				var msg map[string]string
+				if err := ws.ReadJSON(&msg); err != nil {
+					fmt.Printf("Error reading WebSocket message: %v\n", err)
+					return
+				}
+
+				fmt.Printf("Received WebSocket message: %+v\n", msg)
+
+				if input, ok := msg["input"]; ok {
+					fmt.Printf("Sending input to bash: %q\n", input)
+					if err := session.sendInput(input); err != nil {
+						fmt.Printf("Error sending input to bash: %v\n", err)
+						return
+					}
+				}
+			}
+		}()
+
+		fmt.Println("Starting output loop")
+		// Listen for output from the bash session
+		for {
+			select {
+			case output := <-session.outputChannel:
+				fmt.Printf("Bash output: %q\n", output)
+				if err := ws.WriteJSON(map[string]string{"output": output}); err != nil {
+					fmt.Printf("Error writing output to WebSocket: %v\n", err)
+					return
+				}
+			case errOutput := <-session.errorChannel:
+				fmt.Printf("Bash error: %q\n", errOutput)
+				if err := ws.WriteJSON(map[string]string{"error": errOutput}); err != nil {
+					fmt.Printf("Error writing error to WebSocket: %v\n", err)
+					return
+				}
+			case <-ctx.Done():
+				fmt.Println("WebSocket context cancelled")
+				return
+			case <-time.After(30 * time.Second):
+				fmt.Println("Sending keepalive")
+				// Send keepalive
+				if err := ws.WriteJSON(map[string]bool{"keepalive": true}); err != nil {
+					fmt.Printf("Error sending keepalive: %v\n", err)
+					return
+				}
+			}
+		}
+	})
+
+	// Remove the old /api/terminal/input endpoint since we're using WebSocket
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
 	}
 
 	fmt.Printf("Serving directory preview at http://localhost:%d\n", port)

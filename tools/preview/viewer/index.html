@@ -5,9 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Directory Preview</title>
-    <style>
-        __CSS__
-    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    __CSS__
 </head>
 
 <body>
@@ -34,17 +33,29 @@
                 <span id="content-title">Select a file to preview</span>
             </div>
             <div class="content-body">
-                <div id="preview-container">
-                    <div class="empty-state">Select a file from the explorer to preview its contents</div>
+                <div class="preview-section">
+                    <div id="preview-container">
+                        <div class="empty-state">Select a file from the explorer to preview its contents</div>
+                    </div>
+                </div>
+
+                <div class="vertical-resizer"></div>
+
+                <div class="terminal-section">
+                    <div id="terminal-container" class="hidden"></div>
+                    <div class="terminal-header">
+                        <span>Terminal</span>
+                        <button class="terminal-toggle" id="terminal-toggle">Show Terminal</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/plantuml-encoder@1.4.0/dist/plantuml-encoder.min.js"></script>
-    <script>
-        __SCRIPT__
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    __SCRIPT__
 </body>
 
 </html>

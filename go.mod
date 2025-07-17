@@ -4,8 +4,10 @@ go 1.23.6
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3
+	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/iancoleman/strcase v0.3.0
 	github.com/k3a/html2text v1.2.1
 	github.com/xhd2015/gitops v0.0.10
