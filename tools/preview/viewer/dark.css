@@ -1,0 +1,121 @@
+/* Dark theme styles */
+body.dark-theme {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+body.dark-theme .header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+}
+
+body.dark-theme .theme-toggle {
+    border-color: #555;
+    color: #cccccc;
+}
+
+body.dark-theme .theme-toggle:hover {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .sidebar {
+    background-color: #252526;
+    border-right: 1px solid #3e3e42;
+}
+
+body.dark-theme .sidebar-header {
+    color: #999;
+    border-bottom: 1px solid #3e3e42;
+}
+
+body.dark-theme .content {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .content-header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+}
+
+body.dark-theme .tree-node:hover {
+    background-color: #2a2d2e;
+}
+
+body.dark-theme .tree-node.selected {
+    background-color: #094771;
+    color: #ffffff;
+}
+
+body.dark-theme .tree-node.file {
+    color: #cccccc;
+}
+
+body.dark-theme .preview-text {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+body.dark-theme .preview-uml {
+    background-color: #ffffff;
+}
+
+body.dark-theme .error {
+    color: #f48771;
+    background-color: #332222;
+    border-color: #553333;
+}
+
+body.dark-theme .loading {
+    color: #cccccc;
+}
+
+body.dark-theme .empty-state {
+    color: #999;
+}
+
+body.dark-theme .resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .vertical-resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .terminal-section {
+    background-color: #0c0c0c;
+}
+
+body.dark-theme .terminal-header {
+    background-color: #1e1e1e;
+    border-top: 1px solid #2d2d30;
+}
+
+body.dark-theme #terminal-container {
+    background-color: #0c0c0c;
+}
+
+body.dark-theme .loading-spinner {
+    border-color: #444;
+    border-top-color: #007acc;
+}
+
+body.dark-theme .loading-text {
+    color: #ccc;
+}
+
+body.dark-theme .uml-error-compact {
+    background-color: #3d2914;
+    border-color: #5d4037;
+    color: #ffcc02;
+}
+
+body.dark-theme .retry-button {
+    background-color: #ff9800;
+    border-color: #f57c00;
+    color: #000;
+}
+
+body.dark-theme .retry-button:hover {
+    background-color: #f57c00;
+}

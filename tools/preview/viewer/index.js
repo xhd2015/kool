@@ -153,13 +153,38 @@ async function loadPreview(filePath) {
 function renderUMLPreview(content, container) {
     try {
         const encoded = plantumlEncoder.encode(content);
-        const url = `https://www.plantuml.com/plantuml/svg/${encoded}`;
+        const url = `/planuml/svg/${encoded}`;
 
+        // Show loading state
         container.innerHTML = `
             <div class="preview-uml">
-                <img src="${url}" alt="UML Diagram" onerror="handleUMLError(this)" />
+                <div class="uml-loading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Generating UML diagram...</div>
+                </div>
             </div>
         `;
+
+        // Create image element and handle loading
+        const img = new Image();
+
+        img.onload = function () {
+            // Image loaded successfully, replace loading with image
+            container.innerHTML = `
+                <div class="preview-uml">
+                    <img src="${url}" alt="UML Diagram" />
+                </div>
+            `;
+        };
+
+        img.onerror = function () {
+            // Image failed to load, show error
+            handleUMLError(container, content);
+        };
+
+        // Start loading the image
+        img.src = url;
+
     } catch (error) {
         container.innerHTML = `<div class="error">Failed to render UML: ${error.message}</div>`;
     }
@@ -176,9 +201,22 @@ function renderTextPreview(content, container) {
     container.appendChild(textarea);
 }
 
-// Handle UML image load errors
-function handleUMLError(img) {
-    img.parentElement.innerHTML = '<div class="error">Failed to load UML diagram. The syntax might be invalid.</div>';
+// Handle UML image load errors - updated to work with container
+function handleUMLError(container, content) {
+    container.innerHTML = `
+        <div class="preview-uml">
+            <div class="uml-error-compact">
+                ⚠️ Failed to load UML diagram. Syntax might be invalid, or https://www.plantuml.com/plantuml/svg is overloaded.
+                <button class="retry-button" onclick="retryUMLRender(this, '${content.replace(/'/g, "\\'")}')">Retry</button>
+            </div>
+        </div>
+    `;
+}
+
+// Retry UML rendering
+function retryUMLRender(button, content) {
+    const container = button.closest('.preview-uml').parentElement;
+    renderUMLPreview(content, container);
 }
 
 // Initialize sidebar resizing
