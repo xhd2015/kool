@@ -39,11 +39,36 @@ export function initializeTerminal() {
     window.addEventListener('resize', () => {
         if (state.fitAddon && state.terminalVisible) {
             state.fitAddon.fit();
+            // Send new terminal size after resize
+            sendTerminalSize();
         }
+    });
+
+    // Handle terminal resize (when fit addon changes dimensions)
+    state.terminal.onResize((size) => {
+        console.log('Terminal resized to:', size);
+        sendTerminalSize();
     });
 
     // Don't initialize WebSocket here - wait until terminal is shown
     // initializeTerminalWebSocket();
+}
+
+// Send terminal dimensions to backend
+function sendTerminalSize() {
+    if (state.terminalWebSocket && state.terminalWebSocket.readyState === WebSocket.OPEN && state.terminal) {
+        const cols = state.terminal.cols;
+        const rows = state.terminal.rows;
+        console.log('Sending terminal size:', { cols, rows });
+
+        const message = JSON.stringify({
+            resize: {
+                cols: cols,
+                rows: rows
+            }
+        });
+        state.terminalWebSocket.send(message);
+    }
 }
 
 // Initialize WebSocket for terminal streaming
@@ -63,6 +88,8 @@ function initializeTerminalWebSocket() {
 
     state.terminalWebSocket.onopen = function (event) {
         console.log('Terminal WebSocket connected successfully');
+        // Send initial terminal size when connection is established
+        sendTerminalSize();
     };
 
     state.terminalWebSocket.onmessage = function (event) {
@@ -140,7 +167,11 @@ export function initializeTerminalToggle() {
             terminalContainer.style.flex = '1';
 
             if (state.fitAddon) {
-                setTimeout(() => state.fitAddon.fit(), 100);
+                setTimeout(() => {
+                    state.fitAddon.fit();
+                    // Send terminal size after fitting
+                    sendTerminalSize();
+                }, 100);
             }
 
             // Start terminal streaming when terminal becomes visible

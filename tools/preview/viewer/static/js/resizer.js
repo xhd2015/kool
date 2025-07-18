@@ -1,9 +1,10 @@
 import { state } from './state.js';
 
-// Initialize sidebar resizing
+// Initialize resizer
 export function initializeResizer() {
     const resizer = document.querySelector('.resizer');
-    const sidebar = document.querySelector('.sidebar');
+    if (!resizer) return;
+
     let isResizing = false;
 
     resizer.addEventListener('mousedown', (e) => {
@@ -15,10 +16,19 @@ export function initializeResizer() {
     function handleMouseMove(e) {
         if (!isResizing) return;
 
-        const newWidth = e.clientX;
-        if (newWidth > 200 && newWidth < 600) {
-            sidebar.style.width = newWidth + 'px';
-        }
+        const container = document.querySelector('.container');
+        const sidebar = document.querySelector('.sidebar');
+        const content = document.querySelector('.content');
+
+        const containerRect = container.getBoundingClientRect();
+        const relativeX = e.clientX - containerRect.left;
+
+        const minWidth = 200;
+        const maxSidebarWidth = containerRect.width - minWidth;
+        const sidebarWidth = Math.max(minWidth, Math.min(maxSidebarWidth, relativeX));
+
+        sidebar.style.width = sidebarWidth + 'px';
+        content.style.width = (containerRect.width - sidebarWidth) + 'px';
     }
 
     function handleMouseUp() {
@@ -69,6 +79,23 @@ export function initializeHorizontalResizer() {
     }
 }
 
+// Send terminal size to backend (imported from terminal.js logic)
+function sendTerminalSize() {
+    if (state.terminalWebSocket && state.terminalWebSocket.readyState === WebSocket.OPEN && state.terminal) {
+        const cols = state.terminal.cols;
+        const rows = state.terminal.rows;
+        console.log('Sending terminal size from resizer:', { cols, rows });
+
+        const message = JSON.stringify({
+            resize: {
+                cols: cols,
+                rows: rows
+            }
+        });
+        state.terminalWebSocket.send(message);
+    }
+}
+
 // Initialize vertical resizer
 export function initializeVerticalResizer() {
     const resizer = document.querySelector('.vertical-resizer');
@@ -103,7 +130,11 @@ export function initializeVerticalResizer() {
             terminalContainer.style.height = terminalHeight + 'px';
 
             if (state.fitAddon && state.terminalVisible) {
-                setTimeout(() => state.fitAddon.fit(), 50);
+                setTimeout(() => {
+                    state.fitAddon.fit();
+                    // Send terminal size after fitting
+                    sendTerminalSize();
+                }, 50);
             }
         }
     }

@@ -324,7 +324,7 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		go func() {
 			defer cancel()
 			for {
-				var msg map[string]string
+				var msg map[string]interface{}
 				if err := ws.ReadJSON(&msg); err != nil {
 					fmt.Printf("Error reading WebSocket message: %v\n", err)
 					return
@@ -332,11 +332,22 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 
 				fmt.Printf("Received WebSocket message: %+v\n", msg)
 
-				if input, ok := msg["input"]; ok {
+				if input, ok := msg["input"].(string); ok {
 					fmt.Printf("Sending input to bash: %q\n", input)
 					if err := session.sendInput(input); err != nil {
 						fmt.Printf("Error sending input to bash: %v\n", err)
 						return
+					}
+				}
+
+				if resize, ok := msg["resize"].(map[string]interface{}); ok {
+					if cols, colsOk := resize["cols"].(float64); colsOk {
+						if rows, rowsOk := resize["rows"].(float64); rowsOk {
+							fmt.Printf("Received resize request: cols=%d, rows=%d\n", int(cols), int(rows))
+							if err := session.setSize(int(cols), int(rows)); err != nil {
+								fmt.Printf("Error setting terminal size: %v\n", err)
+							}
+						}
 					}
 				}
 			}
