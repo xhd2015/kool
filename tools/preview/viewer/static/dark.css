@@ -88,6 +88,21 @@ body.dark-theme .preview-uml {
     background-color: #ffffff;
 }
 
+/* Dark theme zoom controls */
+body.dark-theme .zoom-controls {
+    background-color: rgba(30, 30, 30, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .zoom-button {
+    background: #0078d4;
+    color: white;
+}
+
+body.dark-theme .zoom-button:hover {
+    background: #106ebe;
+}
+
 body.dark-theme .error {
     color: #f48771;
     background-color: #332222;
@@ -141,6 +156,10 @@ body.dark-theme .uml-error-compact {
 /* Dark theme for Mermaid previews */
 body.dark-theme .preview-mermaid {
     background-color: #1e1e1e;
+}
+
+body.dark-theme .preview-mermaid .zoom-controls {
+    background-color: rgba(30, 30, 30, 0.9);
 }
 
 body.dark-theme .mermaid-error {
@@ -212,4 +231,20 @@ body.dark-theme .retry-button {
 
 body.dark-theme .retry-button:hover {
     background-color: #f57c00;
+}
+
+/* Dark theme for loading indicator overlay - minimal and unobtrusive */
+body.dark-theme .loading-indicator {
+    background-color: rgba(30, 30, 30, 0.9);
+    border-color: rgba(255, 255, 255, 0.05);
+    opacity: 0.8;
+}
+
+body.dark-theme .loading-text-small {
+    color: #cccccc;
+}
+
+body.dark-theme .loading-spinner-small {
+    border-color: #555;
+    border-top-color: #007acc;
 }

@@ -1,0 +1,47 @@
+/* Terminal styles */
+.terminal-section {
+    display: flex;
+    flex-direction: column;
+    background-color: #1e1e1e;
+    flex-shrink: 0;
+}
+
+.terminal-header {
+    background-color: #2d2d30;
+    padding: 8px 16px;
+    border-top: 1px solid #3e3e42;
+    font-size: 13px;
+    color: #cccccc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    order: 2;
+}
+
+.terminal-toggle {
+    background: none;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #cccccc;
+    transition: all 0.3s ease;
+}
+
+.terminal-toggle:hover {
+    background-color: #3e3e42;
+}
+
+#terminal-container {
+    flex: 1;
+    overflow: hidden;
+    background-color: #1e1e1e;
+    order: 1;
+    min-height: 200px;
+}
+
+#terminal-container.hidden {
+    display: none;
+}

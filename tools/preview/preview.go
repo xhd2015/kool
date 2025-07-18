@@ -26,6 +26,9 @@ Example plantuml server:
 // - [ ] use websocket to sync the backend and frontend content change
 // - [ ] only show save retry button when save failed, no other status needed
 // - [ ] split the html into multiple files and components
+// - [ ] use user's default shell
+// - [ ] terminal line wrap working test
+// - [ ] allow edit other files
 
 func Handle(args []string) error {
 	var autoDocker bool

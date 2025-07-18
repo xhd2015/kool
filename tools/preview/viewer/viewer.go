@@ -3,11 +3,13 @@ package viewer
 import (
 	"context"
 	"crypto/sha256"
+	"embed"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,17 +20,8 @@ import (
 	"github.com/xhd2015/kool/pkgs/web"
 )
 
-//go:embed index.html
-var indexHtml string
-
-//go:embed index.css
-var indexCss string
-
-//go:embed dark.css
-var darkCss string
-
-//go:embed index.js
-var indexJs string
+//go:embed static
+var staticFS embed.FS
 
 type FileNode struct {
 	Name     string      `json:"name"`
@@ -75,12 +68,30 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		return err
 	}
 
-	htmlContent := strings.ReplaceAll(indexHtml, "__CSS__", "<style>\n"+indexCss+"\n"+darkCss+"\n</style>\n")
-	htmlContent = strings.ReplaceAll(htmlContent, "__SCRIPT__", "<script>\n"+indexJs+"\n</script>\n")
+	// Serve static files from the embedded filesystem
+	staticFileSystem, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		return fmt.Errorf("failed to create static file system: %v", err)
+	}
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFileSystem))))
+
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		indexFile, err := staticFileSystem.Open("index.html")
+		if err != nil {
+			http.Error(w, "Failed to load index.html", http.StatusInternalServerError)
+			return
+		}
+		defer indexFile.Close()
+
+		content, err := io.ReadAll(indexFile)
+		if err != nil {
+			http.Error(w, "Failed to read index.html", http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(htmlContent))
+		w.Write(content)
 	})
 
 	// API to get directory tree

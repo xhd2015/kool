@@ -1,0 +1,35 @@
+/* Resizer styles */
+.resizer {
+    width: 4px;
+    background-color: #e0e0e0;
+    cursor: col-resize;
+    position: relative;
+}
+
+.resizer:hover {
+    background-color: #007acc;
+}
+
+.horizontal-resizer {
+    width: 4px;
+    background-color: #e0e0e0;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.horizontal-resizer:hover {
+    background-color: #007acc;
+}
+
+.vertical-resizer {
+    height: 4px;
+    background-color: #e0e0e0;
+    cursor: row-resize;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.vertical-resizer:hover {
+    background-color: #007acc;
+}

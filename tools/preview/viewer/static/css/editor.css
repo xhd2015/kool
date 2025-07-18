@@ -1,0 +1,82 @@
+/* Editor Section */
+.editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #e0e0e0;
+    min-width: 300px;
+}
+
+.editor-header {
+    background-color: #f8f8f8;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #333333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.save-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-status {
+    font-size: 11px;
+    color: #666;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    min-width: 60px;
+    text-align: right;
+}
+
+.save-status.visible {
+    opacity: 1;
+}
+
+.save-status.success {
+    color: #28a745;
+}
+
+.save-status.error {
+    color: #dc3545;
+}
+
+.save-button {
+    background-color: #acdeffca;
+    color: #787878;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+}
+
+.save-button:hover {
+    background-color: #005a9e;
+}
+
+.save-button:disabled {
+    background-color: #ccc;
+    color: white;
+    cursor: not-allowed;
+}
+
+.editor-textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 16px;
+    resize: none;
+    background-color: #ffffff;
+    color: #333333;
+    tab-size: 4;
+}

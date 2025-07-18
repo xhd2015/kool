@@ -1,0 +1,9 @@
+/* Main CSS file - imports all components */
+@import url('./css/base.css');
+@import url('./css/theme.css');
+@import url('./css/sidebar.css');
+@import url('./css/editor.css');
+@import url('./css/preview.css');
+@import url('./css/zoom.css');
+@import url('./css/terminal.css');
+@import url('./css/resizer.css');
