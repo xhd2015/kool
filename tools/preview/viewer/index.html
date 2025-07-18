@@ -34,8 +34,22 @@
             </div>
             <div class="content-body">
                 <div class="preview-section">
-                    <div id="preview-container">
-                        <div class="empty-state">Select a file from the explorer to preview its contents</div>
+                    <div class="editor-section" id="editor-section" style="display: none;">
+                        <div class="editor-header">
+                            <span>Editor</span>
+                            <div class="save-controls">
+                                <span class="save-status" id="save-status"></span>
+                                <button class="save-button" id="save-button">Save</button>
+                            </div>
+                        </div>
+                        <textarea id="editor-textarea" class="editor-textarea"
+                            placeholder="Start editing..."></textarea>
+                    </div>
+                    <div class="horizontal-resizer" id="horizontal-resizer" style="display: none;"></div>
+                    <div class="preview-container-wrapper">
+                        <div id="preview-container">
+                            <div class="empty-state">Select a file from the explorer to preview its contents</div>
+                        </div>
                     </div>
                 </div>
 

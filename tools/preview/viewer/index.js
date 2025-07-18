@@ -4,6 +4,17 @@ let terminal = null;
 let fitAddon = null;
 let terminalVisible = false;
 let terminalWebSocket = null;
+let currentFileContent = null;
+let isEditorMode = false;
+let previewUpdateTimeout = null;
+let autoSaveTimeout = null;
+
+// Check if a file is editable
+function isEditableFile(filePath) {
+    const editableExtensions = ['.md', '.uml', '.puml', '.mmd', '.txt', '.json', '.yaml', '.yml'];
+    const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+    return editableExtensions.includes(ext);
+}
 
 // Load and render the directory tree
 async function loadTree() {
@@ -19,6 +30,8 @@ async function loadTree() {
             `<div class="error">Failed to load directory tree: ${error.message}</div>`;
     }
 }
+
+
 
 // Render the directory tree
 function renderTree() {
@@ -122,22 +135,109 @@ function selectFile(element, filePath) {
     // Update content title
     document.getElementById('content-title').textContent = filePath.split('/').pop();
 
-    // Load file preview
+    // Update URL query parameter
+    updateUrlQuery(filePath);
+
+    // Check if file is editable and setup editor mode
+    if (isEditableFile(filePath)) {
+        setupEditorMode(filePath);
+    } else {
+        setupPreviewOnlyMode();
+        loadPreview(filePath);
+    }
+}
+
+// Update URL query parameter
+function updateUrlQuery(filePath) {
+    const url = new URL(window.location);
+    if (filePath) {
+        url.searchParams.set('file', filePath);
+    } else {
+        url.searchParams.delete('file');
+    }
+    window.history.pushState({}, '', url);
+}
+
+// Setup editor mode for editable files
+async function setupEditorMode(filePath) {
+    isEditorMode = true;
+
+    // Show editor components
+    document.getElementById('editor-section').style.display = 'flex';
+    document.getElementById('horizontal-resizer').style.display = 'block';
+
+    // Load file content into editor
+    await loadFileContent(filePath);
+
+    // Load initial preview
     loadPreview(filePath);
 }
 
+// Setup preview-only mode for non-editable files
+function setupPreviewOnlyMode() {
+    isEditorMode = false;
+
+    // Hide editor components
+    document.getElementById('editor-section').style.display = 'none';
+    document.getElementById('horizontal-resizer').style.display = 'none';
+}
+
+// Load file content into editor
+async function loadFileContent(filePath) {
+    try {
+        const response = await fetch(`/api/content?path=${encodeURIComponent(filePath)}`);
+        if (!response.ok) {
+            throw new Error(`Failed to load file content: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        currentFileContent = data.content;
+
+        const editor = document.getElementById('editor-textarea');
+        editor.value = currentFileContent;
+
+        // Setup real-time preview updates
+        setupEditorEventListeners();
+
+        // Initialize save button state
+        updateSaveButtonState();
+
+    } catch (error) {
+        console.error('Failed to load file content:', error);
+        document.getElementById('editor-textarea').value = 'Error loading file content';
+    }
+}
+
 // Load file preview
-async function loadPreview(filePath) {
+async function loadPreview(filePath, customContent = null) {
     const container = document.getElementById('preview-container');
     container.innerHTML = '<div class="loading">Loading preview...</div>';
 
     try {
-        const response = await fetch(`/api/preview?path=${encodeURIComponent(filePath)}`);
-        if (!response.ok) {
-            throw new Error(`Failed to load preview: ${response.statusText}`);
-        }
+        let data;
 
-        const data = await response.json();
+        if (customContent !== null) {
+            // Use custom content (from editor) instead of loading from server
+            const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+            let type = 'text';
+
+            if (ext === '.md') {
+                type = 'markdown';
+            } else if (ext === '.uml' || ext === '.puml') {
+                type = 'uml';
+            } else if (ext === '.mmd') {
+                type = 'mermaid';
+            }
+
+            data = { type, content: customContent };
+        } else {
+            // Load from server
+            const response = await fetch(`/api/preview?path=${encodeURIComponent(filePath)}`);
+            if (!response.ok) {
+                throw new Error(`Failed to load preview: ${response.statusText}`);
+            }
+            data = await response.json();
+        }
 
         if (data.type === 'uml') {
             renderUMLPreview(data.content, container);
@@ -319,6 +419,159 @@ function retryUMLRender(button, content) {
     renderUMLPreview(content, container);
 }
 
+// Setup editor event listeners
+function setupEditorEventListeners() {
+    const editor = document.getElementById('editor-textarea');
+    const saveButton = document.getElementById('save-button');
+
+    // Real-time preview update and auto-save with debouncing
+    editor.addEventListener('input', () => {
+        // Clear existing timeouts
+        clearTimeout(previewUpdateTimeout);
+        clearTimeout(autoSaveTimeout);
+
+        // Update preview with 500ms debounce
+        previewUpdateTimeout = setTimeout(() => {
+            if (isEditorMode && selectedFile) {
+                loadPreview(selectedFile, editor.value);
+            }
+        }, 500);
+
+        // Auto-save with 500ms throttle
+        autoSaveTimeout = setTimeout(() => {
+            if (isEditorMode && selectedFile && editor.value !== currentFileContent) {
+                autoSaveFile(editor.value);
+            }
+        }, 500);
+
+        // Update save button state
+        updateSaveButtonState();
+    });
+
+    // Manual save functionality (kept for explicit saves)
+    saveButton.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        await saveFile(editor.value, true); // true = manual save
+    });
+
+    // Initially disable save button
+    saveButton.disabled = true;
+}
+
+// Auto-save function
+async function autoSaveFile(content) {
+    if (!selectedFile) return;
+
+    try {
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                path: selectedFile,
+                content: content
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to auto-save: ${response.statusText}`);
+        }
+
+        currentFileContent = content;
+        showSaveStatus('Auto-saved', 'success', 1500);
+
+    } catch (error) {
+        console.error('Failed to auto-save file:', error);
+        showSaveStatus('Auto-save failed', 'error', 2500);
+    } finally {
+        updateSaveButtonState();
+    }
+}
+
+// Manual save function
+async function saveFile(content, isManual = false) {
+    if (!selectedFile) return;
+
+    const saveButton = document.getElementById('save-button');
+
+    try {
+        if (isManual) {
+            saveButton.disabled = true;
+            showSaveStatus('Saving...', 'default', 10000); // Long duration, will be cleared on completion
+        }
+
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                path: selectedFile,
+                content: content
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to save: ${response.statusText}`);
+        }
+
+        currentFileContent = content;
+
+        if (isManual) {
+            showSaveStatus('Saved', 'success', 2000);
+        }
+
+        updateSaveButtonState();
+
+    } catch (error) {
+        console.error('Failed to save file:', error);
+        if (isManual) {
+            showSaveStatus('Save failed', 'error', 3000);
+        }
+        updateSaveButtonState();
+    }
+}
+
+// Update save button state based on content changes
+function updateSaveButtonState() {
+    const editor = document.getElementById('editor-textarea');
+    const saveButton = document.getElementById('save-button');
+
+    if (editor.value === currentFileContent) {
+        saveButton.disabled = true;
+    } else {
+        saveButton.disabled = false;
+    }
+
+    // Keep button text simple
+    saveButton.textContent = 'Save';
+}
+
+// Show subtle status indicator
+function showSaveStatus(message, type = 'default', duration = 2000) {
+    const statusElement = document.getElementById('save-status');
+
+    // Remove existing classes
+    statusElement.classList.remove('visible', 'success', 'error');
+
+    // Set message and type
+    statusElement.textContent = message;
+    if (type === 'success') {
+        statusElement.classList.add('success');
+    } else if (type === 'error') {
+        statusElement.classList.add('error');
+    }
+
+    // Show status
+    statusElement.classList.add('visible');
+
+    // Hide after duration
+    setTimeout(() => {
+        statusElement.classList.remove('visible');
+    }, duration);
+}
+
 // Initialize sidebar resizing
 function initializeResizer() {
     const resizer = document.querySelector('.resizer');
@@ -337,6 +590,47 @@ function initializeResizer() {
         const newWidth = e.clientX;
         if (newWidth > 200 && newWidth < 600) {
             sidebar.style.width = newWidth + 'px';
+        }
+    }
+
+    function handleMouseUp() {
+        isResizing = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }
+}
+
+// Initialize horizontal resizer for editor/preview split
+function initializeHorizontalResizer() {
+    const resizer = document.querySelector('.horizontal-resizer');
+    const editorSection = document.querySelector('.editor-section');
+    const previewWrapper = document.querySelector('.preview-container-wrapper');
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    });
+
+    function handleMouseMove(e) {
+        if (!isResizing) return;
+
+        const container = document.querySelector('.preview-section');
+        const containerRect = container.getBoundingClientRect();
+        const relativeX = e.clientX - containerRect.left;
+        const containerWidth = containerRect.width;
+
+        const minWidth = 300;
+        const maxEditorWidth = containerWidth - minWidth - 4; // 4px for resizer
+        const editorWidth = Math.max(minWidth, Math.min(maxEditorWidth, relativeX - 4));
+        const previewWidth = containerWidth - editorWidth - 4;
+
+        if (previewWidth >= minWidth) {
+            editorSection.style.flex = 'none';
+            editorSection.style.width = editorWidth + 'px';
+            previewWrapper.style.flex = 'none';
+            previewWrapper.style.width = previewWidth + 'px';
         }
     }
 
@@ -589,10 +883,86 @@ function initializeVerticalResizer() {
     }
 }
 
+// Get file path from URL query parameter
+function getFileFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('file');
+}
+
+
+
+// Find and select file in tree
+function findAndSelectFile(filePath) {
+    if (!filePath) return;
+
+    // Find the tree node with the matching path
+    // First try exact match
+    let treeNode = document.querySelector(`[data-path="${filePath}"]`);
+
+    // If not found by exact match, try to find by relative path matching
+    if (!treeNode) {
+        const allNodes = document.querySelectorAll('[data-path]');
+        for (const node of allNodes) {
+            const nodePath = node.getAttribute('data-path');
+            if (nodePath.endsWith(filePath) || nodePath.endsWith('/' + filePath)) {
+                treeNode = node;
+                break;
+            }
+        }
+    }
+
+    if (treeNode) {
+        // Expand parent directories if needed
+        expandParentDirectories(treeNode);
+
+        // Select the file using the actual absolute path from the tree node
+        const actualPath = treeNode.getAttribute('data-path');
+        selectFile(treeNode, actualPath);
+
+        // Scroll to the selected file
+        treeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Expand parent directories to make a file visible
+function expandParentDirectories(fileNode) {
+    let parent = fileNode.parentElement;
+    while (parent) {
+        if (parent.classList.contains('tree-children') && parent.classList.contains('collapsed')) {
+            parent.classList.remove('collapsed');
+            // Update the toggle icon
+            const parentNode = parent.previousElementSibling;
+            if (parentNode) {
+                const toggle = parentNode.querySelector('.toggle');
+                if (toggle) {
+                    toggle.textContent = '▼';
+                }
+            }
+        }
+        parent = parent.parentElement;
+    }
+}
+
+// Initialize file selection after tree is loaded
+async function initializeFileSelection() {
+    // Get file from URL query parameter
+    const fileToSelect = getFileFromUrl();
+
+    if (fileToSelect) {
+        // Wait a bit for the tree to be fully rendered
+        setTimeout(() => {
+            findAndSelectFile(fileToSelect);
+        }, 100);
+    }
+}
+
 // Initialize the application
-window.addEventListener('load', () => {
-    loadTree();
+window.addEventListener('load', async () => {
+    await loadTree();
+    await initializeFileSelection();
+
     initializeResizer();
+    initializeHorizontalResizer();
     initializeTheme();
     initializeTerminal();
     initializeTerminalToggle();
@@ -607,6 +977,14 @@ window.addEventListener('load', () => {
         verticalResizer.style.display = 'none';
         previewSection.style.flex = '1';
         terminalContainer.classList.add('hidden');
+    }
+});
+
+// Handle browser back/forward navigation
+window.addEventListener('popstate', () => {
+    const fileFromUrl = getFileFromUrl();
+    if (fileFromUrl !== selectedFile) {
+        findAndSelectFile(fileFromUrl);
     }
 });
 

@@ -51,6 +51,34 @@ body.dark-theme .tree-node.file {
     color: #cccccc;
 }
 
+/* Dark theme for editor */
+body.dark-theme .editor-section {
+    border-right: 1px solid #3e3e42;
+}
+
+body.dark-theme .editor-header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+}
+
+body.dark-theme .save-status {
+    color: #999;
+}
+
+body.dark-theme .editor-textarea {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+body.dark-theme .horizontal-resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .horizontal-resizer:hover {
+    background-color: #007acc;
+}
+
 body.dark-theme .preview-text {
     background-color: #1e1e1e;
     color: #d4d4d4;

@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/xhd2015/kool/pkgs/web"
-	"github.com/xhd2015/kool/tools/preview/uml"
 	"github.com/xhd2015/kool/tools/preview/viewer"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
@@ -22,6 +20,12 @@ Options:
 Example plantuml server:
   docker run --rm -p 8080:8080 plantuml/plantuml-server:jetty
 `
+
+// TODO:
+// - [ ] avoid previewing binary files, just like vscode
+// - [ ] use websocket to sync the backend and frontend content change
+// - [ ] only show save retry button when save failed, no other status needed
+// - [ ] split the html into multiple files and components
 
 func Handle(args []string) error {
 	var autoDocker bool
@@ -68,18 +72,16 @@ func Handle(args []string) error {
 	if stat.IsDir() {
 		return viewer.Serve(path, plantumlServer)
 	}
-
-	// If it's a file, handle based on extension
-	ext := strings.ToLower(filepath.Ext(path))
-
-	if ext == ".uml" || ext == ".puml" {
-		return uml.Serve(path, plantumlServer)
+	// Use the viewer for UML files (it has built-in UML support)
+	// Get absolute path for the initial file
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %v", err)
 	}
-
-	if ext == ".mmd" || ext == ".md" {
-		// For Mermaid and Markdown files, use the viewer (directory viewer can handle individual files)
-		return viewer.Serve(filepath.Dir(path), plantumlServer)
+	// Use current working directory as root
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working directory: %v", err)
 	}
-
-	return fmt.Errorf("unsupported file type: %s", ext)
+	return viewer.ServeWithInitialFile(cwd, plantumlServer, absPath)
 }

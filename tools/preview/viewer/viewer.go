@@ -50,6 +50,10 @@ func init() {
 }
 
 func Serve(dir string, plantumlServer string) error {
+	return ServeWithInitialFile(dir, plantumlServer, "")
+}
+
+func ServeWithInitialFile(dir string, plantumlServer string, initialFile string) error {
 	// Convert to absolute path
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -81,7 +85,7 @@ func Serve(dir string, plantumlServer string) error {
 
 	// API to get directory tree
 	http.HandleFunc("/api/tree", func(w http.ResponseWriter, r *http.Request) {
-		tree, err := buildFileTree(absDir)
+		tree, err := buildFileTreeWithRelativePaths(absDir, absDir)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -166,12 +170,20 @@ func Serve(dir string, plantumlServer string) error {
 			return
 		}
 
-		// Security check: ensure the file is within the served directory
-		absFilePath, err := filepath.Abs(filePath)
-		if err != nil {
-			http.Error(w, "invalid file path", http.StatusBadRequest)
-			return
+		// Convert relative path to absolute path by joining with base directory
+		var absFilePath string
+		if filepath.IsAbs(filePath) {
+			// If it's already absolute, use it directly (for backward compatibility)
+			absFilePath = filePath
+		} else {
+			// If it's relative, join with base directory
+			absFilePath = filepath.Join(absDir, filePath)
 		}
+
+		// Clean the path to resolve any ".." components
+		absFilePath = filepath.Clean(absFilePath)
+
+		// Security check: ensure the file is within the served directory
 		if !strings.HasPrefix(absFilePath, absDir) {
 			http.Error(w, "access denied", http.StatusForbidden)
 			return
@@ -349,6 +361,108 @@ func Serve(dir string, plantumlServer string) error {
 		}
 	})
 
+	// API to get file content for editing
+	http.HandleFunc("/api/content", func(w http.ResponseWriter, r *http.Request) {
+		filePath := r.URL.Query().Get("path")
+		if filePath == "" {
+			http.Error(w, "path parameter is required", http.StatusBadRequest)
+			return
+		}
+
+		// Convert relative path to absolute path by joining with base directory
+		var absFilePath string
+		if filepath.IsAbs(filePath) {
+			absFilePath = filePath
+		} else {
+			absFilePath = filepath.Join(absDir, filePath)
+		}
+
+		// Clean the path to resolve any ".." components
+		absFilePath = filepath.Clean(absFilePath)
+
+		// Security check: ensure the file is within the served directory
+		if !strings.HasPrefix(absFilePath, absDir) {
+			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
+
+		// Check if file exists
+		stat, err := os.Stat(absFilePath)
+		if os.IsNotExist(err) {
+			http.Error(w, "file not found", http.StatusNotFound)
+			return
+		}
+		if stat.IsDir() {
+			http.Error(w, "cannot load directory content", http.StatusBadRequest)
+			return
+		}
+
+		// Read file content
+		content, err := os.ReadFile(absFilePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"content": string(content),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// API to save file content
+	http.HandleFunc("/api/save", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var requestBody struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if requestBody.Path == "" {
+			http.Error(w, "path is required", http.StatusBadRequest)
+			return
+		}
+
+		// Convert relative path to absolute path by joining with base directory
+		var absFilePath string
+		if filepath.IsAbs(requestBody.Path) {
+			absFilePath = requestBody.Path
+		} else {
+			absFilePath = filepath.Join(absDir, requestBody.Path)
+		}
+
+		// Clean the path to resolve any ".." components
+		absFilePath = filepath.Clean(absFilePath)
+
+		// Security check: ensure the file is within the served directory
+		if !strings.HasPrefix(absFilePath, absDir) {
+			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
+
+		// Write file content
+		if err := os.WriteFile(absFilePath, []byte(requestBody.Content), 0644); err != nil {
+			http.Error(w, fmt.Sprintf("failed to save file: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]interface{}{
+			"success": true,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
 	// Remove the old /api/terminal/input endpoint since we're using WebSocket
 
 	server := &http.Server{
@@ -368,15 +482,26 @@ func Serve(dir string, plantumlServer string) error {
 	return server.ListenAndServe()
 }
 
-func buildFileTree(rootPath string) (*FileNode, error) {
+func buildFileTreeWithRelativePaths(rootPath, baseDir string) (*FileNode, error) {
 	stat, err := os.Stat(rootPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Generate relative path from baseDir
+	relativePath, err := filepath.Rel(baseDir, rootPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// If it's the root directory, use "." as the relative path
+	if relativePath == "." {
+		relativePath = filepath.Base(rootPath)
+	}
+
 	node := &FileNode{
 		Name:  filepath.Base(rootPath),
-		Path:  rootPath,
+		Path:  relativePath,
 		IsDir: stat.IsDir(),
 	}
 
@@ -393,7 +518,7 @@ func buildFileTree(rootPath string) (*FileNode, error) {
 			}
 
 			childPath := filepath.Join(rootPath, entry.Name())
-			childNode, err := buildFileTree(childPath)
+			childNode, err := buildFileTreeWithRelativePaths(childPath, baseDir)
 			if err != nil {
 				// Skip files that can't be read
 				continue
