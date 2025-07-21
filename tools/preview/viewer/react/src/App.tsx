@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Preview from './components/preview/Preview';
-import MultiTabTerminal from './components/terminal/MultiTabTerminal';
+import MultiTabTerminal, { type MultiTabTerminalHandle } from './components/terminal/MultiTabTerminal';
 import { useResize } from './hooks/useResize';
 import './styles/globals.css';
 
@@ -14,6 +14,7 @@ function App() {
   // Refs for vertical resizing
   const appContainerRef = useRef<HTMLDivElement>(null);
   const verticalResizerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<MultiTabTerminalHandle>(null);
 
   // Vertical resize between content and terminal
   const { size: contentSize, handleMouseDown: handleVerticalMouseDown } = useResize({
@@ -27,8 +28,13 @@ function App() {
 
   // Reset content size when terminal visibility changes
   useEffect(() => {
-    // This effect will run when terminalVisible changes
-    // The resize hook will maintain its state, but we adjust the layout accordingly
+    // When terminal visibility changes, we need to force a layout recalculation
+    // This ensures the content area properly expands/contracts
+    if (appContainerRef.current) {
+      // Trigger a resize event to force layout recalculation
+      const resizeEvent = new Event('resize');
+      window.dispatchEvent(resizeEvent);
+    }
   }, [terminalVisible]);
 
   // Initialize selectedFile from URL parameter on mount
@@ -53,6 +59,13 @@ function App() {
     setSearchParams(newParams, { replace: true });
   };
 
+  // Handle terminal command execution
+  const handleExecuteTerminalCommand = (command: string) => {
+    if (terminalRef.current) {
+      terminalRef.current.executeCommand(command);
+    }
+  };
+
   return (
     <div className="app" ref={appContainerRef}>
       <div style={{
@@ -65,6 +78,7 @@ function App() {
         <Layout
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
+          onExecuteTerminalCommand={handleExecuteTerminalCommand}
         >
           <div className="preview-section">
             <div className="preview-container-wrapper">
@@ -93,6 +107,7 @@ function App() {
         overflow: 'hidden'
       }}>
         <MultiTabTerminal
+          ref={terminalRef}
           isVisible={terminalVisible}
           onToggle={() => setTerminalVisible(!terminalVisible)}
         />

@@ -6,12 +6,13 @@ interface LayoutProps {
     children?: React.ReactNode;
     selectedFile: string | null;
     onFileSelect: (filePath: string | null) => void;
+    onExecuteTerminalCommand?: (command: string) => void;
 }
 
-const Layout = ({ children, selectedFile, onFileSelect }: LayoutProps) => {
+const Layout = ({ children, selectedFile, onFileSelect, onExecuteTerminalCommand }: LayoutProps) => {
     return (
         <div className="app">
-            <Header />
+            <Header onExecuteTerminalCommand={onExecuteTerminalCommand} />
             <div className="container">
                 <Sidebar
                     selectedFile={selectedFile}

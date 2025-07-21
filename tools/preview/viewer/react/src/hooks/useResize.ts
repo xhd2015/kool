@@ -21,6 +21,13 @@ export const useResize = ({
     const [size, setSize] = useState<number>(defaultSize); // percentage (0-100)
     const [isDragging, setIsDragging] = useState(false);
 
+    // Reset size to default when enabled state changes
+    useEffect(() => {
+        if (enabled) {
+            setSize(defaultSize);
+        }
+    }, [enabled, defaultSize]);
+
     // Handle mouse down - returns the event handler for onMouseDown
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (!enabled) return;

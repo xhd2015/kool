@@ -125,52 +125,52 @@
 }
 
 /* Dark mode support */
-[data-theme="dark"] .git-diff-viewer {
+body.dark-theme .git-diff-viewer {
     background-color: #1e1e1e;
     border-color: #404040;
     color: #ffffff;
 }
 
-[data-theme="dark"] .git-diff-viewer h4 {
+body.dark-theme .git-diff-viewer h4 {
     background-color: #2d2d2d;
     border-bottom-color: #404040;
     color: #ffffff;
 }
 
-[data-theme="dark"] .diff-line-context {
+body.dark-theme .diff-line-context {
     background-color: #1e1e1e;
 }
 
-[data-theme="dark"] .diff-line-file {
+body.dark-theme .diff-line-file {
     background-color: #2d2d2d;
     color: #ccc;
 }
 
-[data-theme="dark"] .diff-line-header {
+body.dark-theme .diff-line-header {
     background-color: #333;
     color: #ccc;
 }
 
-[data-theme="dark"] .diff-line-hunk {
+body.dark-theme .diff-line-hunk {
     background-color: #0d47a1;
     color: #81d4fa;
     border-left-color: #1976d2;
 }
 
-[data-theme="dark"] .line-numbers {
+body.dark-theme .line-numbers {
     background-color: rgba(255, 255, 255, 0.05);
     border-right-color: #404040;
 }
 
-[data-theme="dark"] .old-line-number,
-[data-theme="dark"] .new-line-number {
+body.dark-theme .old-line-number,
+body.dark-theme .new-line-number {
     color: #999;
 }
 
-[data-theme="dark"] .old-line-number {
+body.dark-theme .old-line-number {
     border-right-color: #404040;
 }
 
-[data-theme="dark"] .diff-empty {
+body.dark-theme .diff-empty {
     color: #999;
 }

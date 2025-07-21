@@ -1,6 +1,6 @@
 @startuml
 !theme blueprint
-title Large UML Class Diagram Example22
+title Large UML Class Diagram Example
 
 package "User Management System" {
     class User {

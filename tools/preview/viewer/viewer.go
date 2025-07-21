@@ -23,6 +23,24 @@ import (
 	"github.com/xhd2015/kool/pkgs/web"
 )
 
+// isDockerRunningOnPort checks if a Docker container is running on the specified port
+// by checking if the container with name plantuml-server-<port> is running
+func isDockerRunningOnPort(port int) bool {
+	containerName := fmt.Sprintf("plantuml-server-%d", port)
+
+	// Use docker ps to check if container is running
+	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}")
+	output, err := cmd.Output()
+	if err != nil {
+		// Docker command failed, assume container is not running
+		return false
+	}
+
+	// Check if the container name appears in the output
+	outputStr := strings.TrimSpace(string(output))
+	return outputStr == containerName
+}
+
 // Re-enable embedded filesystem
 //
 //go:embed react/dist
@@ -121,6 +139,8 @@ func Serve(dir string, plantumlServer string) error {
 	return ServeWithInitialFile(dir, plantumlServer, "")
 }
 
+const PLANT_UTML_PORT = 6743
+
 func ServeWithInitialFile(dir string, plantumlServer string, initialFile string) error {
 	// Convert to absolute path
 	absDir, err := filepath.Abs(dir)
@@ -153,6 +173,13 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 	assetsFileSystem, err := fs.Sub(reactFileSystem, "assets")
 	if err != nil {
 		return fmt.Errorf("failed to create assets file system: %v", err)
+	}
+
+	// Check if PlantUML server is already running
+	if isDockerRunningOnPort(PLANT_UTML_PORT) {
+		plantumlContainer.isRunning = true
+		plantumlContainer.port = PLANT_UTML_PORT
+		plantumlContainer.containerID = fmt.Sprintf("plantuml-server-%d", PLANT_UTML_PORT)
 	}
 
 	// Serve React assets from /assets/ path with proper MIME types
@@ -621,25 +648,35 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 			return
 		}
 
-		// Find an available port
-		port, err := web.FindAvailablePort(6743, 100)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to find available port: %v", err), http.StatusInternalServerError)
+		// First, check if port 6743 is already running a Docker container
+		if isDockerRunningOnPort(PLANT_UTML_PORT) {
+			// Port 6743 is already running, just update our tracking
+			plantumlContainer.isRunning = true
+			plantumlContainer.port = PLANT_UTML_PORT
+			plantumlContainer.containerID = fmt.Sprintf("plantuml-server-%d", PLANT_UTML_PORT) // Assume standard naming
+
+			response := map[string]interface{}{
+				"success": true,
+				"port":    PLANT_UTML_PORT,
+				// Don't send command since container is already running
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
 			return
 		}
 
 		// Create the Docker command with a name for easier management
-		containerName := fmt.Sprintf("plantuml-server-%d", port)
-		dockerCmd := fmt.Sprintf("docker run --rm --name %s -p %d:8080 plantuml/plantuml-server:jetty", containerName, port)
+		containerName := fmt.Sprintf("plantuml-server-%d", PLANT_UTML_PORT)
+		dockerCmd := fmt.Sprintf("docker run --rm --name %s -p %d:8080 plantuml/plantuml-server:jetty", containerName, PLANT_UTML_PORT)
 
 		// Update container tracking
 		plantumlContainer.isRunning = true
-		plantumlContainer.port = port
+		plantumlContainer.port = PLANT_UTML_PORT
 		plantumlContainer.containerID = containerName
 
 		response := map[string]interface{}{
 			"success": true,
-			"port":    port,
+			"port":    PLANT_UTML_PORT,
 			"command": dockerCmd,
 		}
 		w.Header().Set("Content-Type", "application/json")

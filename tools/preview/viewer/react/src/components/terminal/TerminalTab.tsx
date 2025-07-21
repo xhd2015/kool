@@ -8,6 +8,8 @@ interface TerminalTabProps {
     tabId: string;
     isActive: boolean;
     isVisible: boolean;
+    pendingCommand?: string | null;
+    onCommandExecuted?: () => void;
 }
 
 interface TerminalSession {
@@ -23,7 +25,7 @@ interface WebSocketCallbacks {
     onReconnect: () => void;
 }
 
-const TerminalTab: React.FC<TerminalTabProps> = ({ tabId, isActive, isVisible }) => {
+const TerminalTab: React.FC<TerminalTabProps> = ({ tabId, isActive, isVisible, pendingCommand, onCommandExecuted }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<TerminalSession | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
@@ -127,19 +129,55 @@ const TerminalTab: React.FC<TerminalTabProps> = ({ tabId, isActive, isVisible })
         return () => window.removeEventListener('resize', handleResize);
     }, [isActive, isVisible]);
 
-    // Handle custom command execution events
+    // Handle terminal container resize using ResizeObserver
     useEffect(() => {
-        const handleExecuteCommand = (event: CustomEvent) => {
-            // Only execute on the active terminal tab
-            if (isActive && isVisible && event.detail?.command) {
-                sendInput(event.detail.command);
-            }
-        };
+        if (!terminalRef.current || !isActive || !isVisible) return;
 
-        window.addEventListener('executeTerminalCommand', handleExecuteCommand as EventListener);
-        return () => window.removeEventListener('executeTerminalCommand', handleExecuteCommand as EventListener);
+        const resizeObserver = new ResizeObserver(() => {
+            if (sessionRef.current?.fitAddon) {
+                // Use a small delay to ensure the container has fully resized
+                setTimeout(() => {
+                    sessionRef.current?.fitAddon.fit();
+                    sendTerminalSize();
+                }, 50);
+            }
+        });
+
+        resizeObserver.observe(terminalRef.current);
+
+        return () => {
+            resizeObserver.disconnect();
+        };
     }, [isActive, isVisible]);
 
+    // Handle pending command execution
+    useEffect(() => {
+        if (pendingCommand && isActive && isVisible) {
+            console.log(`Executing pending command for tab ${tabId}:`, pendingCommand);
+
+            // Check if WebSocket is ready
+            if (sessionRef.current?.websocket && sessionRef.current.websocket.readyState === WebSocket.OPEN) {
+                sendInput(pendingCommand);
+                if (onCommandExecuted) {
+                    onCommandExecuted();
+                }
+            } else {
+                // WebSocket not ready yet, wait for connection
+                const checkConnection = () => {
+                    if (sessionRef.current?.websocket && sessionRef.current.websocket.readyState === WebSocket.OPEN) {
+                        sendInput(pendingCommand);
+                        if (onCommandExecuted) {
+                            onCommandExecuted();
+                        }
+                    } else {
+                        // Retry after a short delay
+                        setTimeout(checkConnection, 100);
+                    }
+                };
+                checkConnection();
+            }
+        }
+    }, [pendingCommand, isActive, isVisible, tabId, onCommandExecuted]);
 
 
     const sendInput = (input: string) => {

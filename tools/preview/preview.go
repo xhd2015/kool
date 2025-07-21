@@ -32,6 +32,7 @@ Example plantuml server:
 // - [x] avoid overriding inconsistent file
 // - [x] fix resize issue
 // - [x] add a use `docker` option to start plantuml server in docker
+// - [ ] mermaid preview react support
 func Handle(args []string) error {
 	var autoDocker bool
 	var plantumlServer string

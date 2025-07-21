@@ -181,41 +181,41 @@
 }
 
 /* Dark mode support */
-[data-theme="dark"] .diff-modal {
+body.dark-theme .diff-modal {
     background: #1e1e1e;
     color: #ffffff;
 }
 
-[data-theme="dark"] .diff-modal-header {
+body.dark-theme .diff-modal-header {
     background-color: #2d2d2d;
     border-bottom-color: #404040;
 }
 
-[data-theme="dark"] .diff-section {
+body.dark-theme .diff-section {
     border-color: #404040;
 }
 
-[data-theme="dark"] .diff-section h3 {
+body.dark-theme .diff-section h3 {
     background-color: #2d2d2d;
     border-bottom-color: #404040;
 }
 
-[data-theme="dark"] .diff-line-unchanged {
+body.dark-theme .diff-line-unchanged {
     background-color: #1e1e1e;
 }
 
-[data-theme="dark"] .line-number {
+body.dark-theme .line-number {
     background-color: rgba(255, 255, 255, 0.05);
     border-right-color: #404040;
     color: #999;
 }
 
-[data-theme="dark"] .diff-modal-actions {
+body.dark-theme .diff-modal-actions {
     background-color: #2d2d2d;
     border-top-color: #404040;
 }
 
-[data-theme="dark"] .conflict-message {
+body.dark-theme .conflict-message {
     background-color: #3d3a00;
     border-color: #8a7b00;
     color: #ffeb3b;

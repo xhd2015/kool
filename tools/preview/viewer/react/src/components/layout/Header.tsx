@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import './Header.css';
 
-const Header = () => {
+interface HeaderProps {
+    onExecuteTerminalCommand?: (command: string) => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ onExecuteTerminalCommand }) => {
     const [isDarkTheme, setIsDarkTheme] = useState(false);
     const [isStartingPlantuml, setIsStartingPlantuml] = useState(false);
     const [plantumlStatus, setPlantumlStatus] = useState({ isRunning: false, port: 0 });
@@ -69,12 +73,11 @@ const Header = () => {
 
             const data = await response.json();
 
-            if (data.success && data.command) {
-                // Send command to terminal via custom event
-                const event = new CustomEvent('executeTerminalCommand', {
-                    detail: { command: data.command + '\n' }
-                });
-                window.dispatchEvent(event);
+            if (data.success) {
+                // Send command to terminal via callback
+                if (data.command && onExecuteTerminalCommand) {
+                    onExecuteTerminalCommand(data.command + '\n');
+                }
 
                 // Update status
                 setPlantumlStatus({ isRunning: true, port: data.port });
