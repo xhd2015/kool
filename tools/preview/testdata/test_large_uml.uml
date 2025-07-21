@@ -1,0 +1,296 @@
+@startuml
+!theme blueprint
+title Large UML Class Diagram Example22
+
+package "User Management System" {
+    class User {
+        -id: Long
+        -username: String
+        -email: String
+        -password: String
+        -firstName: String
+        -lastName: String
+        -dateOfBirth: Date
+        -phoneNumber: String
+        -address: Address
+        -createdAt: DateTime
+        -updatedAt: DateTime
+        -isActive: Boolean
+        +authenticate(password: String): Boolean
+        +updateProfile(profile: UserProfile): Boolean
+        +changePassword(oldPassword: String, newPassword: String): Boolean
+        +deactivate(): Boolean
+        +getFullName(): String
+        +sendNotification(message: String): Boolean
+    }
+
+    class UserProfile {
+        -id: Long
+        -userId: Long
+        -bio: String
+        -avatar: String
+        -preferences: Map<String, String>
+        -socialLinks: List<SocialLink>
+        +update(data: Map<String, Object>): Boolean
+        +uploadAvatar(file: File): Boolean
+        +addSocialLink(platform: String, url: String): Boolean
+    }
+
+    class Address {
+        -id: Long
+        -street: String
+        -city: String
+        -state: String
+        -zipCode: String
+        -country: String
+        +getFullAddress(): String
+        +validate(): Boolean
+    }
+
+    class SocialLink {
+        -id: Long
+        -platform: String
+        -url: String
+        -isVerified: Boolean
+        +verify(): Boolean
+    }
+
+    class Role {
+        -id: Long
+        -name: String
+        -description: String
+        -permissions: List<Permission>
+        +hasPermission(permission: String): Boolean
+        +addPermission(permission: Permission): Boolean
+    }
+
+    class Permission {
+        -id: Long
+        -name: String
+        -resource: String
+        -action: String
+        +toString(): String
+    }
+
+    class UserRole {
+        -userId: Long
+        -roleId: Long
+        -assignedAt: DateTime
+        -assignedBy: Long
+        +isActive(): Boolean
+    }
+
+    class Session {
+        -id: String
+        -userId: Long
+        -token: String
+        -createdAt: DateTime
+        -expiresAt: DateTime
+        -ipAddress: String
+        -userAgent: String
+        -isActive: Boolean
+        +isExpired(): Boolean
+        +refresh(): Boolean
+        +invalidate(): Boolean
+    }
+
+    class LoginAttempt {
+        -id: Long
+        -userId: Long
+        -ipAddress: String
+        -userAgent: String
+        -attemptedAt: DateTime
+        -isSuccessful: Boolean
+        -failureReason: String
+        +markAsSuccessful(): Boolean
+        +markAsFailure(reason: String): Boolean
+    }
+
+    class Notification {
+        -id: Long
+        -userId: Long
+        -title: String
+        -message: String
+        -type: NotificationType
+        -isRead: Boolean
+        -createdAt: DateTime
+        -readAt: DateTime
+        +markAsRead(): Boolean
+        +send(): Boolean
+    }
+
+    enum NotificationType {
+        EMAIL
+        SMS
+        PUSH
+        IN_APP
+    }
+
+    class AuditLog {
+        -id: Long
+        -userId: Long
+        -action: String
+        -resource: String
+        -oldValues: String
+        -newValues: String
+        -timestamp: DateTime
+        -ipAddress: String
+        +log(action: String, resource: String, changes: Map<String, Object>): Boolean
+    }
+}
+
+package "Content Management System" {
+    class Article {
+        -id: Long
+        -title: String
+        -content: String
+        -authorId: Long
+        -categoryId: Long
+        -status: ArticleStatus
+        -publishedAt: DateTime
+        -createdAt: DateTime
+        -updatedAt: DateTime
+        -viewCount: Long
+        -tags: List<Tag>
+        +publish(): Boolean
+        +unpublish(): Boolean
+        +incrementViewCount(): Boolean
+    }
+
+    enum ArticleStatus {
+        DRAFT
+        PUBLISHED
+        ARCHIVED
+        DELETED
+    }
+
+    class Category {
+        -id: Long
+        -name: String
+        -description: String
+        -parentId: Long
+        -isActive: Boolean
+        +getSubcategories(): List<Category>
+        +getArticles(): List<Article>
+    }
+
+    class Tag {
+        -id: Long
+        -name: String
+        -color: String
+        -usageCount: Long
+        +incrementUsage(): Boolean
+    }
+
+    class Comment {
+        -id: Long
+        -articleId: Long
+        -userId: Long
+        -content: String
+        -parentId: Long
+        -isApproved: Boolean
+        -createdAt: DateTime
+        +approve(): Boolean
+        +reject(): Boolean
+        +getReplies(): List<Comment>
+    }
+}
+
+package "E-commerce System" {
+    class Product {
+        -id: Long
+        -name: String
+        -description: String
+        -price: BigDecimal
+        -stockQuantity: Integer
+        -categoryId: Long
+        -brandId: Long
+        -isActive: Boolean
+        -createdAt: DateTime
+        -images: List<ProductImage>
+        +updateStock(quantity: Integer): Boolean
+        +applyDiscount(percentage: Double): Boolean
+    }
+
+    class Order {
+        -id: Long
+        -userId: Long
+        -orderNumber: String
+        -status: OrderStatus
+        -totalAmount: BigDecimal
+        -shippingAddress: Address
+        -billingAddress: Address
+        -createdAt: DateTime
+        -items: List<OrderItem>
+        +calculateTotal(): BigDecimal
+        +processPayment(): Boolean
+        +ship(): Boolean
+    }
+
+    enum OrderStatus {
+        PENDING
+        CONFIRMED
+        SHIPPED
+        DELIVERED
+        CANCELLED
+        REFUNDED
+    }
+
+    class OrderItem {
+        -id: Long
+        -orderId: Long
+        -productId: Long
+        -quantity: Integer
+        -unitPrice: BigDecimal
+        -totalPrice: BigDecimal
+        +calculateTotal(): BigDecimal
+    }
+
+    class ShoppingCart {
+        -id: Long
+        -userId: Long
+        -items: List<CartItem>
+        -createdAt: DateTime
+        -updatedAt: DateTime
+        +addItem(productId: Long, quantity: Integer): Boolean
+        +removeItem(productId: Long): Boolean
+        +clear(): Boolean
+        +getTotal(): BigDecimal
+    }
+
+    class CartItem {
+        -id: Long
+        -cartId: Long
+        -productId: Long
+        -quantity: Integer
+        +updateQuantity(quantity: Integer): Boolean
+    }
+}
+
+' Relationships
+User ||--o{ UserProfile : has
+User ||--o{ Address : has
+User ||--o{ Session : has
+User ||--o{ LoginAttempt : has
+User ||--o{ Notification : receives
+User ||--o{ AuditLog : generates
+User ||--o{ Article : authors
+User ||--o{ Comment : writes
+User ||--o{ Order : places
+User ||--o{ ShoppingCart : owns
+
+UserProfile ||--o{ SocialLink : contains
+User ||--o{ UserRole : has
+Role ||--o{ UserRole : assigned_to
+Role ||--o{ Permission : contains
+
+Article ||--o{ Comment : has
+Article }o--|| Category : belongs_to
+Article }o--o{ Tag : tagged_with
+
+Order ||--o{ OrderItem : contains
+OrderItem }o--|| Product : references
+ShoppingCart ||--o{ CartItem : contains
+CartItem }o--|| Product : references
+
+@enduml 

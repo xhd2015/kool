@@ -1,0 +1,50 @@
+/* Layout Component Styles */
+
+.container {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+.content {
+    flex: 1;
+    background-color: #ffffff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-header {
+    background-color: #f8f8f8;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #333333;
+    flex-shrink: 0;
+}
+
+.content-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Dark Theme Styles */
+body.dark-theme .content {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .content-header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+}

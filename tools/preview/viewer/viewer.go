@@ -10,24 +10,62 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"os/exec"
+
 	"github.com/gorilla/websocket"
 	"github.com/xhd2015/kool/pkgs/web"
 )
 
-//go:embed static
-var staticFS embed.FS
+// Re-enable embedded filesystem
+//
+//go:embed react/dist
+var reactDistFS embed.FS
+
+// Global variable to track PlantUML Docker container
+var plantumlContainer struct {
+	isRunning   bool
+	port        int
+	containerID string
+}
 
 type FileNode struct {
 	Name     string      `json:"name"`
 	Path     string      `json:"path"`
 	IsDir    bool        `json:"isDir"`
 	Children []*FileNode `json:"children,omitempty"`
+}
+
+// mimeTypeHandler wraps an http.Handler and sets proper MIME types
+type mimeTypeHandler struct {
+	handler http.Handler
+}
+
+func (h *mimeTypeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Set MIME type based on file extension
+	ext := filepath.Ext(r.URL.Path)
+	switch ext {
+	case ".css":
+		w.Header().Set("Content-Type", "text/css")
+	case ".js":
+		w.Header().Set("Content-Type", "application/javascript")
+	case ".svg":
+		w.Header().Set("Content-Type", "image/svg+xml")
+	default:
+		// Use Go's built-in MIME type detection for other files
+		if mimeType := mime.TypeByExtension(ext); mimeType != "" {
+			w.Header().Set("Content-Type", mimeType)
+		}
+	}
+
+	// Call the wrapped handler
+	h.handler.ServeHTTP(w, r)
 }
 
 var plantUMLCacheDir string
@@ -68,16 +106,26 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		return err
 	}
 
-	// Serve static files from the embedded filesystem
-	staticFileSystem, err := fs.Sub(staticFS, "static")
+	// Serve static files from the embedded React build
+	reactFileSystem, err := fs.Sub(reactDistFS, "react/dist")
 	if err != nil {
-		return fmt.Errorf("failed to create static file system: %v", err)
+		return fmt.Errorf("failed to create react file system: %v", err)
 	}
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFileSystem))))
+
+	// Create sub-filesystem for assets
+	assetsFileSystem, err := fs.Sub(reactFileSystem, "assets")
+	if err != nil {
+		return fmt.Errorf("failed to create assets file system: %v", err)
+	}
+
+	// Serve React assets from /assets/ path with proper MIME types
+	http.Handle("/assets/", http.StripPrefix("/assets/", &mimeTypeHandler{http.FileServer(http.FS(assetsFileSystem))}))
+	// Serve React static files like vite.svg from root
+	http.Handle("/kool.svg", &mimeTypeHandler{http.FileServer(http.FS(reactFileSystem))})
 
 	// Serve the main HTML page
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		indexFile, err := staticFileSystem.Open("index.html")
+		indexFile, err := reactFileSystem.Open("index.html")
 		if err != nil {
 			http.Error(w, "Failed to load index.html", http.StatusInternalServerError)
 			return
@@ -92,6 +140,7 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(content)
+		// http.Error(w, "React assets are not served directly from embedded FS. Please run with -embed flag.", http.StatusInternalServerError)
 	})
 
 	// API to get directory tree
@@ -127,7 +176,11 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		}
 
 		plantServer := strings.TrimSuffix(plantumlServer, "/")
-		if plantServer == "" {
+
+		// If we have a running local PlantUML container, use that instead
+		if plantumlContainer.isRunning && plantumlContainer.port > 0 {
+			plantServer = fmt.Sprintf("http://localhost:%d", plantumlContainer.port)
+		} else if plantServer == "" {
 			plantServer = "https://www.plantuml.com/plantuml"
 		}
 
@@ -480,6 +533,90 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 
 		response := map[string]interface{}{
 			"success": true,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// API to start PlantUML Docker server
+	http.HandleFunc("/api/start-plantuml", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Find an available port
+		port, err := web.FindAvailablePort(6743, 100)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to find available port: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Create the Docker command with a name for easier management
+		containerName := fmt.Sprintf("plantuml-server-%d", port)
+		dockerCmd := fmt.Sprintf("docker run --rm --name %s -p %d:8080 plantuml/plantuml-server:jetty", containerName, port)
+
+		// Update container tracking
+		plantumlContainer.isRunning = true
+		plantumlContainer.port = port
+		plantumlContainer.containerID = containerName
+
+		response := map[string]interface{}{
+			"success": true,
+			"port":    port,
+			"command": dockerCmd,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// API to stop PlantUML Docker server
+	http.HandleFunc("/api/stop-plantuml", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Check if container is actually running
+		if !plantumlContainer.isRunning || plantumlContainer.containerID == "" {
+			http.Error(w, "no PlantUML container is running", http.StatusBadRequest)
+			return
+		}
+
+		// Execute the Docker stop command directly on the backend
+		cmd := exec.Command("docker", "stop", plantumlContainer.containerID)
+		err := cmd.Run()
+
+		// Update container tracking (regardless of command success to avoid inconsistent state)
+		plantumlContainer.isRunning = false
+		plantumlContainer.port = 0
+		containerID := plantumlContainer.containerID
+		plantumlContainer.containerID = ""
+
+		if err != nil {
+			// Log the error but still return success to frontend since we updated the state
+			fmt.Printf("Warning: Failed to stop Docker container %s: %v\n", containerID, err)
+		} else {
+			fmt.Printf("Successfully stopped Docker container %s\n", containerID)
+		}
+
+		response := map[string]interface{}{
+			"success": true,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// API to check PlantUML Docker server status
+	http.HandleFunc("/api/plantuml-status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		response := map[string]interface{}{
+			"isRunning": plantumlContainer.isRunning,
+			"port":      plantumlContainer.port,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)

@@ -1,0 +1,85 @@
+.preview-uml {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #ffffff;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-uml img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Dark theme for UML preview */
+body.dark-theme .preview-uml {
+    background-color: #ffffff;
+}
+
+/* Zoom Controls */
+.preview-uml .zoom-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 4px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+.preview-uml .zoom-button {
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.preview-uml .zoom-button:hover {
+    background: #005a9e;
+}
+
+.preview-uml .zoomable-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.preview-uml .zoomable-container img {
+    max-width: none;
+    max-height: none;
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+}
+
+/* Dark theme zoom controls */
+body.dark-theme .preview-uml .zoom-controls {
+    background-color: rgba(30, 30, 30, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .preview-uml .zoom-button {
+    background: #0078d4;
+    color: white;
+}
+
+body.dark-theme .preview-uml .zoom-button:hover {
+    background: #106ebe;
+}

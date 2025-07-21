@@ -20,12 +20,11 @@ var templateFS embed.FS
 var serverTemplateFS embed.FS
 
 func Handle(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: frontend, server")
+	if len(args) == 0 {
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, frontend, server")
 	}
 
 	template := args[0]
-
 	if template == "" {
 		return fmt.Errorf("requires template name, e.g. kool create frontend <project-name>")
 	}
@@ -34,6 +33,10 @@ func Handle(args []string) error {
 	}
 	if template != "frontend" && template != "server" {
 		return fmt.Errorf("unsupported template: %s", template)
+	}
+
+	if len(args) < 2 {
+		return fmt.Errorf("requires project name, e.g. kool create %s <project-name>", template)
 	}
 
 	projectName := args[1]

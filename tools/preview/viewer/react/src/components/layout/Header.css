@@ -1,0 +1,103 @@
+/* Header Component Styles */
+
+.header {
+    background-color: #f8f8f8;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.plantuml-button {
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.plantuml-button:hover:not(:disabled) {
+    background: #005a9e;
+}
+
+.plantuml-button:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+}
+
+.plantuml-button.stop {
+    background: #dc3545;
+}
+
+.plantuml-button.stop:hover:not(:disabled) {
+    background: #c82333;
+}
+
+.theme-switcher {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.theme-toggle {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+    background-color: #f0f0f0;
+}
+
+/* Dark Theme Styles */
+body.dark-theme .header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+}
+
+body.dark-theme .theme-toggle {
+    border-color: #555;
+    color: #cccccc;
+}
+
+body.dark-theme .plantuml-button {
+    background: #0078d4;
+}
+
+body.dark-theme .plantuml-button:hover:not(:disabled) {
+    background: #106ebe;
+}
+
+body.dark-theme .plantuml-button:disabled {
+    background: #555555;
+}
+
+body.dark-theme .plantuml-button.stop {
+    background: #dc3545;
+}
+
+body.dark-theme .plantuml-button.stop:hover:not(:disabled) {
+    background: #c82333;
+}
+
+body.dark-theme .theme-toggle:hover {
+    background-color: #3e3e42;
+}

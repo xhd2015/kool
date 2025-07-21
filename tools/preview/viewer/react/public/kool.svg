@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 100 100">
+  <defs>
+    <!-- AI gradient - deep blue to cyan -->
+    <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a237e"/>
+      <stop offset="50%" stop-color="#3f51b5"/>
+      <stop offset="100%" stop-color="#00e5ff"/>
+    </linearGradient>
+    
+    <!-- Neural glow gradient -->
+    <radialGradient id="neuralGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.8"/>
+      <stop offset="70%" stop-color="#3f51b5" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#1a237e" stop-opacity="0.2"/>
+    </radialGradient>
+    
+    <!-- Circuit accent -->
+    <linearGradient id="circuitGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00e676"/>
+      <stop offset="100%" stop-color="#00e5ff"/>
+    </linearGradient>
+    
+    <!-- Accent color for "oo" -->
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b35"/>
+      <stop offset="100%" stop-color="#f9ca24"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle with AI gradient -->
+  <circle cx="50" cy="50" r="45" fill="url(#aiGradient)" stroke="#00e5ff" stroke-width="2" opacity="0.9"/>
+  
+  <!-- Neural network glow background -->
+  <circle cx="50" cy="50" r="35" fill="url(#neuralGlow)" opacity="0.6"/>
+  
+  <!-- Stylized "K" for Kool - far left -->
+  <path d="M15 25 L20 25 L20 35 L24 25 L28 25 L22 40 L29 55 L24 55 L20 45 L20 55 L15 55 Z" 
+        fill="white" stroke="url(#circuitGradient)" stroke-width="1" opacity="0.95"/>
+  
+  <!-- First "o" - left center -->
+  <circle cx="35" cy="40" r="8" fill="none" stroke="url(#accentGradient)" stroke-width="3" opacity="0.9"/>
+  <circle cx="35" cy="40" r="5" fill="url(#accentGradient)" opacity="0.7"/>
+  
+  <!-- Second "o" - right center -->
+  <circle cx="52" cy="40" r="8" fill="none" stroke="url(#accentGradient)" stroke-width="3" opacity="0.9"/>
+  <circle cx="52" cy="40" r="5" fill="url(#accentGradient)" opacity="0.7"/>
+  
+  <!-- Stylized "L" for kooL - far right -->
+  <path d="M72 25 L77 25 L77 50 L85 50 L85 55 L72 55 Z" 
+        fill="white" stroke="url(#circuitGradient)" stroke-width="1" opacity="0.95"/>
+  
+  <!-- Neural network nodes and connections -->
+  <!-- Main neural nodes positioned around letters -->
+  <circle cx="12" cy="35" r="2" fill="#00e5ff" opacity="0.8"/>
+  <circle cx="88" cy="40" r="2" fill="#00e5ff" opacity="0.8"/>
+  <circle cx="25" cy="70" r="2.5" fill="#00e676" opacity="0.8"/>
+  <circle cx="75" cy="65" r="2.5" fill="#00e676" opacity="0.8"/>
+  <circle cx="50" cy="75" r="2" fill="#ffffff" opacity="0.9"/>
+  <circle cx="43" cy="20" r="2" fill="#00e5ff" opacity="0.8"/>
+  
+  <!-- Neural connections (lines) -->
+  <line x1="12" y1="35" x2="25" y2="70" stroke="url(#circuitGradient)" stroke-width="0.8" opacity="0.5"/>
+  <line x1="88" y1="40" x2="75" y2="65" stroke="#00e5ff" stroke-width="0.8" opacity="0.5"/>
+  <line x1="25" y1="70" x2="75" y2="65" stroke="url(#circuitGradient)" stroke-width="1" opacity="0.4"/>
+  <line x1="43" y1="20" x2="50" y2="75" stroke="#00e676" stroke-width="0.8" opacity="0.3"/>
+  
+  <!-- Circuit-like dots around the perimeter -->
+  <circle cx="10" cy="50" r="1.5" fill="#00e5ff" opacity="0.8"/>
+  <circle cx="50" cy="10" r="1.5" fill="#00e676" opacity="0.8"/>
+  <circle cx="90" cy="50" r="1.5" fill="#00e5ff" opacity="0.8"/>
+  <circle cx="50" cy="90" r="1.5" fill="#00e676" opacity="0.8"/>
+  
+  <!-- Small processing indicators -->
+  <rect x="18" y="18" width="1.5" height="1.5" fill="#00e5ff" opacity="0.7" rx="0.5"/>
+  <rect x="62" y="18" width="1.5" height="1.5" fill="#00e676" opacity="0.7" rx="0.5"/>
+  <rect x="20" y="78" width="1.5" height="1.5" fill="#00e5ff" opacity="0.7" rx="0.5"/>
+  <rect x="78" y="75" width="1.5" height="1.5" fill="#00e676" opacity="0.7" rx="0.5"/>
+</svg>

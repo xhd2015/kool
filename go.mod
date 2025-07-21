@@ -1,6 +1,8 @@
 module github.com/xhd2015/kool
 
-go 1.23.6
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3

@@ -1,0 +1,98 @@
+/* Editor Component Styles */
+
+.editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #e0e0e0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.editor-header {
+    background-color: #f8f8f8;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 13px;
+    color: #333333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.save-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.save-status {
+    font-size: 11px;
+    color: #666;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    min-width: 60px;
+    text-align: right;
+}
+
+.save-status.visible {
+    opacity: 1;
+}
+
+.save-status.success {
+    color: #28a745;
+}
+
+.save-status.error {
+    color: #dc3545;
+}
+
+.save-button {
+    background-color: #007acc;
+    color: white;
+    border: 1px solid #005a9e;
+    border-radius: 3px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.save-button:hover:not(:disabled) {
+    background-color: #005a9e;
+}
+
+.save-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Dark Theme Styles */
+body.dark-theme .editor-section {
+    border-right: 1px solid #3e3e42;
+}
+
+body.dark-theme .editor-header {
+    background-color: #2d2d30;
+    border-bottom: 1px solid #3e3e42;
+    color: #cccccc;
+}
+
+body.dark-theme .save-status {
+    color: #999;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .editor-section {
+        min-width: unset;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    body.dark-theme .editor-section {
+        border-bottom: 1px solid #3e3e42;
+    }
+}

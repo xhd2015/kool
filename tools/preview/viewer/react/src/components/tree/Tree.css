@@ -1,0 +1,74 @@
+/* Tree Component Styles */
+
+/* File Tree Styles */
+.tree-node {
+    display: flex;
+    align-items: center;
+    padding: 4px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.4;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.tree-node:hover {
+    background-color: #f0f0f0;
+}
+
+.tree-node.selected {
+    background-color: #007acc;
+    color: #ffffff;
+}
+
+.tree-node.directory {
+    font-weight: 500;
+}
+
+.tree-node.file {
+    color: #333333;
+}
+
+.tree-node .icon {
+    display: inline-block;
+    width: 16px;
+    margin-right: 4px;
+    text-align: center;
+}
+
+.tree-node .toggle {
+    display: inline-block;
+    text-align: center;
+    margin-right: 4px;
+    font-size: 10px;
+    cursor: pointer;
+    /* Fix: Only give width when there's content */
+    width: 0;
+    transition: width 0.1s ease;
+}
+
+.tree-node .toggle:not(:empty) {
+    width: 16px;
+}
+
+.tree-children {
+    margin-left: 16px;
+}
+
+.tree-children.collapsed {
+    display: none;
+}
+
+/* Dark Theme Styles */
+body.dark-theme .tree-node:hover {
+    background-color: #2a2d2e;
+}
+
+body.dark-theme .tree-node.selected {
+    background-color: #094771;
+    color: #ffffff;
+}
+
+body.dark-theme .tree-node.file {
+    color: #cccccc;
+}

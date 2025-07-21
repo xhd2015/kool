@@ -1,0 +1,61 @@
+/* Terminal Tab Content Styles */
+.terminal-tab-content {
+    flex-direction: column;
+    height: 100%;
+    min-height: 200px;
+}
+
+.terminal-tab-content.active {
+    display: flex;
+}
+
+.terminal-tab-content.inactive {
+    display: none;
+}
+
+.terminal-status-bar {
+    background-color: #2d2d30;
+    padding: 4px 12px;
+    border-bottom: 1px solid #3e3e42;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.connection-status {
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.status-connecting {
+    background-color: #ffa500;
+    color: #000;
+}
+
+.status-connected {
+    background-color: #28a745;
+    color: #fff;
+}
+
+.status-disconnected {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.terminal-container {
+    flex: 1;
+    background-color: #1e1e1e;
+    overflow: hidden;
+}
+
+/* Ensure xterm.js terminal fills the container */
+.terminal-container .xterm {
+    height: 100% !important;
+}
+
+.terminal-container .xterm-viewport {
+    width: 100% !important;
+}

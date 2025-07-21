@@ -1,0 +1,232 @@
+/* Global styles for Kool Preview React App */
+/* Based on static implementation styles */
+
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #ffffff;
+    color: #333333;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    overflow: hidden;
+}
+
+#root {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Resizer Styles */
+.resizer {
+    width: 4px;
+    background-color: #e0e0e0;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.resizer:hover {
+    background-color: #007acc;
+}
+
+.horizontal-resizer {
+    width: 4px;
+    background-color: #e0e0e0;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    height: 100%;
+    min-height: 100%;
+    user-select: none;
+}
+
+.horizontal-resizer:hover {
+    background-color: #007acc;
+}
+
+.vertical-resizer {
+    height: 4px;
+    background-color: #e0e0e0;
+    cursor: row-resize;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.vertical-resizer:hover {
+    background-color: #007acc;
+}
+
+/* Loading and Error States */
+.loading {
+    color: #666666;
+    text-align: center;
+    padding: 32px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007acc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+.loading-spinner-small {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007acc;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-text {
+    color: #666;
+    font-size: 14px;
+    text-align: center;
+}
+
+.loading-indicator-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.error {
+    color: #d73a49;
+    background-color: #ffeaea;
+    padding: 16px;
+    border-radius: 4px;
+    margin: 16px;
+    border: 1px solid #f1b3b3;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.empty-state {
+    color: #666;
+    text-align: center;
+    padding: 32px;
+    font-style: italic;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+/* Dark Theme Styles */
+body.dark-theme {
+    background-color: #1e1e1e;
+    color: #cccccc;
+}
+
+body.dark-theme .horizontal-resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .horizontal-resizer:hover {
+    background-color: #007acc;
+}
+
+body.dark-theme .resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .vertical-resizer {
+    background-color: #3e3e42;
+}
+
+body.dark-theme .loading {
+    color: #cccccc;
+}
+
+body.dark-theme .loading-spinner {
+    border-color: #444;
+    border-top-color: #007acc;
+}
+
+body.dark-theme .loading-text {
+    color: #ccc;
+}
+
+body.dark-theme .loading-indicator-overlay {
+    background-color: rgba(30, 30, 30, 0.8);
+}
+
+body.dark-theme .error {
+    color: #f48771;
+    background-color: #332222;
+    border-color: #553333;
+}
+
+body.dark-theme .empty-state {
+    color: #999;
+}

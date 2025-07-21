@@ -1,0 +1,167 @@
+/* Preview Component Styles */
+
+/* Preview Section Styles */
+.preview-section {
+    flex: 4;
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    min-height: 200px;
+}
+
+.preview-container-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    height: 100%;
+}
+
+.preview-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Preview Styles */
+.preview-text {
+    background-color: #ffffff;
+    color: #333333;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    width: 100%;
+    flex: 1;
+    overflow: auto;
+}
+
+.preview-uml {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #ffffff;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.preview-uml img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.preview-mermaid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #ffffff;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 4px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+}
+
+.zoom-button {
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.zoom-button:hover {
+    background: #005a9e;
+}
+
+.zoomable-container {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.zoomable-container img,
+.zoomable-container .mermaid-container {
+    max-width: none;
+    max-height: none;
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+}
+
+/* Dark Theme Styles */
+body.dark-theme .preview-text {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+}
+
+body.dark-theme .preview-uml {
+    background-color: #ffffff;
+}
+
+body.dark-theme .preview-mermaid {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .preview-markdown {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .markdown-content {
+    color: #cccccc;
+}
+
+body.dark-theme .zoom-controls {
+    background-color: rgba(30, 30, 30, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .zoom-button {
+    background: #0078d4;
+    color: white;
+}
+
+body.dark-theme .zoom-button:hover {
+    background: #106ebe;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .preview-section {
+        flex-direction: column;
+    }
+}

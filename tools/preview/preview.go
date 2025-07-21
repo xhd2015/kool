@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/xhd2015/kool/pkgs/web"
 	"github.com/xhd2015/kool/tools/preview/viewer"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
@@ -29,8 +28,10 @@ Example plantuml server:
 // - [ ] use user's default shell
 // - [x] terminal line wrap working test
 // - [ ] allow edit other files
-// - [ ] markdown: open link in new tab
-
+// - [x] markdown: open link in new tab
+// - [ ] avoid overriding inconsistent file
+// - [x] fix resize issue
+// - [ ] add a use `docker` option to start plantuml server in docker
 func Handle(args []string) error {
 	var autoDocker bool
 	var plantumlServer string
@@ -49,13 +50,13 @@ func Handle(args []string) error {
 
 	if autoDocker {
 		if plantumlServer == "" {
-			port, err := web.FindAvailablePort(8080, 100)
-			if err != nil {
-				return err
-			}
+			port := 6743
+			containerName := fmt.Sprintf("plantuml-server-%d", port)
 			fmt.Printf("Starting plantuml server in docker on port %d\n", port)
 			go func() {
-				err := cmd.Debug().Run("docker", "run", "--rm", "-p", fmt.Sprintf("%d:7070", port), "plantuml/plantuml-server:jetty")
+				// docker kill
+				cmd.Debug().Run("docker", "kill", containerName)
+				err := cmd.Debug().Run("docker", "run", "--rm", "--name", containerName, "-p", fmt.Sprintf("%d:7070", port), "plantuml/plantuml-server:jetty")
 				if err != nil {
 					fmt.Printf("Failed to start plantuml server in docker: %v\n", err)
 				}
