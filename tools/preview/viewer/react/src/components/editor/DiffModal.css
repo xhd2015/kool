@@ -1,0 +1,222 @@
+.diff-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.diff-modal {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90vw;
+    max-height: 90vh;
+    width: 1200px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.diff-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+}
+
+.diff-modal-header h2 {
+    margin: 0;
+    color: #d73a49;
+    font-size: 20px;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-button:hover {
+    background-color: #e0e0e0;
+}
+
+.diff-modal-content {
+    padding: 20px;
+    flex: 1;
+    overflow: auto;
+}
+
+.conflict-message {
+    margin: 0 0 20px 0;
+    padding: 15px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 4px;
+    color: #856404;
+}
+
+.diff-sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    height: 400px;
+}
+
+.diff-section {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.diff-section h3 {
+    margin: 0;
+    padding: 12px 16px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.diff-content {
+    flex: 1;
+    overflow: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.diff-line {
+    display: flex;
+    min-height: 18px;
+}
+
+.diff-line-added {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.diff-line-removed {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.diff-line-unchanged {
+    background-color: #ffffff;
+    border-left: 4px solid transparent;
+}
+
+.line-number {
+    min-width: 40px;
+    padding: 2px 8px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-right: 1px solid #e0e0e0;
+    text-align: right;
+    color: #666;
+    user-select: none;
+}
+
+.line-content {
+    padding: 2px 8px;
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.diff-modal-actions {
+    padding: 20px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background-color: #f8f9fa;
+}
+
+.reload-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.reload-button:hover {
+    background-color: #0056b3;
+}
+
+.cancel-button {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.cancel-button:hover {
+    background-color: #545b62;
+}
+
+/* Dark mode support */
+[data-theme="dark"] .diff-modal {
+    background: #1e1e1e;
+    color: #ffffff;
+}
+
+[data-theme="dark"] .diff-modal-header {
+    background-color: #2d2d2d;
+    border-bottom-color: #404040;
+}
+
+[data-theme="dark"] .diff-section {
+    border-color: #404040;
+}
+
+[data-theme="dark"] .diff-section h3 {
+    background-color: #2d2d2d;
+    border-bottom-color: #404040;
+}
+
+[data-theme="dark"] .diff-line-unchanged {
+    background-color: #1e1e1e;
+}
+
+[data-theme="dark"] .line-number {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-right-color: #404040;
+    color: #999;
+}
+
+[data-theme="dark"] .diff-modal-actions {
+    background-color: #2d2d2d;
+    border-top-color: #404040;
+}
+
+[data-theme="dark"] .conflict-message {
+    background-color: #3d3a00;
+    border-color: #8a7b00;
+    color: #ffeb3b;
+}

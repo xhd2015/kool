@@ -27,11 +27,11 @@ Example plantuml server:
 // - [ ] split the html into multiple files and components
 // - [ ] use user's default shell
 // - [x] terminal line wrap working test
-// - [ ] allow edit other files
+// - [x] allow edit arbitrary txt files
 // - [x] markdown: open link in new tab
-// - [ ] avoid overriding inconsistent file
+// - [x] avoid overriding inconsistent file
 // - [x] fix resize issue
-// - [ ] add a use `docker` option to start plantuml server in docker
+// - [x] add a use `docker` option to start plantuml server in docker
 func Handle(args []string) error {
 	var autoDocker bool
 	var plantumlServer string

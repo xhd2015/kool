@@ -80,6 +80,43 @@ func init() {
 	}
 }
 
+// generateGitDiff creates a git diff between old and new content
+func generateGitDiff(oldContent, newContent, filename string) (string, error) {
+	// Create temporary directory for git diff
+	tempDir, err := os.MkdirTemp("", "git-diff-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create temp files
+	oldFile := filepath.Join(tempDir, "old_"+filename)
+	newFile := filepath.Join(tempDir, "new_"+filename)
+
+	if err := os.WriteFile(oldFile, []byte(oldContent), 0644); err != nil {
+		return "", fmt.Errorf("failed to write old file: %v", err)
+	}
+
+	if err := os.WriteFile(newFile, []byte(newContent), 0644); err != nil {
+		return "", fmt.Errorf("failed to write new file: %v", err)
+	}
+
+	// Run git diff
+	cmd := exec.Command("git", "diff", "--no-index", "--no-prefix", oldFile, newFile)
+	output, err := cmd.Output()
+
+	// git diff returns exit code 1 when files differ, which is expected
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			// This is expected when files differ
+		} else {
+			return "", fmt.Errorf("git diff failed: %v", err)
+		}
+	}
+
+	return string(output), nil
+}
+
 func Serve(dir string, plantumlServer string) error {
 	return ServeWithInitialFile(dir, plantumlServer, "")
 }
@@ -494,8 +531,9 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		}
 
 		var requestBody struct {
-			Path    string `json:"path"`
-			Content string `json:"content"`
+			Path       string `json:"path"`
+			Content    string `json:"content"`
+			OldContent string `json:"oldContent"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
@@ -522,6 +560,44 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		// Security check: ensure the file is within the served directory
 		if !strings.HasPrefix(absFilePath, absDir) {
 			http.Error(w, "access denied", http.StatusForbidden)
+			return
+		}
+
+		// Read current file content to check for conflicts
+		currentContent, err := os.ReadFile(absFilePath)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read current file content: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Check if the old content matches the current file content
+		if string(currentContent) != requestBody.OldContent {
+			// Conflict detected - generate diffs
+			filename := filepath.Base(requestBody.Path)
+
+			// Generate diff between user's changes and original
+			userDiff, err := generateGitDiff(requestBody.OldContent, requestBody.Content, filename)
+			if err != nil {
+				userDiff = fmt.Sprintf("Error generating user diff: %v", err)
+			}
+
+			// Generate diff between original and current file
+			currentDiff, err := generateGitDiff(requestBody.OldContent, string(currentContent), filename)
+			if err != nil {
+				currentDiff = fmt.Sprintf("Error generating current diff: %v", err)
+			}
+
+			response := map[string]interface{}{
+				"success":        false,
+				"conflict":       true,
+				"currentContent": string(currentContent),
+				"userDiff":       userDiff,
+				"currentDiff":    currentDiff,
+				"message":        "File has been modified by another process. Please reload and try again.",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(response)
 			return
 		}
 
