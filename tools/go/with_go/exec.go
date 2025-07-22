@@ -31,12 +31,13 @@ func ResolveGoroot(goVersion string) (string, error) {
 	return InstallGo(goVersion, "")
 }
 
-func ExecGoroot(goroot string, args []string) error {
+func ExecGoroot(goroot string, args []string, extraEnvs []string) error {
 	absGoroot, err := filepath.Abs(goroot)
 	if err != nil {
 		return err
 	}
 	envs := os.Environ()
+	envs = append(envs, extraEnvs...)
 	PATH := filepath.Join(absGoroot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
 	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
 

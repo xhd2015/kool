@@ -160,9 +160,9 @@ func handle(args []string) error {
 	case "with":
 		return handleWith(args)
 	case "with-go":
-		return with_go.Handle(args)
+		return with_go.Handle(args, nil)
 	case "with-goroot":
-		return with_go.HandleWithGoroot(args)
+		return with_go.HandleWithGoroot(args, nil)
 	case "ai":
 		return ai.Handle(args)
 	case "rule", "rules":
@@ -242,7 +242,7 @@ func handleWithCmd(cmd string, args []string) error {
 		if err != nil {
 			return err
 		}
-		return with_go.ExecGoroot(goroot, args)
+		return with_go.ExecGoroot(goroot, args, nil)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
 }

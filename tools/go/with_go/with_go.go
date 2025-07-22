@@ -12,7 +12,7 @@ import (
 
 const downloadGo = "github.com/xhd2015/xgo/script/download-go@master"
 
-func Handle(args []string) error {
+func Handle(args []string, envs []string) error {
 	if len(args) == 0 {
 		return errors.New("example: kool with-go [GOROOT=<X> | goX.Y] ...")
 	}
@@ -38,14 +38,14 @@ func Handle(args []string) error {
 			return err
 		}
 	}
-	return ExecGoroot(goroot, args)
+	return ExecGoroot(goroot, args, envs)
 }
 
-func HandleWithGoroot(args []string) error {
+func HandleWithGoroot(args []string, envs []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("example: kool with-goroot <GOROOT>")
 	}
-	return ExecGoroot(args[0], args[1:])
+	return ExecGoroot(args[0], args[1:], envs)
 }
 
 func GetInstallDir() (string, error) {
