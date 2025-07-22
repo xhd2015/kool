@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/xhd2015/kool/tools/ai"
@@ -15,7 +13,6 @@ import (
 	"github.com/xhd2015/kool/tools/encoding"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
-	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/html/html2markdown"
 	"github.com/xhd2015/kool/tools/html/html2text"
@@ -163,9 +160,9 @@ func handle(args []string) error {
 	case "with":
 		return handleWith(args)
 	case "with-go":
-		return handleWithGo(args)
+		return with_go.Handle(args)
 	case "with-goroot":
-		return handleWithGoroot(args)
+		return with_go.HandleWithGoroot(args)
 	case "ai":
 		return ai.Handle(args)
 	case "rule", "rules":
@@ -241,120 +238,13 @@ func handleWith(args []string) error {
 func handleWithCmd(cmd string, args []string) error {
 	if strings.HasPrefix(cmd, "go") {
 		// TODO: use current go if match
-		goroot, err := resolveGoroot(cmd)
+		goroot, err := with_go.ResolveGoroot(cmd)
 		if err != nil {
 			return err
 		}
-		return execGoroot(goroot, args)
+		return with_go.ExecGoroot(goroot, args)
 	}
 	return fmt.Errorf("unknown command: %s", cmd)
-}
-
-func handleWithGo(args []string) error {
-	if len(args) == 0 {
-		return errors.New("example: kool with-go [GOROOT=<X> | goX.Y] ...")
-	}
-	var goroot string
-	var err error
-	arg0 := args[0]
-	if arg0 == "list" {
-		return with_go.List()
-	}
-	args = args[1:]
-	if strings.HasPrefix(arg0, "GOROOT=") {
-		goroot = strings.TrimSpace(strings.TrimPrefix(arg0, "GOROOT="))
-		if goroot == "" {
-			return errors.New("example: kool with-go GOROOT=<X> ...")
-		}
-	} else {
-		goVersion := "go" + strings.TrimPrefix(arg0, "go")
-		if goVersion == "" {
-			return errors.New("example: kool with-go go1.18 ...")
-		}
-		goroot, err = resolveGoroot(goVersion)
-		if err != nil {
-			return err
-		}
-	}
-	return execGoroot(goroot, args)
-}
-
-func handleWithGoroot(args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("example: kool with-goroot <GOROOT>")
-	}
-	return execGoroot(args[0], args[1:])
-}
-
-func resolveGoroot(goVersion string) (string, error) {
-	switch goVersion {
-	case "go1.24":
-		goVersion = "go1.24.1"
-	case "go1.23":
-		goVersion = "go1.23.6"
-	case "go1.22":
-		goVersion = "go1.22.12"
-	case "go1.21":
-		goVersion = "go1.21.13"
-	case "go1.20":
-		goVersion = "go1.20.14"
-	case "go1.19":
-		goVersion = "go1.19.13"
-	case "go1.18":
-		goVersion = "go1.18.10"
-	case "go1.17":
-		goVersion = "go1.17.13"
-	}
-	return with_go.InstallGo(goVersion, "")
-}
-
-func execGoroot(goroot string, args []string) error {
-	absGoroot, err := filepath.Abs(goroot)
-	if err != nil {
-		return err
-	}
-	envs := os.Environ()
-	PATH := filepath.Join(absGoroot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
-	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
-
-	if len(args) >= 2 && args[0] == "go" && args[1] == "run" {
-		err := os.Setenv("PATH", PATH)
-		if err != nil {
-			return err
-		}
-		err = os.Setenv("GOROOT", absGoroot)
-		if err != nil {
-			return err
-		}
-
-		// use kool go
-		return run.Handle(args[2:])
-	}
-
-	var targetCmd string
-	var targetArgs []string
-	if len(args) == 0 {
-		targetCmd = "env"
-	} else {
-		targetCmd = args[0]
-		targetArgs = args[1:]
-
-		strip := strings.TrimPrefix(targetCmd, "./")
-		if strip == filepath.Base(targetCmd) {
-			// try lookup in $GOROOT/bin
-			fullCmd := filepath.Join(absGoroot, "bin", targetCmd)
-			if _, err := os.Stat(fullCmd); err == nil {
-				targetCmd = fullCmd
-			}
-		}
-	}
-
-	execCmd := exec.Command(targetCmd, targetArgs...)
-	execCmd.Env = envs
-	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
-	return execCmd.Run()
 }
 
 type Topic struct {

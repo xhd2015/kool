@@ -21,7 +21,7 @@ var serverTemplateFS embed.FS
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, frontend, server")
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-react, frontend, server")
 	}
 
 	template := args[0]
@@ -30,6 +30,9 @@ func Handle(args []string) error {
 	}
 	if template == "react" {
 		return HandleCreateReact(args[1:])
+	}
+	if template == "go-react" {
+		return HandleCreateGoReact(args[1:])
 	}
 	if template != "frontend" && template != "server" {
 		return fmt.Errorf("unsupported template: %s", template)
