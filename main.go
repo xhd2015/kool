@@ -182,6 +182,8 @@ func handle(args []string) error {
 		return stringtool.HandleLines(args)
 	case "strcase":
 		return stringtool.HandleStrCase(args)
+	case "quote":
+		return stringtool.HandleQuote(args)
 	case "unquote":
 		return stringtool.HandleUnquote(args)
 	case "split":
