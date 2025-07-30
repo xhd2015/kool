@@ -49,9 +49,10 @@
 }
 
 .save-button {
-    background-color: #007acc;
+    box-sizing: border-box;
+    background-color: #6c757d;
     color: white;
-    border: 1px solid #005a9e;
+    border: 1px solid #6c757d;
     border-radius: 3px;
     padding: 4px 12px;
     font-size: 12px;
@@ -59,14 +60,78 @@
     transition: background-color 0.2s ease;
 }
 
-.save-button:hover:not(:disabled) {
-    background-color: #005a9e;
+.save-button:hover:not(:disabled):not(.save-button-loading) {
+    background-color: #5a6268;
 }
 
 .save-button:disabled {
-    background-color: #ccc;
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #e9ecef;
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 1;
+}
+
+.reload-button {
+    background-color: #6c757d;
+    color: white;
+    border: 1px solid #6c757d;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reload-button:hover {
+    background-color: #5a6268;
+}
+
+.reload-button.modified {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.reload-button.modified:hover {
+    background-color: #5a6268;
+}
+
+.reload-button.reloading {
+    background-color: #007bff;
+    border-color: #0056b3;
+    animation: spin 1s linear infinite;
+    cursor: not-allowed;
+}
+
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Dark Theme Styles */
@@ -82,6 +147,40 @@ body.dark-theme .editor-header {
 
 body.dark-theme .save-status {
     color: #999;
+}
+
+body.dark-theme .save-button {
+    background-color: #5a6268;
+    border-color: #5a6268;
+}
+
+body.dark-theme .save-button:hover:not(:disabled) {
+    background-color: #495057;
+}
+
+body.dark-theme .save-button:disabled {
+    background-color: #343a40;
+    color: #6c757d;
+    border-color: #343a40;
+}
+
+body.dark-theme .reload-button {
+    background-color: #5a6268;
+    border-color: #5a6268;
+}
+
+body.dark-theme .reload-button:hover {
+    background-color: #495057;
+}
+
+body.dark-theme .reload-button.modified {
+    background-color: #5a6268;
+    border-color: #5a6268;
+}
+
+body.dark-theme .reload-button.reloading {
+    background-color: #007bff;
+    border-color: #0056b3;
 }
 
 /* Responsive Design */

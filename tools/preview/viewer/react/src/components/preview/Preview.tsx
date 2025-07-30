@@ -8,6 +8,8 @@ import './Preview.css';
 
 interface PreviewProps {
     selectedFile: string | null;
+    fileNeedsReload?: string | null;
+    onReloadComplete?: () => void;
 }
 
 interface PreviewData {
@@ -15,7 +17,7 @@ interface PreviewData {
     content: string;
 }
 
-const Preview = ({ selectedFile }: PreviewProps) => {
+const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewProps) => {
     const [previewData, setPreviewData] = useState<PreviewData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -73,7 +75,12 @@ const Preview = ({ selectedFile }: PreviewProps) => {
             fileType = 'mermaid';
         }
 
-        return <EditablePreview selectedFile={selectedFile} fileType={fileType} />;
+        return <EditablePreview 
+            selectedFile={selectedFile} 
+            fileType={fileType} 
+            fileModifiedExternally={fileNeedsReload === selectedFile}
+            onReloadComplete={onReloadComplete}
+        />;
     }
 
     // For non-editable files, show regular preview

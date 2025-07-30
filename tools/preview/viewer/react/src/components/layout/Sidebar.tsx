@@ -1,4 +1,5 @@
-import FileTree from '../tree/FileTree';
+import { forwardRef } from 'react';
+import FileTree, { type FileTreeHandle } from '../tree/FileTree';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -6,16 +7,19 @@ interface SidebarProps {
     onFileSelect: (filePath: string | null) => void;
 }
 
-const Sidebar = ({ selectedFile, onFileSelect }: SidebarProps) => {
+const Sidebar = forwardRef<FileTreeHandle, SidebarProps>(({ selectedFile, onFileSelect }, ref) => {
     return (
         <div className="sidebar">
             <div className="sidebar-header">Explorer</div>
             <FileTree
+                ref={ref}
                 selectedFile={selectedFile}
                 onFileSelect={onFileSelect}
             />
         </div>
     );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar; 

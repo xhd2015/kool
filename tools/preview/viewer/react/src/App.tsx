@@ -3,18 +3,22 @@ import { useSearchParams } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Preview from './components/preview/Preview';
 import MultiTabTerminal, { type MultiTabTerminalHandle } from './components/terminal/MultiTabTerminal';
+import { type FileTreeHandle } from './components/tree/FileTree';
 import { useResize } from './hooks/useResize';
+import { useFileWatcher } from './hooks/useFileWatcher';
 import './styles/globals.css';
 
 function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [terminalVisible, setTerminalVisible] = useState<boolean>(false);
+  const [fileNeedsReload, setFileNeedsReload] = useState<string | null>(null);
 
   // Refs for vertical resizing
   const appContainerRef = useRef<HTMLDivElement>(null);
   const verticalResizerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<MultiTabTerminalHandle>(null);
+  const fileTreeRef = useRef<FileTreeHandle>(null);
 
   // Vertical resize between content and terminal
   const { size: contentSize, handleMouseDown: handleVerticalMouseDown } = useResize({
@@ -48,6 +52,8 @@ function App() {
   // Handle file selection and update URL parameter
   const handleFileSelect = (filePath: string | null) => {
     setSelectedFile(filePath);
+    // Clear reload flag when switching files
+    setFileNeedsReload(null);
 
     // Update URL parameter
     const newParams = new URLSearchParams(searchParams);
@@ -66,6 +72,21 @@ function App() {
     }
   };
 
+  // File watcher integration
+  useFileWatcher({
+    onTreeRefresh: () => {
+      // Refresh the file tree when files are added/deleted
+      if (fileTreeRef.current) {
+        fileTreeRef.current.refresh();
+      }
+    },
+    onFileModified: (filePath) => {
+      console.log('File modified:', filePath);
+      // Show reload button for the modified file
+      setFileNeedsReload(filePath);
+    }
+  });
+
   return (
     <div className="app" ref={appContainerRef}>
       <div style={{
@@ -76,6 +97,7 @@ function App() {
         overflow: 'hidden'
       }}>
         <Layout
+          ref={fileTreeRef}
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
           onExecuteTerminalCommand={handleExecuteTerminalCommand}
@@ -83,7 +105,11 @@ function App() {
           <div className="preview-section">
             <div className="preview-container-wrapper">
               <div className="preview-container">
-                <Preview selectedFile={selectedFile} />
+                <Preview 
+                  selectedFile={selectedFile} 
+                  fileNeedsReload={fileNeedsReload}
+                  onReloadComplete={() => setFileNeedsReload(null)}
+                />
               </div>
             </div>
           </div>

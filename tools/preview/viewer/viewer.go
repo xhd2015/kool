@@ -13,10 +13,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"os/exec"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
 	"github.com/xhd2015/kool/pkgs/web"
 )
@@ -49,6 +51,14 @@ var plantumlContainer struct {
 	isRunning   bool
 	port        int
 	containerID string
+}
+
+// Global file watcher
+var fileWatcher struct {
+	watcher *fsnotify.Watcher
+
+	mutex   sync.Mutex
+	clients map[*websocket.Conn]bool
 }
 
 type FileNode struct {
@@ -333,6 +343,56 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
+	})
+
+	// Initialize file watcher
+	if err := initFileWatcher(absDir); err != nil {
+		return fmt.Errorf("failed to initialize file watcher: %v", err)
+	}
+
+	// API to handle file change notifications via WebSocket
+	http.HandleFunc("/api/file-changes", func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			fmt.Printf("Failed to upgrade to WebSocket for file changes: %v\n", err)
+			return
+		}
+		defer func() {
+			// Remove client when connection closes
+			fileWatcher.mutex.Lock()
+			if fileWatcher.clients != nil {
+				delete(fileWatcher.clients, ws)
+			}
+			fileWatcher.mutex.Unlock()
+			ws.Close()
+		}()
+
+		// Add client to the list
+		fileWatcher.mutex.Lock()
+		if fileWatcher.clients == nil {
+			fileWatcher.clients = make(map[*websocket.Conn]bool)
+		}
+		fileWatcher.clients[ws] = true
+		fileWatcher.mutex.Unlock()
+
+		fmt.Println("File changes WebSocket connection established")
+
+		// Keep the connection alive and handle ping messages
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				fmt.Printf("File changes WebSocket read error: %v\n", err)
+				break
+			}
+		}
 	})
 
 	// API to execute terminal commands via WebSocket streaming
@@ -739,4 +799,140 @@ func buildFileTreeWithRelativePaths(rootPath, baseDir string) (*FileNode, error)
 	}
 
 	return node, nil
+}
+
+// initFileWatcher initializes fsnotify watcher for the given directory
+func initFileWatcher(dir string) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to create file watcher: %v", err)
+	}
+
+	fileWatcher.watcher = watcher
+	fileWatcher.mutex.Lock()
+	fileWatcher.clients = make(map[*websocket.Conn]bool)
+	fileWatcher.mutex.Unlock()
+
+	// Add the root directory to watch
+	err = watcher.Add(dir)
+	if err != nil {
+		return fmt.Errorf("failed to watch directory %s: %v", dir, err)
+	}
+
+	// Walk through subdirectories and add them to watch
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip files/dirs we can't access
+		}
+
+		// Skip hidden directories and files
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if info.IsDir() {
+			err = watcher.Add(path)
+			if err != nil {
+				fmt.Printf("Warning: failed to watch directory %s: %v\n", path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to walk directory tree: %v", err)
+	}
+
+	// Start watching for events
+	go watchFileEvents(dir)
+
+	return nil
+}
+
+// watchFileEvents handles file system events and notifies clients
+func watchFileEvents(baseDir string) {
+	for {
+		select {
+		case event, ok := <-fileWatcher.watcher.Events:
+			if !ok {
+				return
+			}
+
+			// Skip hidden files and directories
+			if strings.HasPrefix(filepath.Base(event.Name), ".") {
+				continue
+			}
+
+			fmt.Printf("File event: %s - %s\n", event.Op, event.Name)
+
+			// Handle different event types
+			var eventType string
+			var needsTreeRefresh bool
+
+			if event.Op&fsnotify.Create == fsnotify.Create {
+				eventType = "create"
+				needsTreeRefresh = true
+
+				// If a new directory is created, add it to the watcher
+				if stat, err := os.Stat(event.Name); err == nil && stat.IsDir() {
+					fileWatcher.watcher.Add(event.Name)
+				}
+			} else if event.Op&fsnotify.Remove == fsnotify.Remove {
+				eventType = "delete"
+				needsTreeRefresh = true
+			} else if event.Op&fsnotify.Write == fsnotify.Write {
+				eventType = "modify"
+			} else if event.Op&fsnotify.Rename == fsnotify.Rename {
+				eventType = "rename"
+				needsTreeRefresh = true
+			} else {
+				continue // Skip other events
+			}
+
+			// Get relative path from base directory
+			relativePath, err := filepath.Rel(baseDir, event.Name)
+			if err != nil {
+				relativePath = event.Name
+			}
+
+			// Notify all connected clients
+			notification := map[string]interface{}{
+				"type":             "file_change",
+				"event":            eventType,
+				"path":             relativePath,
+				"needsTreeRefresh": needsTreeRefresh,
+			}
+
+			notifyClients(notification)
+
+		case err, ok := <-fileWatcher.watcher.Errors:
+			if !ok {
+				return
+			}
+			fmt.Printf("File watcher error: %v\n", err)
+		}
+	}
+}
+
+// notifyClients sends a notification to all connected WebSocket clients
+func notifyClients(notification map[string]interface{}) {
+	fileWatcher.mutex.Lock()
+	defer fileWatcher.mutex.Unlock()
+
+	if fileWatcher.clients == nil {
+		return
+	}
+
+	// Send to all connected clients
+	for client := range fileWatcher.clients {
+		err := client.WriteJSON(notification)
+		if err != nil {
+			fmt.Printf("Error sending notification to client: %v\n", err)
+			// Remove client if send failed
+			delete(fileWatcher.clients, client)
+			client.Close()
+		}
+	}
 }

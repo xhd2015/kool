@@ -1,5 +1,7 @@
+import { forwardRef } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import { type FileTreeHandle } from '../tree/FileTree';
 import './Layout.css';
 
 interface LayoutProps {
@@ -9,12 +11,13 @@ interface LayoutProps {
     onExecuteTerminalCommand?: (command: string) => void;
 }
 
-const Layout = ({ children, selectedFile, onFileSelect, onExecuteTerminalCommand }: LayoutProps) => {
+const Layout = forwardRef<FileTreeHandle, LayoutProps>(({ children, selectedFile, onFileSelect, onExecuteTerminalCommand }, ref) => {
     return (
         <div className="app">
             <Header onExecuteTerminalCommand={onExecuteTerminalCommand} />
             <div className="container">
                 <Sidebar
+                    ref={ref}
                     selectedFile={selectedFile}
                     onFileSelect={onFileSelect}
                 />
@@ -31,6 +34,8 @@ const Layout = ({ children, selectedFile, onFileSelect, onExecuteTerminalCommand
             </div>
         </div>
     );
-};
+});
+
+Layout.displayName = 'Layout';
 
 export default Layout; 

@@ -7,13 +7,11 @@ import (
 
 	"github.com/xhd2015/kool/tools/preview/viewer"
 	"github.com/xhd2015/less-gen/flags"
-	"github.com/xhd2015/xgo/support/cmd"
 )
 
 const help = `
 
 Options:
-  --auto-docker              auto start plantuml server in docker
   --plant-uml-server ADDR    plantuml server url, default is https://www.plantuml.com/plantuml, can be http://localhost:8080
 
 Example plantuml server:
@@ -35,11 +33,9 @@ Example plantuml server:
 // - [ ] mermaid preview react support
 // - [ ] remember per-file zoom state
 func Handle(args []string) error {
-	var autoDocker bool
 	var plantumlServer string
 
 	args, err := flags.String("--plant-uml-server", &plantumlServer).
-		Bool("--auto-docker", &autoDocker).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
@@ -48,23 +44,6 @@ func Handle(args []string) error {
 
 	if len(args) == 0 {
 		return fmt.Errorf("requires a file or directory to preview")
-	}
-
-	if autoDocker {
-		if plantumlServer == "" {
-			port := 6743
-			containerName := fmt.Sprintf("plantuml-server-%d", port)
-			fmt.Printf("Starting plantuml server in docker on port %d\n", port)
-			go func() {
-				// docker kill
-				cmd.Debug().Run("docker", "kill", containerName)
-				err := cmd.Debug().Run("docker", "run", "--rm", "--name", containerName, "-p", fmt.Sprintf("%d:7070", port), "plantuml/plantuml-server:jetty")
-				if err != nil {
-					fmt.Printf("Failed to start plantuml server in docker: %v\n", err)
-				}
-			}()
-			plantumlServer = fmt.Sprintf("http://localhost:%d", port)
-		}
 	}
 
 	path := args[0]

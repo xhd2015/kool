@@ -7,14 +7,19 @@ interface EditorProps {
     content: string;
     onChange: (content: string) => void;
     onSave?: (content: string) => void;
+    fileModifiedExternally?: boolean;
+    onReload?: () => void;
 }
 
-const Editor = ({ filePath, content, onChange, onSave }: EditorProps) => {
+const Editor = ({ filePath, content, onChange, onSave, fileModifiedExternally, onReload }: EditorProps) => {
     const [currentContent, setCurrentContent] = useState(content);
     const [saveStatus, setSaveStatus] = useState<string>('');
     const [isModified, setIsModified] = useState(false);
+    const [isModificationSaved, setIsModificationSaved] = useState(true);
     const [originalContent, setOriginalContent] = useState(content);
     const [showDiffModal, setShowDiffModal] = useState(false);
+    const [isReloading, setIsReloading] = useState(false);
+    const [isManualSaving, setIsManualSaving] = useState(false);
     const [conflictData, setConflictData] = useState<{
         currentContent: string;
         userDiff: string;
@@ -27,9 +32,44 @@ const Editor = ({ filePath, content, onChange, onSave }: EditorProps) => {
         setCurrentContent(content);
         setOriginalContent(content);
         setIsModified(false);
+        setIsModificationSaved(true);
         setShowDiffModal(false);
         setConflictData(null);
     }, [content]);
+
+    const handleReload = useCallback(async (isManual = false) => {
+        if (!onReload) return;
+
+        // Only show visual feedback for manual reloads
+        if (isManual) {
+            setIsReloading(true);
+        }
+
+        const startTime = Date.now();
+
+        try {
+            await onReload();
+        } catch (error) {
+            console.error('Reload failed:', error);
+        }
+
+        // For manual reloads, ensure spinner shows for at least 200ms
+        if (isManual) {
+            const elapsed = Date.now() - startTime;
+            const remainingTime = Math.max(0, 200 - elapsed);
+
+            setTimeout(() => {
+                setIsReloading(false);
+            }, remainingTime);
+        }
+    }, [onReload]);
+
+    // Auto-reload when file is modified externally and no unsaved changes
+    useEffect(() => {
+        if (fileModifiedExternally && isModificationSaved && onReload) {
+            handleReload(false); // Auto-reload - no visual feedback
+        }
+    }, [fileModifiedExternally, isModificationSaved, onReload, handleReload]);
 
     const saveContent = useCallback(async (contentToSave: string) => {
         const response = await fetch('/api/save', {
@@ -63,49 +103,63 @@ const Editor = ({ filePath, content, onChange, onSave }: EditorProps) => {
 
         // Update original content after successful save
         setOriginalContent(contentToSave);
+        setIsModificationSaved(true);
     }, [filePath, originalContent]);
 
     // Auto-save with debouncing
     useEffect(() => {
-        if (!isModified) return;
+        if (!isModified || isModificationSaved) return;
 
         const autoSaveTimer = setTimeout(async () => {
             try {
-                setSaveStatus('Saving...');
+                // Don't show "Saving..." status to avoid distraction
                 await saveContent(currentContent);
-                setSaveStatus('Auto-saved');
-                setTimeout(() => setSaveStatus(''), 1500);
+                // Don't show "Auto-saved" status to avoid distraction
             } catch (error) {
                 console.error('Auto-save failed:', error);
                 setSaveStatus('Auto-save failed');
-                setTimeout(() => setSaveStatus(''), 2500);
+                setTimeout(() => setSaveStatus(''), 3000);
             }
         }, 500);
 
         return () => clearTimeout(autoSaveTimer);
-    }, [currentContent, isModified, saveContent]);
+    }, [currentContent, isModified, isModificationSaved, saveContent]);
 
     const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newContent = e.target.value;
         setCurrentContent(newContent);
-        setIsModified(newContent !== content);
+        const modified = newContent !== content;
+        setIsModified(modified);
+
+        // If content was modified, mark it as not saved yet
+        // If content is back to original, mark it as saved
+        if (modified) {
+            setIsModificationSaved(false);
+        } else {
+            setIsModificationSaved(true);
+        }
+
         onChange(newContent);
     };
 
     const handleManualSave = async () => {
+        setIsManualSaving(true);
+
         try {
             setSaveStatus('Saving...');
             await saveContent(currentContent);
             if (onSave) {
                 onSave(currentContent);
             }
-            setIsModified(false);
+            // Note: setIsModificationSaved(true) is already called in saveContent
             setSaveStatus('Saved');
-            setTimeout(() => setSaveStatus(''), 2000);
+            setTimeout(() => setSaveStatus(''), 1500);
         } catch (error) {
             console.error('Save failed:', error);
             setSaveStatus('Save failed');
             setTimeout(() => setSaveStatus(''), 3000);
+        } finally {
+            setIsManualSaving(false);
         }
     };
 
@@ -142,11 +196,31 @@ const Editor = ({ filePath, content, onChange, onSave }: EditorProps) => {
                             {saveStatus}
                         </span>
                         <button
-                            className="save-button"
-                            onClick={handleManualSave}
-                            disabled={!isModified}
+                            className={`reload-button ${isReloading ? 'reloading' : ''}`}
+                            onClick={() => {
+                                if (isReloading) return;
+
+                                if (!isModificationSaved) {
+                                    const confirmReload = window.confirm(
+                                        'The file has been modified externally. You have unsaved changes. Do you want to reload and lose your changes?'
+                                    );
+                                    if (confirmReload) {
+                                        handleReload(true); // Manual reload - show visual feedback
+                                    }
+                                } else {
+                                    handleReload(true); // Manual reload - show visual feedback
+                                }
+                            }}
+                            title={isReloading ? "Reloading..." : fileModifiedExternally ? "File has been modified externally" : "Reload file"}
                         >
-                            Save
+                            {isReloading ? '⟳' : '↻'}
+                        </button>
+                        <button
+                            className={`save-button ${isManualSaving ? 'save-button-loading' : ''}`}
+                            onClick={handleManualSave}
+                            disabled={isManualSaving}
+                        >
+                            {isManualSaving ? 'Saving...' : 'Save'}
                         </button>
                     </div>
                 </div>

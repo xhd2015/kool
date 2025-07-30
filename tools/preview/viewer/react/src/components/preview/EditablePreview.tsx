@@ -8,9 +8,11 @@ import { useResize } from '../../hooks/useResize';
 interface EditablePreviewProps {
     selectedFile: string;
     fileType: string;
+    fileModifiedExternally?: boolean;
+    onReloadComplete?: () => void;
 }
 
-const EditablePreview = ({ selectedFile, fileType }: EditablePreviewProps) => {
+const EditablePreview = ({ selectedFile, fileType, fileModifiedExternally, onReloadComplete }: EditablePreviewProps) => {
     const [originalContent, setOriginalContent] = useState<string>('');
     const [currentContent, setCurrentContent] = useState<string>('');
     const [loading, setLoading] = useState(true);
@@ -56,6 +58,24 @@ const EditablePreview = ({ selectedFile, fileType }: EditablePreviewProps) => {
 
     const handleContentChange = (newContent: string) => {
         setCurrentContent(newContent);
+    };
+
+    const handleReload = async () => {
+        try {
+            setError(null);
+            const response = await fetch(`/api/content?path=${encodeURIComponent(selectedFile)}`);
+            if (!response.ok) {
+                throw new Error(`Failed to reload file content: ${response.statusText}`);
+            }
+            const data = await response.json();
+            setOriginalContent(data.content);
+            setCurrentContent(data.content);
+            // Notify parent that reload is complete
+            onReloadComplete?.();
+        } catch (err) {
+            console.error('Failed to reload file content:', err);
+            setError(err instanceof Error ? err.message : 'Failed to reload file content');
+        }
     };
 
     const renderPreview = () => {
@@ -109,6 +129,8 @@ const EditablePreview = ({ selectedFile, fileType }: EditablePreviewProps) => {
                     filePath={selectedFile}
                     content={originalContent}
                     onChange={handleContentChange}
+                    fileModifiedExternally={fileModifiedExternally}
+                    onReload={handleReload}
                 />
             </div>
 
