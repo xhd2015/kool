@@ -13,8 +13,9 @@ const help = `
 kool bash history is a tool to manage your bash history.
 
 Commands:
-  merge     merge history files into one
-  clean     clean history file
+  merge <files>       merge history files into one
+  clean               clean history file
+  del <cmd>           delete a command from history
 
 Options:
   -w        write back to history file
@@ -27,7 +28,7 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("requires command: merge, clean")
+		return fmt.Errorf("requires command: merge, clean, del")
 	}
 
 	cmd := args[0]
@@ -38,6 +39,8 @@ func Handle(args []string) error {
 		return handleMerge(args)
 	case "clean":
 		return handleClean(args)
+	case "del":
+		return handleDel(args)
 	}
 
 	return fmt.Errorf("unknown command: %s", cmd)
@@ -83,6 +86,59 @@ func handleMerge(args []string) error {
 	}
 
 	err = os.WriteFile(homeHistory, []byte(strings.Join(lines, "\n")), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func handleDel(args []string) error {
+	args, err := flags.Help("-h,--help", help).Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("requires command, usage: del '<command>'")
+	}
+
+	delCmd := args[0]
+	args = args[1:]
+
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %v", args)
+	}
+
+	homeHistory, err := getHomeHistory()
+	if err != nil {
+		return err
+	}
+
+	lines, err := readLines(homeHistory)
+	if err != nil {
+		return err
+	}
+
+	var removedDel bool
+	cleanedLines := make([]string, 0, len(lines))
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := lines[i]
+
+		trimLine := strings.TrimSpace(line)
+		if !removedDel && strings.HasPrefix(trimLine, "kool bash history del ") {
+			removedDel = true
+			continue
+		}
+
+		if trimLine == delCmd {
+			continue
+		}
+
+		cleanedLines = append(cleanedLines, line)
+	}
+
+	err = os.WriteFile(homeHistory, []byte(strings.Join(cleanedLines, "\n")), 0644)
 	if err != nil {
 		return err
 	}
@@ -162,15 +218,13 @@ func readLines(path string) ([]string, error) {
 }
 
 func cleanLines(lines []string) []string {
-	var cleaned []string
-
+	cleaned := make([]string, 0, len(lines))
 	seen := make(map[string]bool, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || line == "exit" || line == "ls" || line == "pwd" {
+		if line == "" || line == "exit" || line == "ls" || line == "pwd" || strings.HasPrefix(line, "kool bash history del ") {
 			continue
 		}
-
 		if seen[line] {
 			continue
 		}
