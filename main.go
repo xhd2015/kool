@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/tools/ai"
+	"github.com/xhd2015/kool/tools/bash"
 	"github.com/xhd2015/kool/tools/create"
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/encoding"
@@ -192,6 +193,8 @@ func handle(args []string) error {
 		return encoding.HandleDecode(args)
 	case "encode":
 		return encoding.HandleEncode(args)
+	case "bash":
+		return bash.Handle(args)
 		// jsons
 	case "sample":
 		return jsontool.HandleSample(args)
