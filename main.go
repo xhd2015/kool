@@ -26,6 +26,7 @@ import (
 	"github.com/xhd2015/kool/tools/preview"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
+	"github.com/xhd2015/kool/tools/service"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/kool/tools/uuid"
 	"github.com/xhd2015/kool/tools/watch"
@@ -52,6 +53,7 @@ Utility commands:
   check-port-ready <port>            check if the port is ready
   watch <command> [args...]      watch files and restart command on changes
   preview <file>                     preview a file, currently supports .uml and .puml
+  service                            manage background services (macOS/Linux)
   help                               show help message
 
 String commands:
@@ -198,6 +200,8 @@ func handle(args []string) error {
 		return encoding.HandleEncode(args)
 	case "bash":
 		return bash.Handle(args)
+	case "service", "services":
+		return service.Handle(args)
 		// jsons
 	case "sample":
 		return jsontool.HandleSample(args)
