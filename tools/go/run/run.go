@@ -13,7 +13,39 @@ import (
 	"github.com/xhd2015/xgo/support/netutil"
 )
 
+const help = `
+Run or debug go program
+
+Usage: kool go run <cmd> [OPTIONS]
+
+Available commands:
+  create <name>                    create a new project
+  help                             show help message
+
+Options:
+  --dir <dir>                      set the output directory
+  -v,--verbose                     show verbose info  
+
+Examples:
+  kool go run help                         show help message
+  kool go run create my_project            create a new project named my_project
+`
+
 func Handle(args []string) error {
+	return HandleOpts(args, Options{
+		AcceptDebugFlag: true,
+	})
+}
+
+type Options struct {
+	AcceptDebugFlag bool
+	IsDebug         bool
+}
+
+func HandleOpts(args []string, opts Options) error {
+	acceptDebugFlag := opts.AcceptDebugFlag
+	isDebug := opts.IsDebug
+
 	var debug bool
 	n := len(args)
 	goArgs := make([]string, 0, n)
@@ -27,30 +59,33 @@ func Handle(args []string) error {
 			remainArgs = append(remainArgs, args[i:]...)
 			break
 		}
-		if arg == "--debug" || arg == "-debug" {
-			debug = true
-			continue
-		}
 
-		if arg == "--debug-cwd" || arg == "-debug-cwd" || arg == "--debug-wd" || arg == "-debug-wd" {
-			if i+1 >= n {
-				return fmt.Errorf("%s requires argument", arg)
+		if acceptDebugFlag {
+			if arg == "--debug" || arg == "-debug" {
+				debug = true
+				continue
 			}
-			debugCwd = args[i+1]
-			i++
-			continue
-		} else if suffix, ok := strings.CutPrefix(arg, "--debug-cwd="); ok {
-			debugCwd = suffix
-			continue
-		} else if suffix, ok := strings.CutPrefix(arg, "-debug-cwd="); ok {
-			debugCwd = suffix
-			continue
-		} else if suffix, ok := strings.CutPrefix(arg, "--debug-wd="); ok {
-			debugCwd = suffix
-			continue
-		} else if suffix, ok := strings.CutPrefix(arg, "-debug-wd="); ok {
-			debugCwd = suffix
-			continue
+
+			if arg == "--debug-cwd" || arg == "-debug-cwd" || arg == "--debug-wd" || arg == "-debug-wd" {
+				if i+1 >= n {
+					return fmt.Errorf("%s requires argument", arg)
+				}
+				debugCwd = args[i+1]
+				i++
+				continue
+			} else if suffix, ok := strings.CutPrefix(arg, "--debug-cwd="); ok {
+				debugCwd = suffix
+				continue
+			} else if suffix, ok := strings.CutPrefix(arg, "-debug-cwd="); ok {
+				debugCwd = suffix
+				continue
+			} else if suffix, ok := strings.CutPrefix(arg, "--debug-wd="); ok {
+				debugCwd = suffix
+				continue
+			} else if suffix, ok := strings.CutPrefix(arg, "-debug-wd="); ok {
+				debugCwd = suffix
+				continue
+			}
 		}
 
 		if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
@@ -65,7 +100,9 @@ func Handle(args []string) error {
 		}
 	}
 
-	if !debug && debugCwd == "" {
+	debugMode := isDebug || debug
+
+	if !debugMode && debugCwd == "" {
 		origArgs := []string{"run"}
 		origArgs = append(origArgs, args...)
 		return cmd.Debug().Run("go", origArgs...)
@@ -93,7 +130,7 @@ func Handle(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !debug {
+	if !debugMode {
 		return cmd.Debug().Dir(debugCwd).Run(debugBin, remainArgs...)
 	}
 	return netutil.ServePort("localhost", 2345, true, 500*time.Millisecond, func(port int) {

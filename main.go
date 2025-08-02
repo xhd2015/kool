@@ -10,6 +10,7 @@ import (
 	"github.com/xhd2015/kool/tools/ai"
 	"github.com/xhd2015/kool/tools/bash"
 	"github.com/xhd2015/kool/tools/create"
+	"github.com/xhd2015/kool/tools/debug"
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/encoding"
 	"github.com/xhd2015/kool/tools/git"
@@ -144,6 +145,8 @@ func handle(args []string) error {
 		return create.Handle(args)
 	case "snippet":
 		return handleSnippet(args)
+	case "debug":
+		return debug.Handle(args)
 	case "go":
 		return go_tools.Handle(args)
 	case "go-replace":
