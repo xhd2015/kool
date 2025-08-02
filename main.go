@@ -28,6 +28,7 @@ import (
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/service"
 	"github.com/xhd2015/kool/tools/stringtool"
+	"github.com/xhd2015/kool/tools/timeout"
 	"github.com/xhd2015/kool/tools/uuid"
 	"github.com/xhd2015/kool/tools/watch"
 	"github.com/xhd2015/kool/tools/yaml2json"
@@ -54,6 +55,7 @@ Utility commands:
   watch <command> [args...]      watch files and restart command on changes
   preview <file>                     preview a file, currently supports .uml and .puml
   service                            manage background services (macOS/Linux)
+  timeout <duration> <command> [args...]  run command with timeout (e.g., timeout 5s sleep 10)
   help                               show help message
 
 String commands:
@@ -221,6 +223,8 @@ func handle(args []string) error {
 		return uuid.Handle(args)
 	case "js":
 		return js.Handle(args)
+	case "timeout":
+		return timeout.Handle(args)
 	case "?":
 		return handleQuestion(args)
 	default:
