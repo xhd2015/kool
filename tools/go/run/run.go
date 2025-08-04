@@ -53,6 +53,7 @@ func HandleOpts(args []string, opts Options) error {
 
 	var debugCwd string
 	var hasGCflags bool
+	var passStdin bool
 	for i := 0; i < n; i++ {
 		arg := args[i]
 		if !strings.HasPrefix(arg, "-") {
@@ -86,6 +87,10 @@ func HandleOpts(args []string, opts Options) error {
 				debugCwd = suffix
 				continue
 			}
+		}
+		if arg == "--stdin" {
+			passStdin = true
+			continue
 		}
 
 		if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
@@ -139,9 +144,10 @@ func HandleOpts(args []string, opts Options) error {
 
 		// dlv exec --api-version=2 --listen=localhost:2345 --accept-multiclient --headless ./debug.bin
 		return dlv.Debug(debugBin, dlv.DebugOptions{
-			Dir:  debugCwd,
-			Port: port,
-			Args: remainArgs,
+			Dir:       debugCwd,
+			Port:      port,
+			Args:      remainArgs,
+			PassStdin: passStdin,
 		})
 	})
 }

@@ -14,7 +14,7 @@ kool bash history is a tool to manage your bash history.
 
 Commands:
   merge <files>       merge history files into one
-  clean               clean history file
+  compact,clean       compact history file
   del <cmd>           delete a command from history
 
 Options:
@@ -37,7 +37,7 @@ func Handle(args []string) error {
 	switch cmd {
 	case "merge":
 		return handleMerge(args)
-	case "clean":
+	case "clean", "compact":
 		return handleClean(args)
 	case "del":
 		return handleDel(args)

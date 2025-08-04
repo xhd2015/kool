@@ -2,6 +2,7 @@ package dlv
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -75,6 +76,7 @@ func Handle(args []string) error {
 type DebugOptions struct {
 	Dir           string
 	Port          int
+	PassStdin     bool
 	Args          []string
 	ExtraDlvFlags []string
 }
@@ -97,6 +99,7 @@ func Debug(binary string, opts DebugOptions) error {
 		fmt.Sprintf("--listen=:%d", port),
 		"--api-version=2",
 		"--check-go-version=false",
+		// "--tty=/dev/tty",
 		"--headless",
 	}
 	dlvArgs = append(dlvArgs, dlvFlags...)
@@ -110,7 +113,11 @@ func Debug(binary string, opts DebugOptions) error {
 		fmt.Print(formatPrompt(binary))
 	}()
 
-	return cmd.Debug().Dir(dir).Run("dlv", dlvArgs...)
+	c := cmd.Debug()
+	if opts.PassStdin {
+		c.Stdin(os.Stdin)
+	}
+	return c.Dir(dir).Run("dlv", dlvArgs...)
 }
 
 func formatPrompt(binary string) string {
