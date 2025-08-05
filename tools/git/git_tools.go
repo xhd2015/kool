@@ -8,6 +8,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/hooks"
 	"github.com/xhd2015/kool/tools/git/worktree"
 	"github.com/xhd2015/less-gen/flags"
 )
@@ -22,6 +23,8 @@ Available commands:
   worktree                         worktree commands
   tag-next                         tag next version
   show-tag                         show tag of current commit
+  show-exclude                     show exclude files
+  init-hooks                       init git hooks
   help                             show help message
 
 Options:
@@ -39,7 +42,7 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: tag-next, show-tag, show exclude, check-merge,help")
+		return fmt.Errorf("commands: tag-next, show-tag, show-exclude, check-merge,help")
 	}
 	var isShowTag bool
 	var remainArgs []string
@@ -54,6 +57,10 @@ func Handle(args []string) error {
 	case "show-tag":
 		isShowTag = true
 		remainArgs = args[1:]
+	case "show-exclude":
+		return git_show_exclude.Handle()
+	case "init-hooks":
+		return hooks.HandleInit(args[1:])
 	case "show":
 		if len(args) < 2 {
 			return fmt.Errorf("expected subcommand for show: exclude,tag,children")
@@ -73,8 +80,6 @@ func Handle(args []string) error {
 		}
 	case "show-children":
 		return HandleShowChildren(args[1:])
-	case "show-exlcude":
-		return git_show_exclude.Handle()
 	case "check-merge":
 		return git_check_merge.Handle(args[1:])
 	case "ls":
