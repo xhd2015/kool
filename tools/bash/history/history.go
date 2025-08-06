@@ -13,9 +13,12 @@ const help = `
 kool bash history is a tool to manage your bash history.
 
 Commands:
-  merge <files>       merge history files into one
-  compact,clean       compact history file
-  del <cmd>           delete a command from history
+  merge <files>          merge history files into one
+  compact,clean          compact history file
+  del <cmd>              delete a command from history
+  log-file list          list log files
+  log-file add <file>    add a log file
+  log-file rm <file>     remove a log file
 
 Options:
   -w        write back to history file
@@ -41,6 +44,8 @@ func Handle(args []string) error {
 		return handleClean(args)
 	case "del":
 		return handleDel(args)
+	case "log-file":
+		return handleLogFile(args)
 	}
 
 	return fmt.Errorf("unknown command: %s", cmd)
@@ -115,7 +120,28 @@ func handleDel(args []string) error {
 		return err
 	}
 
-	lines, err := readLines(homeHistory)
+	err = deleteFromHistoryFile(homeHistory, delCmd)
+	if err != nil {
+		return err
+	}
+
+	logFiles, err := readLogFiles()
+	if err != nil {
+		return err
+	}
+
+	for _, logFile := range logFiles {
+		err = deleteFromHistoryFile(logFile, delCmd)
+		if err != nil {
+			fmt.Printf("Warning: failed to delete from %s: %v\n", logFile, err)
+		}
+	}
+
+	return nil
+}
+
+func deleteFromHistoryFile(historyFile, delCmd string) error {
+	lines, err := readLines(historyFile)
 	if err != nil {
 		return err
 	}
@@ -138,12 +164,7 @@ func handleDel(args []string) error {
 		cleanedLines = append(cleanedLines, line)
 	}
 
-	err = os.WriteFile(homeHistory, []byte(strings.Join(cleanedLines, "\n")), 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(historyFile, []byte(strings.Join(cleanedLines, "\n")), 0644)
 }
 
 func handleClean(args []string) error {
@@ -233,4 +254,186 @@ func cleanLines(lines []string) []string {
 	}
 
 	return cleaned
+}
+
+func handleLogFile(args []string) error {
+	args, err := flags.Help("-h,--help", help).Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("requires subcommand: add, list, rm")
+	}
+
+	subCmd := args[0]
+	args = args[1:]
+
+	switch subCmd {
+	case "add":
+		return handleLogFileAdd(args)
+	case "list":
+		return handleLogFileList(args)
+	case "rm":
+		return handleLogFileRm(args)
+	default:
+		return fmt.Errorf("unknown subcommand: %s", subCmd)
+	}
+}
+
+func getLogFilesPath() (string, error) {
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	koolDir := filepath.Join(userConfigDir, "kool", "bash", "history")
+	err = os.MkdirAll(koolDir, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(koolDir, "log-files.txt"), nil
+}
+
+func readLogFiles() ([]string, error) {
+	logFilesPath, err := getLogFilesPath()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat(logFilesPath); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+
+	content, err := os.ReadFile(logFilesPath)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var result []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			result = append(result, line)
+		}
+	}
+
+	return result, nil
+}
+
+func writeLogFiles(files []string) error {
+	logFilesPath, err := getLogFilesPath()
+	if err != nil {
+		return err
+	}
+
+	content := strings.Join(files, "\n")
+	if len(files) > 0 {
+		content += "\n"
+	}
+
+	return os.WriteFile(logFilesPath, []byte(content), 0644)
+}
+
+func handleLogFileAdd(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("requires file path")
+	}
+
+	filePath := args[0]
+	if len(args) > 1 {
+		return fmt.Errorf("unrecognized extra args: %v", args[1:])
+	}
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("file does not exist: %s", absPath)
+	}
+
+	logFiles, err := readLogFiles()
+	if err != nil {
+		return err
+	}
+
+	for _, existing := range logFiles {
+		if existing == absPath {
+			fmt.Printf("File already in list: %s\n", absPath)
+			return nil
+		}
+	}
+
+	logFiles = append(logFiles, absPath)
+	err = writeLogFiles(logFiles)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Added file: %s\n", absPath)
+	return nil
+}
+
+func handleLogFileList(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %v", args)
+	}
+
+	logFiles, err := readLogFiles()
+	if err != nil {
+		return err
+	}
+
+	for _, file := range logFiles {
+		fmt.Println(file)
+	}
+
+	return nil
+}
+
+func handleLogFileRm(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("requires file path")
+	}
+
+	filePath := args[0]
+	if len(args) > 1 {
+		return fmt.Errorf("unrecognized extra args: %v", args[1:])
+	}
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return err
+	}
+
+	logFiles, err := readLogFiles()
+	if err != nil {
+		return err
+	}
+
+	var found bool
+	var newLogFiles []string
+	for _, existing := range logFiles {
+		if existing == absPath {
+			found = true
+			continue
+		}
+		newLogFiles = append(newLogFiles, existing)
+	}
+
+	if !found {
+		return fmt.Errorf("file not found in list: %s", absPath)
+	}
+
+	err = writeLogFiles(newLogFiles)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Removed file: %s\n", absPath)
+	return nil
 }

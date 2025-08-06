@@ -50,7 +50,7 @@ func main() {
 
 	var noCommit bool
 	var amend bool
-	args, err := flags.Bool("-no-commit", &noCommit).
+	args, err := flags.Bool("--no-commit", &noCommit).
 		Bool("--amend", &amend).
 		Help("-h,--help", help).
 		Parse(args)
