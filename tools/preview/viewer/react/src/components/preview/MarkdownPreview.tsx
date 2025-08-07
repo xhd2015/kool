@@ -1,48 +1,77 @@
-import { useState, useEffect } from 'react';
-import { marked } from 'marked';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './MarkdownPreview.css';
+import { renderMarkdownToHtml } from '../../utils/markdown';
+import { copyAsPng } from '../../utils/svg';
 
 interface MarkdownPreviewProps {
     content: string;
 }
 
+// Counter for generating unique mermaid IDs
+let mermaidIdCounter = 0;
+
+function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgData: string | null }) => void, setError: (error: any) => void): ((e: MouseEvent, svgElement: SVGElement) => void) {
+    return function (e: MouseEvent, svgElement: SVGElement) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                svgData: svgData
+            });
+        } catch (err) {
+            setError(err)
+        }
+    }
+}
+
+
 const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     const [htmlContent, setHtmlContent] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; svgData: string | null }>({ x: 0, y: 0, svgData: null });
+    const handleMermaidContextMenu = useMemo(() => "handleMermaidContextMenu_" + new Date().getTime(), [])
+
+    // Context menu now handled globally - no longer needed!
+    const handleClick = () => {
+        setContextMenu({ x: 0, y: 0, svgData: null });
+    };
 
     useEffect(() => {
-        const renderMarkdown = async () => {
+        const callback = createSvgCallback(setContextMenu, setError);
+
+        (window as any)[handleMermaidContextMenu] = callback;
+        return () => {
+            delete (window as any)[handleMermaidContextMenu];
+        };
+    }, [])
+
+
+    useEffect(() => {
+        const processContent = async () => {
             try {
                 setError(null);
+                mermaidIdCounter = 0; // Reset the global counter
 
-                // Configure marked options for better rendering
-                marked.setOptions({
-                    gfm: true, // GitHub Flavored Markdown
-                    breaks: true, // Convert \n to <br>
-                });
-
-                // Configure custom renderer to make links open in new tab
-                const renderer = new marked.Renderer();
-                renderer.link = function (token: { href: string, title?: string | null, tokens: any[] }) {
-                    const titleAttr = token.title ? ` title="${token.title}"` : '';
-                    const text = this.parser.parseInline(token.tokens);
-                    return `<a href="${token.href}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
-                };
-
-                const html = await marked(content, { renderer });
+                const html = await renderMarkdownToHtml(content, handleMermaidContextMenu, mermaidIdCounter++);
                 setHtmlContent(html);
             } catch (err) {
-                console.error('Failed to render markdown:', err);
                 setError(err instanceof Error ? err.message : 'Failed to render markdown');
             }
         };
 
         if (content) {
-            renderMarkdown();
+            processContent();
         } else {
             setHtmlContent('');
         }
     }, [content]);
+
+    // No longer needed - SVGs are rendered directly in renderMarkdownToHtml!
 
     if (error) {
         return (
@@ -59,11 +88,34 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     }
 
     return (
-        <div className="preview-markdown">
+        <div className="preview-markdown" ref={containerRef} onClick={handleClick}>
             <div
                 className="markdown-content"
                 dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
+            {contextMenu.svgData ? (
+                <div
+                    className="context-menu"
+                    style={{
+                        position: 'fixed',
+                        left: contextMenu.x,
+                        top: contextMenu.y,
+                        zIndex: 1000
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button
+                        className="context-menu-item"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            copyAsPng(contextMenu.svgData!);
+                            setContextMenu({ x: 0, y: 0, svgData: null });
+                        }}
+                    >
+                        Copy as PNG
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 };

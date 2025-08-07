@@ -42,8 +42,10 @@ func isDockerRunningOnPort(port int) bool {
 }
 
 // Re-enable embedded filesystem
+// prefix with all to include files starts with _.
+// see https://pkg.go.dev/embed
 //
-//go:embed react/dist
+//go:embed all:react/dist
 var reactDistFS embed.FS
 
 // Global variable to track PlantUML Docker container
