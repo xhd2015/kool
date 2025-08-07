@@ -153,10 +153,6 @@
     position: relative;
 }
 
-.mermaid-container:hover {
-    background-color: #f0f1f2;
-}
-
 .mermaid {
     font-family: 'Trebuchet MS', verdana, arial, sans-serif;
     font-size: 16px;

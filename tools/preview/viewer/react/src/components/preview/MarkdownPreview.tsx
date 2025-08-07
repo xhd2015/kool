@@ -1,29 +1,55 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import './MarkdownPreview.css';
 import { renderMarkdownToHtml } from '../../utils/markdown';
 import { copyAsPng } from '../../utils/svg';
+import { highlightCodeBlocks } from '../../utils/syntaxHighlighting';
+import { ScrollPositionManager } from '../../utils/scrollSync';
+
+import './MarkdownPreview.css';
+
 
 interface MarkdownPreviewProps {
     content: string;
 }
 
-// Counter for generating unique mermaid IDs
-let mermaidIdCounter = 0;
-
-function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgData: string | null }) => void, setError: (error: any) => void): ((e: MouseEvent, svgElement: SVGElement) => void) {
-    return function (e: MouseEvent, svgElement: SVGElement) {
+function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgData: string | null }) => void, setError: (error: string | null) => void): ((e: MouseEvent, element: SVGElement | HTMLImageElement) => void) {
+    return function (e: MouseEvent, element: SVGElement | HTMLImageElement) {
         e.preventDefault();
         e.stopPropagation();
 
         try {
-            const svgData = new XMLSerializer().serializeToString(svgElement);
+            let svgData: string;
+            
+            if (element.tagName.toLowerCase() === 'svg') {
+                // Handle SVG elements (Mermaid)
+                svgData = new XMLSerializer().serializeToString(element as SVGElement);
+            } else if (element.tagName.toLowerCase() === 'img') {
+                // Handle IMG elements (PlantUML) - convert to SVG
+                const img = element as HTMLImageElement;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Could not get canvas context');
+                
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                // Create SVG from canvas
+                svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">
+                    <foreignObject width="100%" height="100%">
+                        <img src="${img.src}" width="${canvas.width}" height="${canvas.height}" />
+                    </foreignObject>
+                </svg>`;
+            } else {
+                throw new Error('Unsupported element type');
+            }
+            
             setContextMenu({
                 x: e.clientX,
                 y: e.clientY,
                 svgData: svgData
             });
         } catch (err) {
-            setError(err)
+            setError(err instanceof Error ? err.message : 'Unknown error')
         }
     }
 }
@@ -34,7 +60,10 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; svgData: string | null }>({ x: 0, y: 0, svgData: null });
-    const handleMermaidContextMenu = useMemo(() => "handleMermaidContextMenu_" + new Date().getTime(), [])
+    const handleMermaidContextMenuUniqFn = useMemo(() => `handleMermaidContextMenu_${crypto.randomUUID().replaceAll("-", "_")}`, [])
+    
+    // Enhanced scroll position management
+    const scrollManagerRef = useRef(new ScrollPositionManager());
 
     // Context menu now handled globally - no longer needed!
     const handleClick = () => {
@@ -44,20 +73,24 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     useEffect(() => {
         const callback = createSvgCallback(setContextMenu, setError);
 
-        (window as any)[handleMermaidContextMenu] = callback;
+        (window as unknown as Record<string, unknown>)[handleMermaidContextMenuUniqFn] = callback;
         return () => {
-            delete (window as any)[handleMermaidContextMenu];
+            delete (window as unknown as Record<string, unknown>)[handleMermaidContextMenuUniqFn];
         };
-    }, [])
+    }, [handleMermaidContextMenuUniqFn])
 
 
     useEffect(() => {
         const processContent = async () => {
             try {
                 setError(null);
-                mermaidIdCounter = 0; // Reset the global counter
+                
+                // Save scroll position before updating content
+                if (containerRef.current) {
+                    scrollManagerRef.current.savePosition(containerRef.current, content.length);
+                }
 
-                const html = await renderMarkdownToHtml(content, handleMermaidContextMenu, mermaidIdCounter++);
+                const html = await renderMarkdownToHtml(content, handleMermaidContextMenuUniqFn);
                 setHtmlContent(html);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to render markdown');
@@ -69,7 +102,22 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
         } else {
             setHtmlContent('');
         }
-    }, [content]);
+    }, [content, handleMermaidContextMenuUniqFn]);
+
+    // Apply syntax highlighting and restore scroll position after HTML content is rendered
+    useEffect(() => {
+        if (htmlContent && containerRef.current) {
+            const container = containerRef.current;
+            
+            highlightCodeBlocks(container).then(() => {
+                // Restore scroll position after highlighting is complete
+                scrollManagerRef.current.restorePosition(container, content.length, {
+                    smoothScroll: false,
+                    preservePosition: true
+                });
+            });
+        }
+    }, [htmlContent, content.length]);
 
     // No longer needed - SVGs are rendered directly in renderMarkdownToHtml!
 
@@ -88,7 +136,15 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     }
 
     return (
-        <div className="preview-markdown" ref={containerRef} onClick={handleClick}>
+        <div 
+            className="preview-markdown" 
+            ref={containerRef} 
+            onClick={handleClick}
+            style={{ 
+                height: '100%', 
+                overflow: 'auto'
+            }}
+        >
             <div
                 className="markdown-content"
                 dangerouslySetInnerHTML={{ __html: htmlContent }}

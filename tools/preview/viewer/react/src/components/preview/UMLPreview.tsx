@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-// @ts-expect-error plantuml-encoder lacks TypeScript declarations
 import plantumlEncoder from 'plantuml-encoder';
 import { useZoom } from '../../hooks/useZoom';
 
@@ -29,7 +28,7 @@ const UMLPreview = ({ content }: UMLPreviewProps) => {
             const svgText = await response.text();
 
             // Create a data URL from the SVG content
-            const dataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`;
+            const dataUrl = `data:image/svg+xml;base64,${btoa(svgText)}`;
             return dataUrl;
         } catch (error) {
             console.error('Failed to convert to data URL:', error);
