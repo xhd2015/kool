@@ -8,6 +8,7 @@ import (
 
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
+	"github.com/xhd2015/xgo/support/filecopy"
 	"github.com/xhd2015/xgo/support/fileutil"
 	"github.com/xhd2015/xgo/support/git"
 )
@@ -105,6 +106,19 @@ func preCommitCheck(noCommit bool, amend bool) error {
 
 	var affectedFiles []string
 
+	if false {
+		// tools/go/with_go
+		dirPath := []string{"cmd", "kool-with-go1.19", "with_go"}
+		srcDir := filepath.Join(rootDir, "tools", "go", "with_go")
+		dstDir := filepath.Join(rootDir, filepath.Join(dirPath...))
+		err = filecopy.CopyReplaceDir(srcDir, dstDir, false)
+		if err != nil {
+			return err
+		}
+
+		affectedFiles = append(affectedFiles, strings.Join(dirPath, "/"))
+	}
+
 	// update revision
 	revision, err := cmd.Output("git", "rev-parse", "HEAD")
 	if err != nil {
@@ -125,7 +139,7 @@ func preCommitCheck(noCommit bool, amend bool) error {
 		affectedFiles = append(affectedFiles, revisionFile)
 	}
 
-	if !noCommit {
+	if !noCommit && len(affectedFiles) > 0 {
 		err = cmd.Dir(rootDir).Run("git", append([]string{"add"}, affectedFiles...)...)
 		if err != nil {
 			return nil
