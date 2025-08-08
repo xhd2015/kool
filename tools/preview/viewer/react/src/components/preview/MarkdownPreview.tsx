@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { renderMarkdownToHtml } from '../../utils/markdown';
 import { copyAsPng } from '../../utils/svg';
-import { highlightCodeBlocks } from '../../utils/syntaxHighlighting';
 import { ScrollPositionManager } from '../../utils/scrollSync';
 
 import './MarkdownPreview.css';
@@ -18,7 +17,7 @@ function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgDat
 
         try {
             let svgData: string;
-            
+
             if (element.tagName.toLowerCase() === 'svg') {
                 // Handle SVG elements (Mermaid)
                 svgData = new XMLSerializer().serializeToString(element as SVGElement);
@@ -28,11 +27,11 @@ function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgDat
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 if (!ctx) throw new Error('Could not get canvas context');
-                
+
                 canvas.width = img.naturalWidth || img.width;
                 canvas.height = img.naturalHeight || img.height;
                 ctx.drawImage(img, 0, 0);
-                
+
                 // Create SVG from canvas
                 svgData = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">
                     <foreignObject width="100%" height="100%">
@@ -42,7 +41,7 @@ function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgDat
             } else {
                 throw new Error('Unsupported element type');
             }
-            
+
             setContextMenu({
                 x: e.clientX,
                 y: e.clientY,
@@ -54,20 +53,24 @@ function createSvgCallback(setContextMenu: (menu: { x: number; y: number; svgDat
     }
 }
 
-
 const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     const [htmlContent, setHtmlContent] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; svgData: string | null }>({ x: 0, y: 0, svgData: null });
     const handleMermaidContextMenuUniqFn = useMemo(() => `handleMermaidContextMenu_${crypto.randomUUID().replaceAll("-", "_")}`, [])
-    
+
     // Enhanced scroll position management
     const scrollManagerRef = useRef(new ScrollPositionManager());
 
     // Context menu now handled globally - no longer needed!
     const handleClick = () => {
-        setContextMenu({ x: 0, y: 0, svgData: null });
+        setContextMenu(e => {
+            if (!e || e.x === 0) {
+                return e
+            }
+            return { x: 0, y: 0, svgData: null }
+        })
     };
 
     useEffect(() => {
@@ -81,10 +84,11 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
 
 
     useEffect(() => {
+        debugger
         const processContent = async () => {
             try {
                 setError(null);
-                
+
                 // Save scroll position before updating content
                 if (containerRef.current) {
                     scrollManagerRef.current.savePosition(containerRef.current, content.length);
@@ -104,23 +108,6 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
         }
     }, [content, handleMermaidContextMenuUniqFn]);
 
-    // Apply syntax highlighting and restore scroll position after HTML content is rendered
-    useEffect(() => {
-        if (htmlContent && containerRef.current) {
-            const container = containerRef.current;
-            
-            highlightCodeBlocks(container).then(() => {
-                // Restore scroll position after highlighting is complete
-                scrollManagerRef.current.restorePosition(container, content.length, {
-                    smoothScroll: false,
-                    preservePosition: true
-                });
-            });
-        }
-    }, [htmlContent, content.length]);
-
-    // No longer needed - SVGs are rendered directly in renderMarkdownToHtml!
-
     if (error) {
         return (
             <div className="preview-markdown">
@@ -136,12 +123,12 @@ const MarkdownPreview = ({ content }: MarkdownPreviewProps) => {
     }
 
     return (
-        <div 
-            className="preview-markdown" 
-            ref={containerRef} 
+        <div
+            className="preview-markdown"
+            ref={containerRef}
             onClick={handleClick}
-            style={{ 
-                height: '100%', 
+            style={{
+                height: '100%',
                 overflow: 'auto'
             }}
         >

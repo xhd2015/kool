@@ -1,6 +1,7 @@
 import { marked, type Token } from 'marked';
 import mermaid from 'mermaid';
 import { encode } from 'plantuml-encoder';
+import { highlightCode } from './syntaxHighlighting';
 
 // Pure function for rendering markdown to HTML with SVGs directly rendered (no side effects, no closure dependencies)
 export async function renderMarkdownToHtml(content: string, handleMermaidContextMenu: string): Promise<string> {
@@ -41,31 +42,24 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
     };
 
     renderer.code = function (token: { text: string, lang?: string, escaped?: boolean }) {
-        if (token.lang === 'mermaid') {
-            const elementID = `mermaid-${crypto.randomUUID()}`;
-            const placeholder = `__MERMAID_PLACEHOLDER_${elementID}__`;
-            mermaidBlocks.push({ id: elementID, code: token.text, placeholder });
-            return placeholder;
+        switch (token.lang) {
+            case 'mermaid': {
+                const elementID = `mermaid-${crypto.randomUUID()}`;
+                const placeholder = `__MERMAID_PLACEHOLDER_${elementID}__`;
+                mermaidBlocks.push({ id: elementID, code: token.text, placeholder });
+                return placeholder;
+            }
+            case 'plantuml':
+            case 'puml':
+            case 'uml': {
+                const elementID = `plantuml-${crypto.randomUUID()}`;
+                const placeholder = `__PLANTUML_PLACEHOLDER_${elementID}__`;
+                plantumlBlocks.push({ id: elementID, code: token.text, placeholder });
+                return placeholder;
+            }
+            default:
+                return highlightCode(token.text, token.lang || '');
         }
-        if (token.lang === 'plantuml' || token.lang === 'puml') {
-            const elementID = `plantuml-${crypto.randomUUID()}`;
-            const placeholder = `__PLANTUML_PLACEHOLDER_${elementID}__`;
-            plantumlBlocks.push({ id: elementID, code: token.text, placeholder });
-            return placeholder;
-        }
-        // Default code block rendering with language classes for CSS highlighting
-        const lang = token.lang || '';
-        const langClass = lang ? ` class="language-${lang}"` : '';
-        
-        // Escape HTML in code content
-        const escapedCode = token.text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-        
-        return `<pre${langClass}><code${langClass}>${escapedCode}</code></pre>`;
     };
 
     // First pass: get HTML with placeholders
@@ -99,7 +93,7 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
             // Encode PlantUML code and create image element
             const encoded = encode(block.code);
             const plantUmlUrl = `/planuml/svg/${encoded}`;
-            
+
             // Create img element with context menu support
             const imgElement = `<img src="${plantUmlUrl}" alt="PlantUML diagram" style="max-width: 100%; height: auto; user-select: none; display: block; margin: 0 auto;" oncontextmenu="window.${handleMermaidContextMenu}(event, this)" onload="this.style.border='none'" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
             <div style="display: none; text-align: center; padding: 16px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px; color: #666;">
