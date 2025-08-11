@@ -15,27 +15,36 @@ function getSvgDimensions(svgData: string) {
 }
 
 export async function svgToPng(svgData: string): Promise<Blob> {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Could not get canvas context');
-
-    const img = new Image();
-    const svgDataUrl = svgToDataUrl(svgData);
-
-    // Parse SVG dimensions
-    const { width, height } = getSvgDimensions(svgData);
-    console.log("width", width, "height", height)
-    const dpr = window.devicePixelRatio || 1;
-
-    // Set canvas size for high-DPI
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    ctx.scale(dpr, dpr);
-
     return new Promise((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(Error('Could not get canvas context'));
+            return
+        };
+
+        const img = new Image();
+        const svgDataUrl = svgToDataUrl(svgData);
+
+        // Parse SVG dimensions
+        const { width, height } = getSvgDimensions(svgData);
+        console.log("width", width, "height", height)
+        const dpr = window.devicePixelRatio || 1;
+
+        // Set canvas size for high-DPI
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.scale(dpr, dpr);
+
         img.onload = () => {
+            // Fill with white background
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw the SVG image
+            ctx.drawImage(img, 0, 0, width, height);
             canvas.toBlob((blob) => {
                 if (blob) {
                     resolve(blob);
@@ -79,5 +88,3 @@ export async function copyAsPng(svgData: string) {
         alert('Failed to copy diagram: ' + err);
     }
 }
-
-
