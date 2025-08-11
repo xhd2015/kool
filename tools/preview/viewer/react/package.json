@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "watch": "vite build --watch"
+    "watch": "vite build --minify=false --mode=development --watch",
+    "build:dev": "vite build --minify=false --mode=development"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -20,7 +21,12 @@
     "prismjs": "^1.30.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.7.0",
+    "rehype-prism-plus": "^2.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-mermaid": "^0.2.0",
     "svg2png": "^4.1.1",
     "vite-plugin-prismjs": "^0.0.11",
     "xterm": "^5.3.0",

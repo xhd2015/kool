@@ -105,8 +105,8 @@ function App() {
           <div className="preview-section">
             <div className="preview-container-wrapper">
               <div className="preview-container">
-                <Preview 
-                  selectedFile={selectedFile} 
+                <Preview
+                  selectedFile={selectedFile}
                   fileNeedsReload={fileNeedsReload}
                   onReloadComplete={() => setFileNeedsReload(null)}
                 />

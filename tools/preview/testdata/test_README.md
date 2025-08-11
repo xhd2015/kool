@@ -531,6 +531,8 @@ classDiagram
         +login(password)
         +updateProfile(data)
         +deactivate()
+        +String encryptPassword(password)
+        +Boolean validatePassword(password)
     }
     
     class Role {
@@ -539,6 +541,7 @@ classDiagram
         +string[] permissions
         +addPermission(permission)
         +removePermission(permission)
+        +Boolean hasPermission(resource, action)
     }
     
     class UserRole {
@@ -563,17 +566,200 @@ classDiagram
         +boolean active
         +extend()
         +invalidate()
+        +Boolean isExpired()
     }
     
-    User ||--o{ UserRole : has
-    Role ||--o{ UserRole : assigned_to
-    Role ||--o{ Permission : includes
-    User ||--o{ Session : creates
+    User --o UserRole : has
+    Role --o UserRole : assigned_to
+    Role --* Permission : includes
+    User --o Session : creates
+```
+
+#### Entity Relationship Diagram - E-commerce Database
+
+```mermaid
+erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    CUSTOMER {
+        string customer_id PK
+        string first_name
+        string last_name
+        string email
+        date created_at
+    }
     
-    User : +String encryptPassword(password)
-    User : +Boolean validatePassword(password)
-    Session : +Boolean isExpired()
-    Role : +Boolean hasPermission(resource, action)
+    ORDER ||--|{ ORDER_ITEM : contains
+    ORDER {
+        string order_id PK
+        string customer_id FK
+        datetime order_date
+        decimal total_amount
+        string status
+    }
+    
+    ORDER_ITEM }o--|| PRODUCT : references
+    ORDER_ITEM {
+        string order_item_id PK
+        string order_id FK
+        string product_id FK
+        int quantity
+        decimal unit_price
+    }
+    
+    PRODUCT ||--o{ ORDER_ITEM : "ordered in"
+    PRODUCT {
+        string product_id PK
+        string name
+        text description
+        decimal price
+        int stock_quantity
+        string category_id FK
+    }
+    
+    CATEGORY ||--o{ PRODUCT : contains
+    CATEGORY {
+        string category_id PK
+        string name
+        text description
+    }
+```
+
+#### Gantt Chart - Project Timeline
+
+```mermaid
+gantt
+    title Software Development Project Timeline
+    dateFormat YYYY-MM-DD
+    section Planning
+    Requirements Analysis    :done, req, 2024-01-01, 2024-01-15
+    System Design          :done, design, after req, 15d
+    Architecture Planning   :done, arch, after design, 10d
+    
+    section Development
+    Backend API Development :active, backend, 2024-02-01, 45d
+    Frontend Development   :frontend, after backend, 30d
+    Database Setup         :done, db, 2024-01-20, 20d
+    Integration           :integration, after frontend, 15d
+    
+    section Testing
+    Unit Testing          :testing, after backend, 20d
+    Integration Testing   :int-test, after integration, 10d
+    User Acceptance Testing :uat, after int-test, 15d
+    
+    section Deployment
+    Production Setup      :prod-setup, after uat, 10d
+    Go Live              :milestone, golive, after prod-setup, 0d
+```
+
+#### Pie Chart - Technology Stack Usage
+
+```mermaid
+pie title Technology Stack Distribution
+    "JavaScript/TypeScript" : 35
+    "Go" : 25
+    "Python" : 20
+    "React/Frontend" : 15
+    "DevOps/Infrastructure" : 5
+```
+
+#### User Journey Map - Customer Onboarding
+
+```mermaid
+journey
+    title Customer Onboarding Journey
+    section Discovery
+      Visit Website        : 5: Customer
+      Browse Products      : 4: Customer
+      Read Reviews        : 4: Customer
+    section Registration
+      Create Account      : 3: Customer
+      Verify Email       : 2: Customer, System
+      Complete Profile   : 4: Customer
+    section First Purchase
+      Add to Cart        : 5: Customer
+      Checkout Process   : 3: Customer
+      Payment           : 2: Customer, Payment Gateway
+      Order Confirmation : 5: Customer, System
+    section Post-Purchase
+      Track Order       : 4: Customer, System
+      Receive Product   : 5: Customer
+      Leave Review      : 4: Customer
+```
+
+#### Git Flow Diagram - Development Workflow
+
+```mermaid
+gitGraph
+    commit id: "Initial commit"
+    branch develop
+    checkout develop
+    commit id: "Setup project structure"
+    commit id: "Add basic authentication"
+    
+    branch feature/user-management
+    checkout feature/user-management
+    commit id: "Implement user model"
+    commit id: "Add user CRUD operations"
+    commit id: "Add user validation"
+    
+    checkout develop
+    merge feature/user-management
+    commit id: "Merge user management"
+    
+    branch feature/api-endpoints
+    checkout feature/api-endpoints
+    commit id: "Create REST endpoints"
+    commit id: "Add API documentation"
+    
+    checkout develop
+    merge feature/api-endpoints
+    commit id: "Merge API endpoints"
+    
+    checkout main
+    merge develop
+    commit id: "Release v1.0.0"
+```
+
+#### Mindmap - Application Architecture
+
+```mermaid
+mindmap
+  root((E-commerce App))
+    Frontend
+      React Components
+        User Interface
+        Shopping Cart
+        Product Catalog
+      State Management
+        Redux Store
+        API Calls
+      Styling
+        Tailwind CSS
+        Responsive Design
+    Backend
+      API Services
+        Authentication
+        User Management
+        Order Processing
+        Payment Gateway
+      Database
+        PostgreSQL
+        Redis Cache
+        Migrations
+      Infrastructure
+        Docker
+        Kubernetes
+        CI/CD Pipeline
+    Third Party
+      Payment
+        Stripe
+        PayPal
+      Analytics
+        Google Analytics
+        Mixpanel
+      Communication
+        SendGrid Email
+        Twilio SMS
 ```
 
 ### PlantUML Diagrams

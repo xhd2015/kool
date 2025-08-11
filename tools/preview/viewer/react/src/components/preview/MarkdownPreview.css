@@ -31,6 +31,118 @@
     font-size: 2em;
 }
 
+/* Copyable section styles - applies to all heading levels */
+.markdown-content .copyable-section {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.markdown-content .copy-section-btn {
+    opacity: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #666;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.markdown-content .copyable-section:hover .copy-section-btn {
+    opacity: 1;
+}
+
+.markdown-content .copy-section-btn:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.markdown-content .copy-section-btn:active {
+    background-color: #e0e0e0;
+}
+
+.markdown-content .copy-section-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Adjust copy button size for smaller headings */
+.markdown-content h4.copyable-section .copy-section-btn,
+.markdown-content h5.copyable-section .copy-section-btn,
+.markdown-content h6.copyable-section .copy-section-btn {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+}
+
+.markdown-content h4.copyable-section .copy-section-btn svg,
+.markdown-content h5.copyable-section .copy-section-btn svg,
+.markdown-content h6.copyable-section .copy-section-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Copy all button styles - only appears on first heading */
+.markdown-content .copy-all-btn {
+    opacity: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #007acc;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+.markdown-content .first-heading:hover .copy-all-btn {
+    opacity: 1;
+}
+
+.markdown-content .copy-all-btn:hover {
+    background-color: #e6f3ff;
+    color: #005c99;
+}
+
+.markdown-content .copy-all-btn:active {
+    background-color: #cce7ff;
+}
+
+.markdown-content .copy-all-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Adjust copy all button size for smaller headings */
+.markdown-content h4.first-heading .copy-all-btn,
+.markdown-content h5.first-heading .copy-all-btn,
+.markdown-content h6.first-heading .copy-all-btn {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+}
+
+.markdown-content h4.first-heading .copy-all-btn svg,
+.markdown-content h5.first-heading .copy-all-btn svg,
+.markdown-content h6.first-heading .copy-all-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
 .markdown-content h2 {
     font-size: 1.5em;
 }

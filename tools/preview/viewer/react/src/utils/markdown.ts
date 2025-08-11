@@ -1,31 +1,22 @@
 import { marked, type Token } from 'marked';
 import mermaid from 'mermaid';
+import './mermaid'; // initialize mermaid
 import { encode } from 'plantuml-encoder';
 import { highlightCode } from './syntaxHighlighting';
 
+
 // Pure function for rendering markdown to HTML with SVGs directly rendered (no side effects, no closure dependencies)
-export async function renderMarkdownToHtml(content: string, handleMermaidContextMenu: string): Promise<string> {
+export async function renderMarkdownToHtml(content: string, handleMermaidContextMenu: string, copySectionContent?: string, copyAllContent?: string): Promise<string> {
     if (!content) {
         return '';
     }
 
-    // Initialize mermaid with optimal config
-    mermaid.initialize({
-        startOnLoad: false,
-        theme: 'default',
-        securityLevel: 'loose',
-        flowchart: {
-            useMaxWidth: true,
-            htmlLabels: true
-        },
-        themeCSS: '',
-        maxTextSize: 50000,
-        darkMode: false
-    });
-
     // First pass: collect all mermaid and plantuml code blocks
     const mermaidBlocks: { id: string; code: string; placeholder: string }[] = [];
     const plantumlBlocks: { id: string; code: string; placeholder: string }[] = [];
+
+    // Track first heading for copy all functionality
+    let isFirstHeading = true;
 
     // Configure marked options for better rendering
     marked.setOptions({
@@ -39,6 +30,45 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
         const titleAttr = token.title ? ` title="${token.title}"` : '';
         const text = this.parser.parseInline(token.tokens);
         return `<a href="${token.href}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+    };
+
+    // Custom renderer for heading elements to add copy functionality
+    renderer.heading = function (token: { tokens: Token[], depth: number }) {
+        const text = this.parser.parseInline(token.tokens);
+        const level = token.depth;
+
+        if (copySectionContent) {
+            // For all heading levels, add copy functionality
+            const sectionTitle = text.replace(/<[^>]*>/g, ''); // Strip HTML tags for section title
+            const isFirst = isFirstHeading;
+            isFirstHeading = false; // Mark that we've processed the first heading
+
+            let copyAllButton = '';
+            if (isFirst && copyAllContent) {
+                // Add copy all button for the first heading
+                copyAllButton = `<button class="copy-all-btn" onclick="window.${copyAllContent}()" title="Copy entire document">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                        <path d="M9 14l2 2 4-4"></path>
+                    </svg>
+                </button>`;
+            }
+
+            return `<h${level} class="copyable-section${isFirst ? ' first-heading' : ''}" data-section-title="${sectionTitle}" data-section-level="${level}">
+                ${text}
+                <button class="copy-section-btn" onclick="window.${copySectionContent}('${sectionTitle}', ${level})" title="Copy section content">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+                ${copyAllButton}
+            </h${level}>`;
+        } else {
+            // For other heading levels, use default rendering
+            return `<h${level}>${text}</h${level}>`;
+        }
     };
 
     renderer.code = function (token: { text: string, lang?: string, escaped?: boolean }) {
@@ -79,7 +109,6 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
 
             const finalSvg = `<div class="mermaid-container">${svgWithEvents}</div>`;
             html = html.replace(block.placeholder, finalSvg);
-
         } catch {
             // Fall back to showing the code
             const fallback = `<pre style="text-align: left; padding: 16px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px;"><code class="language-mermaid">${block.code}</code></pre>`;
@@ -102,7 +131,6 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
 
             const finalImg = `<div class="plantuml-container">${imgElement}</div>`;
             html = html.replace(block.placeholder, finalImg);
-
         } catch {
             // Fall back to showing the code
             const fallback = `<pre style="text-align: left; padding: 16px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px;"><code class="language-plantuml">${block.code}</code></pre>`;

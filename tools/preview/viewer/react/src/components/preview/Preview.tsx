@@ -4,6 +4,8 @@ import EditablePreview from './EditablePreview';
 import UMLPreview from './UMLPreview';
 import MermaidPreview from './MermaidPreview';
 import MarkdownPreview from './MarkdownPreview';
+import MarkdownPreviewV2 from './MarkdownPreviewV2';
+import { useV2 } from '../../utils/config';
 import './Preview.css';
 
 interface PreviewProps {
@@ -75,9 +77,9 @@ const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewPro
             fileType = 'mermaid';
         }
 
-        return <EditablePreview 
-            selectedFile={selectedFile} 
-            fileType={fileType} 
+        return <EditablePreview
+            selectedFile={selectedFile}
+            fileType={fileType}
             fileModifiedExternally={fileNeedsReload === selectedFile}
             onReloadComplete={onReloadComplete}
         />;
@@ -110,7 +112,9 @@ const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewPro
             return <MermaidPreview content={previewData.content} />;
 
         case 'markdown':
-            return <MarkdownPreview content={previewData.content} />;
+            return useV2 ?
+                <MarkdownPreviewV2 content={previewData.content} /> :
+                <MarkdownPreview content={previewData.content} />;
 
         case 'text':
         default:

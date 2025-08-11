@@ -3,7 +3,9 @@ import Editor from '../editor/Editor';
 import UMLPreview from './UMLPreview';
 import MermaidPreview from './MermaidPreview';
 import MarkdownPreview from './MarkdownPreview';
+import MarkdownPreviewV2 from './MarkdownPreviewV2';
 import { useResize } from '../../hooks/useResize';
+import { useV2 } from '../../utils/config';
 
 interface EditablePreviewProps {
     selectedFile: string;
@@ -89,7 +91,9 @@ const EditablePreview = ({ selectedFile, fileType, fileModifiedExternally, onRel
             case 'mermaid':
                 return <MermaidPreview content={currentContent} />;
             case 'markdown':
-                return <MarkdownPreview content={currentContent} />;
+                return useV2 ?
+                    <MarkdownPreviewV2 content={currentContent} /> :
+                    <MarkdownPreview content={currentContent} />;
             default:
                 return (
                     <div className="preview-text">

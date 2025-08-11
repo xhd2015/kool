@@ -34,9 +34,14 @@ export function highlightCode(code: string, lang: string): string {
     lang = languageMap[lang] || lang;
 
     // Apply highlighting if language is supported
+    let error = ''
     let highlightedCode = code
-    if (Prism.languages[lang]) {
-        highlightedCode = Prism.highlight(code, Prism.languages[lang], lang);
+    try {
+        if (Prism.languages[lang]) {
+            highlightedCode = Prism.highlight(code, Prism.languages[lang], lang);
+        }
+    } catch (e) {
+        error = `<p style="color: red;">(rendering code: ${e})</p>`
     }
-    return `<pre><code class="language-${lang}">${highlightedCode}</code></pre>`
+    return error + `<pre><code class="language-${lang}">${highlightedCode}</code></pre>`
 }
