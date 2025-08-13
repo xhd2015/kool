@@ -119,6 +119,35 @@ func preCommitCheck(noCommit bool, amend bool) error {
 		affectedFiles = append(affectedFiles, strings.Join(dirPath, "/"))
 	}
 
+	// ensure tools/preview/viewer/react/dist/placeholder.txt exists in the commit
+	var deletedFiles []string
+	diff, err := cmd.Output("git", "diff", "--cached", "--name-status")
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(diff), "\n")
+	for _, line := range lines {
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
+			continue
+		}
+		if parts[0] == "D" {
+			deletedFiles = append(deletedFiles, parts[1])
+		}
+	}
+
+	var needKeepFile = "tools/preview/viewer/react/dist/placeholder.txt"
+	var isDeleted = false
+	for _, deletedFile := range deletedFiles {
+		if deletedFile == needKeepFile {
+			isDeleted = true
+			break
+		}
+	}
+	if isDeleted {
+		return fmt.Errorf("delete %s is not allowed", needKeepFile)
+	}
+
 	// update revision
 	revision, err := cmd.Output("git", "rev-parse", "HEAD")
 	if err != nil {
