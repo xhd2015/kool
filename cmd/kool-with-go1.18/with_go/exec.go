@@ -11,6 +11,8 @@ import (
 
 func ResolveGoroot(goVersion string) (string, error) {
 	switch goVersion {
+	case "go1.25":
+		goVersion = "go1.25.0"
 	case "go1.24":
 		goVersion = "go1.24.1"
 	case "go1.23":
@@ -27,6 +29,12 @@ func ResolveGoroot(goVersion string) (string, error) {
 		goVersion = "go1.18.10"
 	case "go1.17":
 		goVersion = "go1.17.13"
+	case "go1.16":
+		goVersion = "go1.16.15"
+	case "go1.15":
+		goVersion = "go1.15.15"
+	case "go1.14":
+		goVersion = "go1.14.15"
 	}
 	return InstallGo(goVersion, "")
 }

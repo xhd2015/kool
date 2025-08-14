@@ -74,16 +74,16 @@ func HandleOpts(args []string, opts Options) error {
 				debugCwd = args[i+1]
 				i++
 				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "--debug-cwd="); ok {
+			} else if suffix, ok := cutPrefix(arg, "--debug-cwd="); ok {
 				debugCwd = suffix
 				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "-debug-cwd="); ok {
+			} else if suffix, ok := cutPrefix(arg, "-debug-cwd="); ok {
 				debugCwd = suffix
 				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "--debug-wd="); ok {
+			} else if suffix, ok := cutPrefix(arg, "--debug-wd="); ok {
 				debugCwd = suffix
 				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "-debug-wd="); ok {
+			} else if suffix, ok := cutPrefix(arg, "-debug-wd="); ok {
 				debugCwd = suffix
 				continue
 			}
@@ -166,4 +166,11 @@ func getConsistentBuildDir() (string, error) {
 		return "", err
 	}
 	return filepath.Join(os.TempDir(), "kool-go-build", sum), nil
+}
+
+func cutPrefix(s, prefix string) (string, bool) {
+	if strings.HasPrefix(s, prefix) {
+		return s[len(prefix):], true
+	}
+	return s, false
 }
