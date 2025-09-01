@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/xhd2015/less-gen/flags"
 )
 
 func Handle(args []string) error {
@@ -16,25 +18,38 @@ func Handle(args []string) error {
 	}
 
 	cmd := args[0]
+	args = args[1:]
 	switch cmd {
 	case "backup":
-		if len(args) != 2 {
-			return fmt.Errorf("usage: kool git staged backup <file.txt>")
-		}
-		return HandleBackup(args[1])
+		return HandleBackup(args)
 	case "restore":
 		if len(args) != 2 {
 			return fmt.Errorf("usage: kool git staged restore <file.txt>")
 		}
-		return HandleRestore(args[1])
+		return HandleRestore(args)
 	default:
 		return fmt.Errorf("unknown command: %s, available commands: backup, restore", cmd)
 	}
 }
 
-func HandleBackup(backupFile string) error {
+func HandleBackup(args []string) error {
+	var dir string
+	args, err := flags.String("--dir", &dir).Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("requires a backup file")
+	}
+	backupFile := args[0]
+	args = args[1:]
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected extra args: %s", strings.Join(args, " "))
+	}
+
 	// Get staged files
-	stagedFiles, err := getStagedFiles()
+	stagedFiles, err := getStagedFiles(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get staged files: %w", err)
 	}
@@ -44,7 +59,7 @@ func HandleBackup(backupFile string) error {
 	}
 
 	// Ensure we're in the git root directory
-	gitRoot, err := getGitRoot()
+	gitRoot, err := getGitRoot(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
@@ -89,21 +104,31 @@ func HandleBackup(backupFile string) error {
 	return nil
 }
 
-func HandleRestore(backupFile string) error {
+func HandleRestore(args []string) error {
+	var dir string
+	args, err := flags.String("--dir", &dir).Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("requires a backup file")
+	}
+	backupFile := args[0]
+	args = args[1:]
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected extra args: %s", strings.Join(args, " "))
+	}
+
 	// Check if worktree is clean
-	if !isWorktreeClean() {
+	if !isWorktreeClean(dir) {
 		return fmt.Errorf("worktree is not clean, please commit or stash your changes first")
 	}
 
 	// Ensure we're in the git root directory
-	gitRoot, err := getGitRoot()
+	gitRoot, err := getGitRoot(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
-	}
-
-	// Change to git root
-	if err := os.Chdir(gitRoot); err != nil {
-		return fmt.Errorf("failed to change to git root: %w", err)
 	}
 
 	// Parse backup file
@@ -118,7 +143,7 @@ func HandleRestore(backupFile string) error {
 
 	// Restore files
 	for _, file := range files {
-		if err := restoreFile(file); err != nil {
+		if err := restoreFile(gitRoot, file); err != nil {
 			return fmt.Errorf("failed to restore %s: %w", file.Path, err)
 		}
 	}
@@ -128,16 +153,18 @@ func HandleRestore(backupFile string) error {
 }
 
 type StagedFile struct {
-	Path      string
-	OldPath   string // for renames
-	Content   string
-	IsDeleted bool
-	IsRenamed bool
+	Path       string
+	OldPath    string // for renames
+	Content    string
+	IsDeleted  bool
+	IsRenamed  bool
+	IsUnmerged bool
 }
 
-func getStagedFiles() ([]StagedFile, error) {
+func getStagedFiles(dir string) ([]StagedFile, error) {
 	// Use git diff --cached --name-status to get staged files
 	cmd := exec.Command("git", "diff", "--cached", "--name-status")
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -165,6 +192,8 @@ func getStagedFiles() ([]StagedFile, error) {
 		switch status[0] {
 		case 'D':
 			file.IsDeleted = true
+		case 'U':
+			file.IsUnmerged = true
 		case 'R':
 			file.IsRenamed = true
 			// For renames, git shows status like "R100" and we have oldpath newpath
@@ -172,6 +201,10 @@ func getStagedFiles() ([]StagedFile, error) {
 				file.OldPath = parts[1]
 				file.Path = parts[2]
 			}
+		}
+
+		if file.IsUnmerged {
+			continue
 		}
 
 		files = append(files, file)
@@ -191,8 +224,9 @@ func getStagedFileContent(gitRoot, filePath string) (string, error) {
 	return string(output), nil
 }
 
-func getGitRoot() (string, error) {
+func getGitRoot(dir string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -200,8 +234,9 @@ func getGitRoot() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func isWorktreeClean() bool {
+func isWorktreeClean(dir string) bool {
 	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return false
@@ -289,34 +324,37 @@ func parseBackupFile(backupFile string) ([]StagedFile, error) {
 	return files, nil
 }
 
-func restoreFile(file StagedFile) error {
+func restoreFile(dir string, file StagedFile) error {
 	if file.IsDeleted {
 		// For deleted files, remove them from filesystem and stage the deletion
-		if err := os.Remove(file.Path); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(filepath.Join(dir, file.Path)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		cmd := exec.Command("git", "add", file.Path)
+		cmd.Dir = dir
 		return cmd.Run()
 	}
 
 	if file.IsRenamed {
 		// For renamed files, first create the new file, then remove the old one
-		if err := writeFileContent(file.Path, file.Content); err != nil {
+		if err := writeFileContent(filepath.Join(dir, file.Path), file.Content); err != nil {
 			return err
 		}
-		if err := os.Remove(file.OldPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(filepath.Join(dir, file.OldPath)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		// Stage both operations
 		cmd := exec.Command("git", "add", file.Path, file.OldPath)
+		cmd.Dir = dir
 		return cmd.Run()
 	}
 
 	// Regular file - write content and stage
-	if err := writeFileContent(file.Path, file.Content); err != nil {
+	if err := writeFileContent(filepath.Join(dir, file.Path), file.Content); err != nil {
 		return err
 	}
 	cmd := exec.Command("git", "add", file.Path)
+	cmd.Dir = dir
 	return cmd.Run()
 }
 

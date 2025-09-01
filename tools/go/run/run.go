@@ -138,16 +138,28 @@ func HandleOpts(args []string, opts Options) error {
 	if !debugMode {
 		return cmd.Debug().Dir(debugCwd).Run(debugBin, remainArgs...)
 	}
+	return DebugBinary(debugBin, remainArgs, DebugOptions{
+		Cwd:       debugCwd,
+		PassStdin: passStdin,
+	})
+}
+
+type DebugOptions struct {
+	Cwd       string
+	PassStdin bool
+}
+
+func DebugBinary(binary string, args []string, opts DebugOptions) error {
 	return netutil.ServePort("localhost", 2345, true, 500*time.Millisecond, func(port int) {
 		// fmt.Fprintln(os.Stdout, debug_util.FormatDlvPrompt(port))
 	}, func(port int) error {
 
 		// dlv exec --api-version=2 --listen=localhost:2345 --accept-multiclient --headless ./debug.bin
-		return dlv.Debug(debugBin, dlv.DebugOptions{
-			Dir:       debugCwd,
+		return dlv.Debug(binary, dlv.DebugOptions{
+			Dir:       opts.Cwd,
 			Port:      port,
-			Args:      remainArgs,
-			PassStdin: passStdin,
+			Args:      args,
+			PassStdin: opts.PassStdin,
 		})
 	})
 }

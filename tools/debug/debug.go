@@ -3,8 +3,10 @@ package debug
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/go/run"
 )
 
@@ -31,6 +33,22 @@ func Handle(args []string) error {
 	switch cmd {
 	case "go":
 		return handleGo(args)
+	default:
+		// check if cmd is a file
+		fileStat, err := os.Stat(cmd)
+		if err == nil {
+			if fileStat.IsDir() {
+				return fmt.Errorf("%s refers to a directory, want a debug binary", cmd)
+			}
+			binary := cmd
+			// check if binary is a go-built binary
+			if dlv.HasMainMain(binary) {
+				return run.DebugBinary(binary, args, run.DebugOptions{
+					PassStdin: false,
+				})
+			}
+			return fmt.Errorf("expected a go-built executable binary, got %s", binary)
+		}
 	}
 
 	return fmt.Errorf("unsupported command: %s", cmd)
