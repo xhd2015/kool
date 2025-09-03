@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xhd2015/kool/cmd/kool-with-go1.18/dlv"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.18/run"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -21,6 +23,26 @@ func Handle(args []string, envs []string) error {
 	arg0 := args[0]
 	if arg0 == "list" {
 		return List()
+	} else if arg0 == "debug" {
+		args = args[1:]
+		if len(args) == 0 {
+			return fmt.Errorf("example: kool with-go debug <binary> <args...>")
+		}
+		bin := args[0]
+		// check if cmd is a file
+		fileStat, err := os.Stat(bin)
+		if err == nil {
+			if fileStat.IsDir() {
+				return fmt.Errorf("%s refers to a directory, want a debug binary", bin)
+			}
+			// check if binary is a go-built binary
+			if dlv.HasMainMain(bin) {
+				return run.DebugBinary(bin, args, run.DebugOptions{
+					PassStdin: false,
+				})
+			}
+			return fmt.Errorf("expected a go-built executable binary, got %s", bin)
+		}
 	}
 	args = args[1:]
 	if strings.HasPrefix(arg0, "GOROOT=") {

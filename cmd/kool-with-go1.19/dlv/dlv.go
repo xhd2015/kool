@@ -171,6 +171,11 @@ func getBinaryMainFile(binary string) string {
 	}
 	return extractFileFromObjdump(dump)
 }
+
+func HasMainMain(binary string) bool {
+	return getBinaryMainFile(binary) != ""
+}
+
 func getBinaryNM(binary string) string {
 	// Run go tool nm to list symbols in the binary
 	output, err := exec.Command("go", "tool", "nm", binary).Output()

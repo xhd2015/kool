@@ -16,6 +16,9 @@ func main() {
 }
 
 func Handle(args []string) error {
+	if len(args) > 0 && args[0] == "debug" {
+		return with_go.Handle(args, nil)
+	}
 	withGoArgs := make([]string, len(args)+1)
 	withGoArgs[0] = "go1.18"
 	copy(withGoArgs[1:], args)
