@@ -92,7 +92,7 @@ func Update(dir string) error {
 	// do not use go get, not always work
 	t := time.Now()
 	var PLACEHOLDER = fmt.Sprintf("v1.0.%s%d-FAKE", t.Format("20060102150405"), t.Nanosecond())
-	editRef := tag
+	editRef := stripSubDirFromTag(tag, mod.Module.Path)
 	if usePlainReplace {
 		editRef = PLACEHOLDER
 	}
@@ -129,4 +129,38 @@ func Update(dir string) error {
 	msg := strings.TrimSpace(string(msgOutput))
 	fmt.Printf("commit message: %s\n", msg)
 	return nil
+}
+
+// stripSubDirFromTag strips the sub-directory prefix from a tag if the module path ends with that prefix
+// For example:
+//
+//	tag: "sub/module-a/v1.20.1", modulePath: "github.com/example/repo/sub/module-a" -> "v1.20.1"
+//	tag: "v1.20.1", modulePath: "github.com/example/repo" -> "v1.20.1" (unchanged)
+func stripSubDirFromTag(tag, modulePath string) string {
+	if tag == "" {
+		return tag
+	}
+
+	// Split the tag by "/" to find potential sub-directory prefix
+	tagParts := strings.Split(tag, "/")
+	if len(tagParts) <= 1 {
+		// No sub-directory in tag, return as-is
+		return tag
+	}
+
+	// The last part should be the actual version (e.g., "v1.20.1")
+	version := tagParts[len(tagParts)-1]
+
+	// The prefix parts are the sub-directory (e.g., ["sub", "module-a"])
+	subDirParts := tagParts[:len(tagParts)-1]
+	subDirPath := strings.Join(subDirParts, "/")
+
+	// Check if the module path ends with this sub-directory path
+	if strings.HasSuffix(modulePath, "/"+subDirPath) || strings.HasSuffix(modulePath, subDirPath) {
+		// Strip the sub-directory prefix and return just the version
+		return version
+	}
+
+	// If module path doesn't match, return the original tag
+	return tag
 }
