@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/kool/cmd/kool-with-go1.24/dlv"
-	"github.com/xhd2015/kool/cmd/kool-with-go1.24/run"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.25/dlv"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.25/run"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 

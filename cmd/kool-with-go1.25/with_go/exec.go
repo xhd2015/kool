@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/kool/cmd/kool-with-go1.19/run"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.25/run"
 )
 
 func ResolveGoroot(goVersion string) (string, error) {

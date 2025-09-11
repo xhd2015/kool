@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/xhd2015/kool/cmd/kool-with-go1.18/with_go"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.25/with_go"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func Handle(args []string) error {
 		return with_go.Handle(args, nil)
 	}
 	withGoArgs := make([]string, len(args)+1)
-	withGoArgs[0] = "go1.18"
+	withGoArgs[0] = "go1.25"
 	copy(withGoArgs[1:], args)
 	return with_go.Handle(withGoArgs, nil)
 }

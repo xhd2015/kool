@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xhd2015/kool/cmd/kool-with-go1.19/dlv"
+	"github.com/xhd2015/kool/cmd/kool-with-go1.25/dlv"
 	"github.com/xhd2015/xgo/cmd/xgo/pathsum"
 	"github.com/xhd2015/xgo/support/cmd"
 	"github.com/xhd2015/xgo/support/netutil"

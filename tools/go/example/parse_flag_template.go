@@ -6,6 +6,7 @@ package go_tools
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/xhd2015/less-gen/flags"
 )
@@ -42,7 +43,7 @@ func Handle(args []string) error {
 	}
 	cmd := args[0]
 	args = args[1:]
-	if cmd == "help" || cmd == "--help" {
+	if cmd == "--help" || cmd == "help" {
 		fmt.Print(strings.TrimPrefix(help, "\n"))
 		return nil
 	}
