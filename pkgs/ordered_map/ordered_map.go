@@ -54,22 +54,6 @@ func WithCapacity(capacity int) Option {
 
 func (c *OrderedMap) Set(key string, val interface{}) {
 	if _, ok := c.m[key]; ok {
-		idx := -1
-		for i, k := range c.keys {
-			if k == key {
-				idx = i
-				break
-			}
-		}
-		if idx < 0 {
-			panic(fmt.Errorf("inconsistent key not found:%v", key))
-		}
-		keys := c.keys
-		c.keys = make([]string, 0, len(c.keys))
-		c.keys = append(c.keys, keys[0:idx]...)
-		if idx+1 < len(keys) {
-			c.keys = append(c.keys, keys[idx+1:]...)
-		}
 		c.m[key] = val
 		return
 	}
