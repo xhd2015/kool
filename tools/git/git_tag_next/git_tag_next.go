@@ -77,6 +77,10 @@ func handleGitTag(opts *Options) error {
 		return fmt.Errorf("no tag for recent 10 commits, please make a new one manually")
 	}
 
+	if strings.Contains(tag, "/") {
+		return fmt.Errorf("tag contains '/', please make a new one manually: %s", tag)
+	}
+
 	// Calculate next tag
 	nextTag, err := incrementTag(tag)
 	if err != nil {
