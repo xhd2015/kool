@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/tag"
 	"github.com/xhd2015/kool/tools/go/resolve"
+	"github.com/xhd2015/xgo/support/cmd"
 )
 
 type GoMod struct {
@@ -51,59 +53,48 @@ func Update(dir string) error {
 	}
 
 	// try best effort to get the tag
-	tagCmd := exec.Command("git", "tag", "-l", "--points-at", "HEAD")
-	tagCmd.Dir = dir
-	tagCmd.Stderr = os.Stderr
-	tagOutput, err := tagCmd.Output()
+	tags, err := tag.ListTagsAtHEAD(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get tag: %v", err)
 	}
-	tag := strings.TrimSpace(string(tagOutput))
+	var tagStr string
+	if len(tags) > 0 {
+		tagStr = tags[0]
+	}
 	var usePlainReplace bool
 	var plainReplaceWith string
-	gitRef := tag
-	if tag == "" {
+	gitRef := tagStr
+	if tagStr == "" {
 		commitHash, _ := git_tag_next.ShowHeadCommitHash(dir)
 		if commitHash != "" {
 			gitRef = commitHash
 			resolvedTag, _ := resolve.GoResolveVersion(dir, mod.Module.Path, commitHash)
 			if resolvedTag != "" {
-				tag = resolvedTag
+				tagStr = resolvedTag
 			} else {
 				usePlainReplace = true
 				plainReplaceWith = commitHash
 			}
 		}
 	}
-	if tag == "" && !usePlainReplace {
+	if tagStr == "" && !usePlainReplace {
 		return fmt.Errorf("no tag at HEAD: %s", dir)
-	}
-
-	dropArgs := []string{"mod", "edit", "-dropreplace", mod.Module.Path}
-	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(dropArgs, " "))
-	editCmd := exec.Command("go", dropArgs...)
-	editCmd.Stderr = os.Stderr
-	editCmd.Stdout = os.Stdout
-	err = editCmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to edit go mod: %v", err)
 	}
 
 	// do not use go get, not always work
 	t := time.Now()
 	var PLACEHOLDER = fmt.Sprintf("v1.0.%s%d-FAKE", t.Format("20060102150405"), t.Nanosecond())
-	editRef := stripSubDirFromTag(tag, mod.Module.Path)
+	editRef := stripSubDirFromTag(tagStr, mod.Module.Path)
 	if usePlainReplace {
 		editRef = PLACEHOLDER
 	}
-	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", mod.Module.Path, editRef)}
-	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(requireArgs, " "))
-	getCmd := exec.Command("go", requireArgs...)
-	getCmd.Stderr = os.Stderr
-	getCmd.Stdout = os.Stdout
-	err = getCmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to get module: %v", err)
+
+	// Drop the replacement first, then update the version
+	if err := GoModDropReplace(mod.Module.Path); err != nil {
+		return err
+	}
+	if err := GoModEditRequire(mod.Module.Path, editRef); err != nil {
+		return err
 	}
 
 	if usePlainReplace {
@@ -163,4 +154,24 @@ func stripSubDirFromTag(tag, modulePath string) string {
 
 	// If module path doesn't match, return the original tag
 	return tag
+}
+
+// GoModDropReplace drops a replacement directive from go.mod
+func GoModDropReplace(modulePath string) error {
+	dropArgs := []string{"mod", "edit", "-dropreplace", modulePath}
+	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(dropArgs, " "))
+	if err := cmd.Run("go", dropArgs...); err != nil {
+		return fmt.Errorf("failed to drop replacement: %v", err)
+	}
+	return nil
+}
+
+// GoModEditRequire updates the module version in go.mod using go mod edit -require
+func GoModEditRequire(modulePath, version string) error {
+	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", modulePath, version)}
+	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(requireArgs, " "))
+	if err := cmd.Run("go", requireArgs...); err != nil {
+		return fmt.Errorf("failed to update module version: %v", err)
+	}
+	return nil
 }

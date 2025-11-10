@@ -12,6 +12,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
 	"github.com/xhd2015/kool/tools/go/run"
+	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
 
 	"github.com/xhd2015/kool/tools/go/inspect/typed"
@@ -88,13 +89,23 @@ func HandleReplace(args []string) error {
 }
 
 func HandleUpdate(args []string) error {
+	var all bool
+	args, err := flags.Bool("--all", &all).Parse(args)
+	if err != nil {
+		return err
+	}
+	if all {
+		return go_update.UpdateAll()
+	}
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
-	if len(args) != 1 {
-		return fmt.Errorf("too many argments: %v", args)
+	dir := args[0]
+	args = args[1:]
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
 	}
-	return go_update.Update(args[0])
+	return go_update.Update(dir)
 }
 
 func HandleResolve(args []string) error {

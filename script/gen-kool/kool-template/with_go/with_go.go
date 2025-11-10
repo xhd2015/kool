@@ -14,6 +14,10 @@ import (
 
 const downloadGo = "github.com/xhd2015/xgo/script/download-go@master"
 
+// usage:
+//
+//	kool with-go [GOROOT=<X> | goX.Y] ...
+//	kool with-go debug FILE
 func Handle(args []string, envs []string) error {
 	if len(args) == 0 {
 		return errors.New("example: kool with-go [GOROOT=<X> | goX.Y] ...")

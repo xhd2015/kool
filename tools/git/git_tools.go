@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/gitops/git"
+	"github.com/xhd2015/kool/tools/git/check_merged"
 	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
@@ -81,6 +82,8 @@ func Handle(args []string) error {
 		}
 	case "show-children":
 		return HandleShowChildren(args[1:])
+	case "check-merged":
+		return check_merged.Handle(args[1:])
 	case "check-merge":
 		return git_check_merge.Handle(args[1:])
 	case "ls":
