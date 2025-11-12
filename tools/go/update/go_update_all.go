@@ -55,20 +55,34 @@ func UpdateAll() error {
 		if err != nil {
 			return fmt.Errorf("failed to get module info for %s: %w", targetDir, err)
 		}
+		oldModPath := repl.Old.Path
+		targetModPath := targetModInfo.Module.Path
 
 		// Step 1: Check if module path matches exactly or is a submodule
-		if repl.Old.Path != targetModInfo.Module.Path {
+		if oldModPath != targetModPath {
 			fmt.Fprintf(os.Stderr, "skipping replacement %s => %s: module path mismatch (target module: %s)\n",
-				repl.Old.Path, targetDir, targetModInfo.Module.Path)
+				oldModPath, targetDir, targetModPath)
 			continue
 		}
 
-		// Step 2: Check for version tag at HEAD
-		// Calculate tag prefix for nested submodules
-		tagPrefix, err := calculateTagPrefix(targetDir, targetModInfo.Module.Path)
+		// Get the root module path (the main module in the repo)
+		rootModPath, err := resolve.GetRootModulePath(targetDir)
 		if err != nil {
 			return err
 		}
+
+		// Calculate tag prefix for nested submodules
+		subModulePath, ok := cutSubmoduleSuffix(rootModPath, targetModPath)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "skipping replacement %s => %s: module path is not a submodule of the root module\n",
+				oldModPath, targetDir)
+			continue
+		}
+		var tagPrefix string
+		if subModulePath != "" {
+			tagPrefix = subModulePath + "/"
+		}
+
 		versionTag, err := tag.GetVersionTagAtHEAD(targetDir, tagPrefix)
 		if err != nil {
 			return err
@@ -126,4 +140,17 @@ func calculateTagPrefix(targetDir, modulePath string) (string, error) {
 
 	// Root module has no prefix
 	return "", nil
+}
+
+func cutSubmoduleSuffix(parentModulePath, childModulePath string) (string, bool) {
+	if !strings.HasPrefix(childModulePath, parentModulePath) {
+		return "", false
+	}
+	if len(childModulePath) == len(parentModulePath) {
+		return "", true
+	}
+	if childModulePath[len(parentModulePath)] != '/' {
+		return "", false
+	}
+	return childModulePath[len(parentModulePath)+1:], true
 }

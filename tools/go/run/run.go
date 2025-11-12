@@ -1,13 +1,12 @@
 package run
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/xhd2015/kool/tools/dlv"
+	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/cmd/xgo/pathsum"
 	"github.com/xhd2015/xgo/support/cmd"
 	"github.com/xhd2015/xgo/support/netutil"
@@ -42,67 +41,48 @@ type Options struct {
 	IsDebug         bool
 }
 
+const debugHelp = `
+kool debug go run <cmd> [OPTIONS]
+
+Debug options:
+  --stdin                          pass stdin to the debugged program (default: false)
+  --debug-cwd <dir>                set the debug working directory (default: current working directory)
+  -debug,--debug                   enable debug mode (default: false)
+  -debug-wd,--debug-wd             set the debug working directory (default: current working directory)
+  -gcflags,--gcflags               set the gcflags (default: [])
+  -h,--help                         show help message (default: false)
+
+Examples:
+  kool debug go run ./
+  kool debug go run --stdin ./
+`
+
 func HandleOpts(args []string, opts Options) error {
 	acceptDebugFlag := opts.AcceptDebugFlag
 	isDebug := opts.IsDebug
 
 	var debug bool
-	n := len(args)
-	goArgs := make([]string, 0, n)
-	var remainArgs []string
 
 	var debugCwd string
-	var hasGCflags bool
+	var gcflags []string
 	var passStdin bool
-	for i := 0; i < n; i++ {
-		arg := args[i]
-		if !strings.HasPrefix(arg, "-") {
-			remainArgs = append(remainArgs, args[i:]...)
-			break
-		}
 
-		if acceptDebugFlag {
-			if arg == "--debug" || arg == "-debug" {
-				debug = true
-				continue
-			}
+	fb := flags.
+		Bool("--stdin", &passStdin).
+		StringSlice("-gcflags,--gcflags", &gcflags).
+		Help("-h,--help", debugHelp)
 
-			if arg == "--debug-cwd" || arg == "-debug-cwd" || arg == "--debug-wd" || arg == "-debug-wd" {
-				if i+1 >= n {
-					return fmt.Errorf("%s requires argument", arg)
-				}
-				debugCwd = args[i+1]
-				i++
-				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "--debug-cwd="); ok {
-				debugCwd = suffix
-				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "-debug-cwd="); ok {
-				debugCwd = suffix
-				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "--debug-wd="); ok {
-				debugCwd = suffix
-				continue
-			} else if suffix, ok := strings.CutPrefix(arg, "-debug-wd="); ok {
-				debugCwd = suffix
-				continue
-			}
-		}
-		if arg == "--stdin" {
-			passStdin = true
-			continue
-		}
+	if acceptDebugFlag {
+		fb.String("--debug-cwd", &debugCwd).
+			Bool("-debug,--debug", &debug).
+			String("-debug-wd,--debug-wd,-debug-cwd,--debug-cwd", &debugCwd)
+	}
 
-		if arg == "-gcflags=all=-N -l" || arg == "-gcflags=all=-l -N" {
-			hasGCflags = true
-		}
-		goArgs = append(goArgs, arg)
-		if !strings.Contains(arg, "=") {
-			if i+1 < n && !strings.HasPrefix(args[i+1], "-") {
-				goArgs = append(goArgs, args[i+1])
-				i++
-			}
-		}
+	remainArgs, err := fb.
+		StopOnFirstArg().
+		Parse(args)
+	if err != nil {
+		return err
 	}
 
 	debugMode := isDebug || debug
@@ -122,9 +102,9 @@ func HandleOpts(args []string, opts Options) error {
 	buildArgs := []string{
 		"build",
 	}
-	buildArgs = append(buildArgs, goArgs...)
-	if !hasGCflags {
-		buildArgs = append(buildArgs, "-gcflags=all=-N -l")
+
+	for _, gcflag := range gcflags {
+		buildArgs = append(buildArgs, "-gcflags="+gcflag)
 	}
 	buildArgs = append(buildArgs, "-o", debugBin)
 	if len(remainArgs) > 0 {
