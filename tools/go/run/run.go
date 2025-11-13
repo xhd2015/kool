@@ -103,8 +103,15 @@ func HandleOpts(args []string, opts Options) error {
 		"build",
 	}
 
+	var hasGCAllflags bool
 	for _, gcflag := range gcflags {
+		if debugMode && !hasGCAllflags && (gcflag == "all=-N -l" || gcflag == "all=-l -N") {
+			hasGCAllflags = true
+		}
 		buildArgs = append(buildArgs, "-gcflags="+gcflag)
+	}
+	if debugMode && !hasGCAllflags {
+		buildArgs = append(buildArgs, "-gcflags=all=-N -l")
 	}
 	buildArgs = append(buildArgs, "-o", debugBin)
 	if len(remainArgs) > 0 {
