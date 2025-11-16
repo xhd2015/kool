@@ -69,3 +69,53 @@ func GetVersionTagAtHEAD(targetDir, tagPrefix string) (string, error) {
 	}
 	return "", fmt.Errorf("no version tag (v0.0.X) found at HEAD in %s, please tag first", targetDir)
 }
+
+// GetLatestVersionTag returns the latest version tag in the directory that has versionPrefix as prefix
+// The basic name (part after stripping versionPrefix) should not contain "/"
+// If versionPrefix is "", then the returned tag should not be nested (no "/" in it)
+func GetLatestVersionTag(dir string, versionPrefix string) (string, error) {
+	// Get all tags in the repository, sorted by version (latest first)
+	tagOutput, err := cmd.Dir(dir).Output("git", "tag", "-l", "--sort=-version:refname")
+	if err != nil {
+		return "", fmt.Errorf("failed to get tags for %s: %w", dir, err)
+	}
+
+	tags := strings.Split(strings.TrimSpace(string(tagOutput)), "\n")
+	if len(tags) == 1 && tags[0] == "" {
+		return "", fmt.Errorf("no tags found in %s", dir)
+	}
+
+	// Find the latest tag that matches the criteria
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+
+		// Check if tag has the required prefix
+		if versionPrefix != "" {
+			if !strings.HasPrefix(tag, versionPrefix) {
+				continue
+			}
+			// Extract the basic name (part after versionPrefix)
+			basicName := strings.TrimPrefix(tag, versionPrefix)
+			// Basic name should not contain "/"
+			if strings.Contains(basicName, "/") {
+				continue
+			}
+		} else {
+			// If versionPrefix is "", tag should not be nested (no "/" in it)
+			if strings.Contains(tag, "/") {
+				continue
+			}
+		}
+
+		// This tag matches our criteria
+		return tag, nil
+	}
+
+	if versionPrefix != "" {
+		return "", fmt.Errorf("no tag with prefix %s found in %s", versionPrefix, dir)
+	}
+	return "", fmt.Errorf("no non-nested tag found in %s", dir)
+}

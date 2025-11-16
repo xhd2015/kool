@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/xhd2015/kool/tools/config"
 )
 
 // Variable to allow mocking exec.Command in tests
@@ -158,12 +160,11 @@ echo ""
 
 // GetRulesDir returns the path to the .kool/rules directory in the user's home directory
 func GetRulesDir() (string, error) {
-	home, err := os.UserHomeDir()
+	koolConfigDir, err := config.GetKoolConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
+		return "", err
 	}
-
-	dir := filepath.Join(home, ".kool", "rules", "files")
+	dir := filepath.Join(koolConfigDir, "rules", "files")
 
 	// Ensure the directory exists
 	if err := os.MkdirAll(dir, 0755); err != nil {

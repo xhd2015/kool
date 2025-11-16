@@ -1,37 +1,249 @@
 package update
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/xhd2015/kool/tools/config"
 	"github.com/xhd2015/kool/tools/git/tag"
 	"github.com/xhd2015/kool/tools/go/resolve"
 )
 
-type replacementInfo struct {
-	modulePath string
-	targetDir  string
-	tag        string
-	tagPrefix  string
+// UpdateAllConfig represents the configuration for updating all local modules
+type UpdateAllConfig struct {
+	LocalModules []string `json:"local_module_paths"`
 }
 
+// ModuleUpdateInfo represents information about a module that needs updating
+type ModuleUpdateInfo struct {
+	ModulePath     string // The module path (e.g., github.com/user/repo)
+	LocalPath      string // Local filesystem path
+	CurrentVersion string // Current version in go.mod
+	LatestTag      string // Latest tag to update to
+	LatestVersion  string // Latest clean version (without prefix)
+	IsReplacement  bool   // Whether this is currently a replacement
+}
+
+// UpdateAll reads the config, gets the LocalModules list, and updates dependencies to latest local tags
 func UpdateAll() error {
-	// Get current directory's go.mod info
-	modInfo, err := resolve.GetModuleInfo(".")
+	koolConfigDir, err := config.GetKoolConfigDir()
 	if err != nil {
-		return fmt.Errorf("failed to get module info: %w", err)
+		return fmt.Errorf("failed to get kool config directory: %w", err)
 	}
 
-	if len(modInfo.Replace) == 0 {
-		fmt.Fprintf(os.Stderr, "no replacements found\n")
+	configPath := filepath.Join(koolConfigDir, "go_update_all.json")
+
+	// Check if config file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return fmt.Errorf("config file does not exist: %s (run EditUpdateAll first)", configPath)
+	}
+
+	// Read config file
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var config UpdateAllConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if len(config.LocalModules) == 0 {
+		fmt.Printf("No local modules configured in %s\n", configPath)
 		return nil
 	}
 
-	// Step 1: Collect and validate all local filesystem replacements
-	var replacements []replacementInfo
-	for _, repl := range modInfo.Replace {
+	// Get current directory's go.mod info
+	currentModInfo, err := resolve.GetModuleInfo(".")
+	if err != nil {
+		return fmt.Errorf("failed to get current module info: %w", err)
+	}
+
+	fmt.Printf("Checking dependencies for module: %s\n", currentModInfo.Module.Path)
+
+	// Phase 1: Check and collect all module update info
+	var updateInfos []ModuleUpdateInfo
+
+	// Collect from configured local modules
+	for _, localModulePath := range config.LocalModules {
+		info, err := collectModuleUpdateInfo(localModulePath, currentModInfo)
+		if err != nil {
+			// Check if it's a "does not exist" error - print and continue
+			if errors.Is(err, os.ErrNotExist) {
+				fmt.Printf("Skipping module %s: %v\n", localModulePath, err)
+				continue
+			}
+			// For other errors, return to user so they know something bad happened
+			return fmt.Errorf("failed to collect info for module %s: %w", localModulePath, err)
+		}
+		if info != nil {
+			updateInfos = append(updateInfos, *info)
+		}
+	}
+
+	// Collect from existing replacements
+	replaceInfos, err := collectReplacementUpdateInfos(currentModInfo)
+	if err != nil {
+		return fmt.Errorf("failed to collect replacement info: %w", err)
+	}
+
+	// Merge replacement infos, avoiding duplicates
+	updateInfos = mergeUpdateInfos(updateInfos, replaceInfos)
+
+	if len(updateInfos) == 0 {
+		fmt.Printf("No modules to update\n")
+		return nil
+	}
+
+	// Phase 2: Execute updates
+	return executeModuleUpdates(updateInfos)
+}
+
+// ShowUpdateAllConfig prints the path to go_update_all.json and creates the file and its directory if not exists yet
+func ShowUpdateAllConfig() error {
+	koolConfigDir, err := config.GetKoolConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get kool config directory: %w", err)
+	}
+
+	configPath := filepath.Join(koolConfigDir, "go_update_all.json")
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(koolConfigDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Create default config file
+		defaultConfig := UpdateAllConfig{
+			LocalModules: []string{},
+		}
+
+		data, err := json.MarshalIndent(defaultConfig, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal default config: %w", err)
+		}
+
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write config file: %w", err)
+		}
+	}
+
+	fmt.Println(configPath)
+	return nil
+}
+
+// collectModuleUpdateInfo collects update information for a local module path
+func collectModuleUpdateInfo(localModulePath string, currentModInfo *resolve.ModuleInfo) (*ModuleUpdateInfo, error) {
+	// Get absolute path
+	absPath, err := filepath.Abs(localModulePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for %s: %w", localModulePath, err)
+	}
+
+	// Check if directory exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("local module directory does not exist: %s: %w", absPath, err)
+	}
+
+	// Get module info from the local directory
+	localModInfo, err := resolve.GetModuleInfo(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get module info for %s: %w", absPath, err)
+	}
+
+	modulePath := localModInfo.Module.Path
+	fmt.Printf("Processing local module: %s (path: %s)\n", modulePath, absPath)
+
+	// Check if current go.mod has dependency on this module
+	var hasDependency bool
+	var currentVersion string
+	var isReplacement bool
+
+	// Check in requirements
+	for _, req := range currentModInfo.Require {
+		if req.Path == modulePath {
+			hasDependency = true
+			currentVersion = req.Version
+			break
+		}
+	}
+
+	// Check in replacements
+	for _, repl := range currentModInfo.Replace {
+		if repl.Old.Path == modulePath {
+			isReplacement = true
+			if !hasDependency {
+				// If it's only in replacements, still consider it as a dependency
+				hasDependency = true
+				currentVersion = "replaced"
+			}
+			break
+		}
+	}
+
+	if !hasDependency {
+		fmt.Printf("  No dependency found for %s, skipping\n", modulePath)
+		return nil, nil
+	}
+
+	fmt.Printf("  Found dependency: %s@%s (replacement: %v)\n", modulePath, currentVersion, isReplacement)
+
+	// Calculate version prefix for submodules
+	versionPrefix, err := calculateVersionPrefix(absPath, modulePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate version prefix for %s: %w", modulePath, err)
+	}
+
+	// Get latest tag from the local module (not restricted to HEAD)
+	latestTag, err := tag.GetLatestVersionTag(absPath, versionPrefix)
+	if err != nil {
+		fmt.Printf("  No suitable tag found for %s: %v, skipping\n", modulePath, err)
+		return nil, nil
+	}
+
+	fmt.Printf("  Latest tag: %s\n", latestTag)
+
+	// Extract clean versions for comparison
+	cleanLatestVersion := stripVersionTagPrefix(versionPrefix, latestTag)
+	if !isValidVersionTag(cleanLatestVersion) {
+		fmt.Printf("  Latest version %s is not a valid semantic version, skipping\n", cleanLatestVersion)
+		return nil, nil
+	}
+
+	cleanCurrentVersion := stripVersionTagPrefix(versionPrefix, currentVersion)
+	if !isValidVersionTag(cleanCurrentVersion) {
+		fmt.Printf("  Current version %s is not a valid semantic version, skipping\n", cleanCurrentVersion)
+		return nil, nil
+	}
+
+	// Check if we need to update - only update if local version is newer
+	if !isNewerVersion(cleanLatestVersion, cleanCurrentVersion) {
+		fmt.Printf("  Local version %s is not newer than current %s, skipping\n", cleanLatestVersion, cleanCurrentVersion)
+		return nil, nil
+	}
+
+	return &ModuleUpdateInfo{
+		ModulePath:     modulePath,
+		LocalPath:      absPath,
+		CurrentVersion: currentVersion,
+		LatestTag:      latestTag,
+		LatestVersion:  cleanLatestVersion,
+		IsReplacement:  isReplacement,
+	}, nil
+}
+
+// collectReplacementUpdateInfos collects update information from existing go.mod replacements
+func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]ModuleUpdateInfo, error) {
+	var infos []ModuleUpdateInfo
+
+	for _, repl := range currentModInfo.Replace {
 		// Skip non-local replacements (those with versions)
 		if repl.New.Version != "" {
 			continue
@@ -39,109 +251,161 @@ func UpdateAll() error {
 
 		targetDir := repl.New.Path
 		if !filepath.IsAbs(targetDir) {
-			targetDir, err = filepath.Abs(targetDir)
+			absPath, err := filepath.Abs(targetDir)
 			if err != nil {
-				return fmt.Errorf("failed to get absolute path for %s: %w", repl.New.Path, err)
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", repl.New.Path, err)
 			}
+			targetDir = absPath
 		}
 
 		// Check if target directory exists
 		if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-			return fmt.Errorf("replacement target directory does not exist: %s", targetDir)
+			fmt.Printf("  Replacement target directory does not exist: %s, skipping\n", targetDir)
+			continue
 		}
 
 		// Get target directory's module info
 		targetModInfo, err := resolve.GetModuleInfo(targetDir)
 		if err != nil {
-			return fmt.Errorf("failed to get module info for %s: %w", targetDir, err)
+			fmt.Printf("  Failed to get module info for %s: %v, skipping\n", targetDir, err)
+			continue
 		}
+
 		oldModPath := repl.Old.Path
 		targetModPath := targetModInfo.Module.Path
 
-		// Step 1: Check if module path matches exactly or is a submodule
+		// Check if module path matches
 		if oldModPath != targetModPath {
-			fmt.Fprintf(os.Stderr, "skipping replacement %s => %s: module path mismatch (target module: %s)\n",
+			fmt.Printf("  Skipping replacement %s => %s: module path mismatch (target module: %s)\n",
 				oldModPath, targetDir, targetModPath)
 			continue
 		}
 
-		// Get the root module path (the main module in the repo)
-		rootModPath, err := resolve.GetRootModulePath(targetDir)
+		// Calculate version prefix for nested submodules
+		versionPrefix, err := calculateVersionPrefix(targetDir, targetModPath)
 		if err != nil {
-			return err
-		}
-
-		// Calculate tag prefix for nested submodules
-		subModulePath, ok := cutSubmoduleSuffix(rootModPath, targetModPath)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "skipping replacement %s => %s: module path is not a submodule of the root module\n",
-				oldModPath, targetDir)
+			fmt.Printf("  Failed to calculate version prefix for %s: %v, skipping\n", targetModPath, err)
 			continue
 		}
-		var tagPrefix string
-		if subModulePath != "" {
-			tagPrefix = subModulePath + "/"
-		}
 
-		versionTag, err := tag.GetVersionTagAtHEAD(targetDir, tagPrefix)
+		// Get latest tag from the local module (not restricted to HEAD)
+		latestTag, err := tag.GetLatestVersionTag(targetDir, versionPrefix)
 		if err != nil {
-			return err
+			fmt.Printf("  No suitable tag found for %s: %v, skipping\n", targetModPath, err)
+			continue
 		}
 
-		replacements = append(replacements, replacementInfo{
-			modulePath: repl.Old.Path,
-			targetDir:  targetDir,
-			tag:        versionTag,
-			tagPrefix:  tagPrefix,
+		// Validate the latest version for replacements (strict validation)
+		cleanLatestVersion := stripVersionTagPrefix(versionPrefix, latestTag)
+		if !isValidVersionTag(cleanLatestVersion) {
+			return nil, fmt.Errorf("replacement %s has invalid version %s: not a valid semantic version", targetModPath, cleanLatestVersion)
+		}
+
+		// Find the current version in go.mod requirements
+		var currentVersion string
+		for _, req := range currentModInfo.Require {
+			if req.Path == oldModPath {
+				currentVersion = req.Version
+				break
+			}
+		}
+
+		// If we have a real current version, validate and compare
+		if currentVersion != "" {
+			cleanCurrentVersion := stripVersionTagPrefix(versionPrefix, currentVersion)
+			if isValidVersionTag(cleanCurrentVersion) {
+				// Only update if local version is newer
+				if !isNewerVersion(cleanLatestVersion, cleanCurrentVersion) {
+					fmt.Printf("  Replacement %s: local version %s is not newer than current %s, skipping\n",
+						targetModPath, cleanLatestVersion, cleanCurrentVersion)
+					continue
+				}
+			}
+		}
+
+		infos = append(infos, ModuleUpdateInfo{
+			ModulePath:     oldModPath,
+			LocalPath:      targetDir,
+			CurrentVersion: currentVersion,
+			LatestTag:      latestTag,
+			LatestVersion:  cleanLatestVersion,
+			IsReplacement:  true,
 		})
 	}
 
-	if len(replacements) == 0 {
-		fmt.Fprintf(os.Stderr, "no local replacements to update\n")
-		return nil
+	return infos, nil
+}
+
+// mergeUpdateInfos merges two slices of ModuleUpdateInfo, avoiding duplicates
+func mergeUpdateInfos(existing, additional []ModuleUpdateInfo) []ModuleUpdateInfo {
+	// Create a map to track existing modules
+	existingMap := make(map[string]bool)
+	for _, info := range existing {
+		existingMap[info.ModulePath] = true
 	}
 
-	// Step 3: All validations passed, now update all replacements
-	for _, repl := range replacements {
-		fmt.Fprintf(os.Stderr, "updating %s to %s\n", repl.modulePath, repl.tag)
-
-		// Drop the replacement first, then update the version
-		version := strings.TrimPrefix(repl.tag, repl.tagPrefix)
-		if err := GoModDropReplace(repl.modulePath); err != nil {
-			return fmt.Errorf("failed to drop replacement for %s: %w", repl.modulePath, err)
-		}
-		if err := GoModEditRequire(repl.modulePath, version); err != nil {
-			return fmt.Errorf("failed to update %s: %w", repl.modulePath, err)
+	// Add non-duplicate additional infos
+	for _, info := range additional {
+		if !existingMap[info.ModulePath] {
+			existing = append(existing, info)
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "successfully updated %d replacement(s)\n", len(replacements))
+	return existing
+}
+
+// executeModuleUpdates executes the actual updates for all collected module infos
+func executeModuleUpdates(updateInfos []ModuleUpdateInfo) error {
+	fmt.Printf("Updating %d module(s):\n", len(updateInfos))
+
+	for _, info := range updateInfos {
+		fmt.Printf("  Updating %s from %s to %s\n", info.ModulePath, info.CurrentVersion, info.LatestVersion)
+
+		// For replacements: drop replacement first
+		if info.IsReplacement {
+			if err := GoModDropReplace(info.ModulePath); err != nil {
+				return fmt.Errorf("failed to drop replacement for %s: %w", info.ModulePath, err)
+			}
+		}
+
+		// Update the module version (same for both replacements and regular dependencies)
+		if err := GoModEditRequire(info.ModulePath, info.LatestVersion); err != nil {
+			return fmt.Errorf("failed to update %s: %w", info.ModulePath, err)
+		}
+
+		fmt.Printf("  Successfully updated %s to %s\n", info.ModulePath, info.LatestVersion)
+	}
+
 	return nil
 }
 
-// calculateTagPrefix calculates the tag prefix for a given module path
+// calculateVersionPrefix calculates the version prefix for a given module path
 // For nested submodules, returns "path/to/submodule/"
 // For root modules, returns ""
-func calculateTagPrefix(targetDir, modulePath string) (string, error) {
+func calculateVersionPrefix(targetDir, modulePath string) (string, error) {
 	// Get the root module path (the main module in the repo)
 	rootModPath, err := resolve.GetRootModulePath(targetDir)
 	if err != nil {
 		return "", err
 	}
 
-	// If this is a nested submodule, extract the submodule path
-	if modulePath != rootModPath {
-		if !strings.HasPrefix(modulePath, rootModPath+"/") {
-			return "", fmt.Errorf("module path %s does not start with root module path %s", modulePath, rootModPath)
-		}
-		subModulePath := strings.TrimPrefix(modulePath, rootModPath+"/")
-		return subModulePath + "/", nil
+	// Use cutSubmoduleSuffix for robust path extraction
+	subModulePath, ok := cutSubmoduleSuffix(rootModPath, modulePath)
+	if !ok {
+		return "", fmt.Errorf("module path %s is not a submodule of root module path %s", modulePath, rootModPath)
 	}
 
-	// Root module has no prefix
-	return "", nil
+	// If it's the root module (empty submodule path), return empty prefix
+	if subModulePath == "" {
+		return "", nil
+	}
+
+	// For nested submodules, return the path with trailing slash
+	return subModulePath + "/", nil
 }
 
+// cutSubmoduleSuffix safely extracts the submodule path from a full module path
+// Returns the submodule path and whether the operation was successful
 func cutSubmoduleSuffix(parentModulePath, childModulePath string) (string, bool) {
 	if !strings.HasPrefix(childModulePath, parentModulePath) {
 		return "", false

@@ -89,14 +89,39 @@ func HandleReplace(args []string) error {
 }
 
 func HandleUpdate(args []string) error {
+	var replaced bool
 	var all bool
-	args, err := flags.Bool("--all", &all).Parse(args)
+	var show bool
+	args, err := flags.
+		Bool("--all", &all).
+		Bool("--replaced", &replaced).
+		Bool("--show", &show).
+		Parse(args)
 	if err != nil {
 		return err
 	}
+
+	if all && replaced {
+		return fmt.Errorf("cannot use --all and --replaced together")
+	}
+
+	if replaced {
+		if len(args) > 0 {
+			return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+		}
+		return go_update.UpdateReplaced()
+	}
+
 	if all {
+		if len(args) > 0 {
+			return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+		}
+		if show {
+			return go_update.ShowUpdateAllConfig()
+		}
 		return go_update.UpdateAll()
 	}
+
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
