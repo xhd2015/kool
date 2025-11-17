@@ -23,8 +23,8 @@ type ModuleUpdateInfo struct {
 	ModulePath     string // The module path (e.g., github.com/user/repo)
 	LocalPath      string // Local filesystem path
 	CurrentVersion string // Current version in go.mod
-	LatestTag      string // Latest tag to update to
 	LatestVersion  string // Latest clean version (without prefix)
+	LatestTag      string // Latest tag to update to
 	IsReplacement  bool   // Whether this is currently a replacement
 }
 
@@ -64,7 +64,11 @@ func UpdateAll() error {
 		return fmt.Errorf("failed to get current module info: %w", err)
 	}
 
-	fmt.Printf("Checking dependencies for module: %s\n", currentModInfo.Module.Path)
+	// Collect from existing replacements
+	replaceInfos, err := collectReplacementUpdateInfos(currentModInfo)
+	if err != nil {
+		return fmt.Errorf("failed to collect replacement info: %w", err)
+	}
 
 	// Phase 1: Check and collect all module update info
 	var updateInfos []ModuleUpdateInfo
@@ -84,12 +88,6 @@ func UpdateAll() error {
 		if info != nil {
 			updateInfos = append(updateInfos, *info)
 		}
-	}
-
-	// Collect from existing replacements
-	replaceInfos, err := collectReplacementUpdateInfos(currentModInfo)
-	if err != nil {
-		return fmt.Errorf("failed to collect replacement info: %w", err)
 	}
 
 	// Merge replacement infos, avoiding duplicates
@@ -159,7 +157,6 @@ func collectModuleUpdateInfo(localModulePath string, currentModInfo *resolve.Mod
 	}
 
 	modulePath := localModInfo.Module.Path
-	fmt.Printf("Processing local module: %s (path: %s)\n", modulePath, absPath)
 
 	// Check if current go.mod has dependency on this module
 	var hasDependency bool
@@ -182,18 +179,17 @@ func collectModuleUpdateInfo(localModulePath string, currentModInfo *resolve.Mod
 			if !hasDependency {
 				// If it's only in replacements, still consider it as a dependency
 				hasDependency = true
-				currentVersion = "replaced"
 			}
 			break
 		}
 	}
 
 	if !hasDependency {
-		fmt.Printf("  No dependency found for %s, skipping\n", modulePath)
+		fmt.Fprintf(os.Stderr, "  No dependency found for %s, skipping\n", modulePath)
 		return nil, nil
 	}
 
-	fmt.Printf("  Found dependency: %s@%s (replacement: %v)\n", modulePath, currentVersion, isReplacement)
+	// fmt.Printf("  Found dependency: %s@%s (replacement: %v)\n", modulePath, currentVersion, isReplacement)
 
 	// Calculate version prefix for submodules
 	versionPrefix, err := calculateVersionPrefix(absPath, modulePath)
@@ -208,24 +204,22 @@ func collectModuleUpdateInfo(localModulePath string, currentModInfo *resolve.Mod
 		return nil, nil
 	}
 
-	fmt.Printf("  Latest tag: %s\n", latestTag)
-
 	// Extract clean versions for comparison
 	cleanLatestVersion := stripVersionTagPrefix(versionPrefix, latestTag)
 	if !isValidVersionTag(cleanLatestVersion) {
-		fmt.Printf("  Latest version %s is not a valid semantic version, skipping\n", cleanLatestVersion)
+		fmt.Fprintf(os.Stderr, "  Latest version %s is not a valid semantic version, skipping\n", cleanLatestVersion)
 		return nil, nil
 	}
 
 	cleanCurrentVersion := stripVersionTagPrefix(versionPrefix, currentVersion)
 	if !isValidVersionTag(cleanCurrentVersion) {
-		fmt.Printf("  Current version %s is not a valid semantic version, skipping\n", cleanCurrentVersion)
+		fmt.Fprintf(os.Stderr, "  Current version %s is not a valid semantic version, skipping\n", cleanCurrentVersion)
 		return nil, nil
 	}
 
 	// Check if we need to update - only update if local version is newer
 	if !isNewerVersion(cleanLatestVersion, cleanCurrentVersion) {
-		fmt.Printf("  Local version %s is not newer than current %s, skipping\n", cleanLatestVersion, cleanCurrentVersion)
+		fmt.Fprintf(os.Stderr, "  Local version %s is not newer than current %s, skipping\n", cleanLatestVersion, cleanCurrentVersion)
 		return nil, nil
 	}
 
@@ -337,21 +331,23 @@ func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]Module
 }
 
 // mergeUpdateInfos merges two slices of ModuleUpdateInfo, avoiding duplicates
-func mergeUpdateInfos(existing, additional []ModuleUpdateInfo) []ModuleUpdateInfo {
+func mergeUpdateInfos(global, local []ModuleUpdateInfo) []ModuleUpdateInfo {
+	merged := make([]ModuleUpdateInfo, 0, len(global)+len(local))
 	// Create a map to track existing modules
 	existingMap := make(map[string]bool)
-	for _, info := range existing {
+	for _, info := range local {
 		existingMap[info.ModulePath] = true
+		merged = append(merged, info)
 	}
 
 	// Add non-duplicate additional infos
-	for _, info := range additional {
+	for _, info := range global {
 		if !existingMap[info.ModulePath] {
-			existing = append(existing, info)
+			merged = append(merged, info)
 		}
 	}
 
-	return existing
+	return merged
 }
 
 // executeModuleUpdates executes the actual updates for all collected module infos

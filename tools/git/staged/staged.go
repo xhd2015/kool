@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/xhd2015/kool/tools/fs"
+	"github.com/xhd2015/kool/tools/git/ls"
+	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/less-gen/flags"
 )
 
@@ -27,6 +30,8 @@ func Handle(args []string) error {
 			return fmt.Errorf("usage: kool git staged restore <file.txt>")
 		}
 		return HandleRestore(args)
+	case "vet":
+		return HandleVet(args)
 	default:
 		return fmt.Errorf("unknown command: %s, available commands: backup, restore", cmd)
 	}
@@ -149,6 +154,52 @@ func HandleRestore(args []string) error {
 	}
 
 	fmt.Printf("Restored %d files from backup\n", len(files))
+	return nil
+}
+
+const vetHelp = `
+vet the staged files to check if there is any symlink
+
+Usage: kool git staged vet [OPTIONS]
+
+
+
+Options:
+  -h,--help            show help message
+  -v,--verbose         show verbose info
+`
+
+// Handle vet command checks there is no symlink in the staged files
+func HandleVet(args []string) error {
+	var dir string
+	var verbose bool
+	args, err := flags.String("--dir", &dir).
+		Help("-h,--help", vetHelp).Bool("-v,--verbose", &verbose).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+	stagedFiles, err := ls.GetStatedFiles(dir, verbose)
+	if err != nil {
+		return err
+	}
+	var symFiles []string
+	for _, file := range stagedFiles {
+		isSymlink, err := fs.IsSymbolicLink(file)
+		if err != nil {
+			return err
+		}
+		if isSymlink {
+			symFiles = append(symFiles, file)
+		}
+	}
+	if len(symFiles) > 0 {
+		return fmt.Errorf("symbolic link found in staged files:\n%s", strings.Join(stringtool.PrefixLines(symFiles, "- "), "\n"))
+	}
+
 	return nil
 }
 

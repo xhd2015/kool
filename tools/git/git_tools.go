@@ -10,6 +10,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
 	"github.com/xhd2015/kool/tools/git/hooks"
+	"github.com/xhd2015/kool/tools/git/ls"
 	"github.com/xhd2015/kool/tools/git/staged"
 	"github.com/xhd2015/kool/tools/git/worktree"
 	"github.com/xhd2015/less-gen/flags"
@@ -126,30 +127,34 @@ func HandleShowChildren(args []string) error {
 	return nil
 }
 
+const lsHelp = `
+Usage: kool git ls [OPTIONS]
+
+Options:
+  -h,--help            show help message
+  -v,--verbose         show verbose info
+  --cached
+  --staged             list staged/cached files, same thing
+`
+
 func HandleLs(args []string) error {
-	n := len(args)
-	var remainArgs []string
 	var dir string
-	for i := 0; i < n; i++ {
-		flag, value := flags.ParseIndex(args, &i)
-		if flag == "" {
-			remainArgs = append(remainArgs, args[i])
-			continue
-		}
-		switch flag {
-		case "--dir":
-			value, ok := value()
-			if !ok {
-				return fmt.Errorf("%s requires a value", flag)
-			}
-			dir = value
-		case "-h", "--help":
-			fmt.Print(strings.TrimPrefix(help, "\n"))
-			return nil
-		// ...
-		default:
-			return fmt.Errorf("unrecognized flag: %s", flag)
-		}
+	var staged bool
+	var verbose bool
+	args, err := flags.String("--dir", &dir).
+		Bool("--cached,--staged", &staged).
+		Bool("-v,--verbose", &verbose).
+		Help("-h,--help", lsHelp).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+	if staged {
+		return ls.LsStagedFiles(dir, verbose)
 	}
 
 	return lsCommitFiles(dir)

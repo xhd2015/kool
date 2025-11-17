@@ -12,6 +12,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
 	"github.com/xhd2015/kool/tools/go/run"
+	"github.com/xhd2015/kool/tools/go/vendortool"
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
 
@@ -63,6 +64,8 @@ func Handle(args []string) error {
 		return HandleInspect(args)
 	case "refactor":
 		return HandleRefactor(args)
+	case "vendor":
+		return vendortool.Handle(args)
 	case "find":
 		return find.Handle(args)
 	case "example":
