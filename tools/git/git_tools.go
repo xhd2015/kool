@@ -9,6 +9,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/grep"
 	"github.com/xhd2015/kool/tools/git/hooks"
 	"github.com/xhd2015/kool/tools/git/ls"
 	"github.com/xhd2015/kool/tools/git/staged"
@@ -91,6 +92,8 @@ func Handle(args []string) error {
 		return HandleLs(args[1:])
 	case "staged":
 		return staged.Handle(args[1:])
+	case "grep":
+		return grep.Handle(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
