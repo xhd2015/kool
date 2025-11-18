@@ -76,7 +76,11 @@ Project:
   snippet <name>                     print snippet
   go
     replace <dir>                    replace go module in the given directory
+    replace --all                    replace all local modules that are dependencies
     update <dir>                     update to the latest tag of the module in dir
+    vendor link <dir>                create symlink for local module in vendor
+    vendor link --all                create symlinks for all local modules in vendor
+    vendor unlink --all              remove symlinks for all local modules from vendor
     inspect <pkg> <T>                inspect the given package and type
 	run --debug <flags> [args...]    run the given program with debug mode
     example

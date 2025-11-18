@@ -1,7 +1,6 @@
 package update
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,15 +9,9 @@ import (
 
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
 	"github.com/xhd2015/kool/tools/git/tag"
+	"github.com/xhd2015/kool/tools/go/commands"
 	"github.com/xhd2015/kool/tools/go/resolve"
-	"github.com/xhd2015/xgo/support/cmd"
 )
-
-type GoMod struct {
-	Module struct {
-		Path string `json:"Path"`
-	} `json:"Module"`
-}
 
 func Update(dir string) error {
 	// Check if directory is provided
@@ -37,16 +30,10 @@ func Update(dir string) error {
 	//     exit 1
 	// fi
 
-	modCmd := exec.Command("go", "mod", "edit", "-json")
-	modCmd.Dir = dir
-	modCmd.Stderr = os.Stderr
-	modOutput, err := modCmd.Output()
+	opts := &commands.GoModEditOptions{Dir: dir, Stderr: true}
+	mod, err := commands.GoModEditJSON(opts)
 	if err != nil {
-		return fmt.Errorf("failed to get module path: %v", err)
-	}
-	var mod GoMod
-	if err := json.Unmarshal(modOutput, &mod); err != nil {
-		return fmt.Errorf("failed to unmarshal module path: %v", err)
+		return fmt.Errorf("failed to get module info: %w", err)
 	}
 	if mod.Module.Path == "" {
 		return fmt.Errorf("not a go module: %s", dir)
@@ -90,10 +77,10 @@ func Update(dir string) error {
 	}
 
 	// Drop the replacement first, then update the version
-	if err := GoModDropReplace(mod.Module.Path); err != nil {
+	if err := commands.GoModDropReplace(mod.Module.Path, nil); err != nil {
 		return err
 	}
-	if err := GoModEditRequire(mod.Module.Path, editRef); err != nil {
+	if err := commands.GoModEditRequire(mod.Module.Path, editRef, nil); err != nil {
 		return err
 	}
 
@@ -154,24 +141,4 @@ func stripSubDirFromTag(tag, modulePath string) string {
 
 	// If module path doesn't match, return the original tag
 	return tag
-}
-
-// GoModDropReplace drops a replacement directive from go.mod
-func GoModDropReplace(modulePath string) error {
-	dropArgs := []string{"mod", "edit", "-dropreplace", modulePath}
-	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(dropArgs, " "))
-	if err := cmd.Run("go", dropArgs...); err != nil {
-		return fmt.Errorf("failed to drop replacement: %v", err)
-	}
-	return nil
-}
-
-// GoModEditRequire updates the module version in go.mod using go mod edit -require
-func GoModEditRequire(modulePath, version string) error {
-	requireArgs := []string{"mod", "edit", fmt.Sprintf("-require=%s@%s", modulePath, version)}
-	fmt.Fprintf(os.Stderr, "go %s\n", strings.Join(requireArgs, " "))
-	if err := cmd.Run("go", requireArgs...); err != nil {
-		return fmt.Errorf("failed to update module version: %v", err)
-	}
-	return nil
 }

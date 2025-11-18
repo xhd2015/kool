@@ -3,9 +3,10 @@ package resolve
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/xhd2015/kool/tools/go/commands"
 )
 
 // resolve version to a normalized version representation
@@ -41,9 +42,8 @@ require %s %s`, modPath, version)), 0644)
 import 	_ %q
 `, pkg)), 0644)
 
-	cmd := exec.Command("go", "mod", "tidy")
-	cmd.Dir = tmpDir
-	err = cmd.Run()
+	opts := &commands.GoModEditOptions{Dir: tmpDir}
+	err = commands.GoModTidy(opts)
 	if err != nil {
 		return "", err
 	}

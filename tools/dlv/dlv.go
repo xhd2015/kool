@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xhd2015/kool/tools/go/commands"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -178,7 +179,7 @@ func HasMainMain(binary string) bool {
 
 func getBinaryNM(binary string) string {
 	// Run go tool nm to list symbols in the binary
-	output, err := exec.Command("go", "tool", "nm", binary).Output()
+	output, err := commands.GoToolNM(binary)
 	if err != nil {
 		return "" // fallback to a default
 	}
@@ -201,9 +202,9 @@ func getBinaryNM(binary string) string {
 		if len(fields) > 0 {
 			// Instead of addr2line which might not be available on all platforms
 			// Try using go tool objdump with grep
-			objOutput, err := exec.Command("go", "tool", "objdump", "-s", "main.main", binary).Output()
+			objOutput, err := commands.GoToolObjdump("-s", "main.main", binary)
 			if err == nil {
-				objLines := strings.Split(string(objOutput), "\n")
+				objLines := strings.Split(objOutput, "\n")
 				for _, objLine := range objLines {
 					if strings.Contains(objLine, ".go:") {
 						parts := strings.Split(objLine, ".go:")

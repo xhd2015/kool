@@ -16,6 +16,7 @@ import (
 	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/cmd"
 
+	goconfig "github.com/xhd2015/kool/tools/go/config"
 	"github.com/xhd2015/kool/tools/go/inspect/typed"
 	"github.com/xhd2015/kool/tools/go/replace"
 	"github.com/xhd2015/kool/tools/go/resolve"
@@ -32,6 +33,7 @@ Commands:
   resolve
   inspect
   refactor
+  vendor
   find
   example
   run
@@ -44,7 +46,7 @@ Example:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,example,run")
+		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,vendor,example,run")
 	}
 	gocmd := args[0]
 	args = args[1:]
@@ -81,13 +83,33 @@ func Handle(args []string) error {
 }
 
 func HandleReplace(args []string) error {
+	var all bool
+	var show bool
+	args, err := flags.
+		Bool("--all", &all).
+		Bool("--show", &show).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if all {
+		if len(args) > 0 {
+			return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+		}
+		if show {
+			return goconfig.ShowLocalModulesConfig()
+		}
+		return replace.ReplaceAll()
+	}
+
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
 	if len(args) != 1 {
 		return fmt.Errorf("too many argments: %v", args)
 	}
-	_, _, err := replace.Replace(args[0])
+	_, _, err = replace.Replace(args[0])
 	return err
 }
 
@@ -120,7 +142,7 @@ func HandleUpdate(args []string) error {
 			return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
 		}
 		if show {
-			return go_update.ShowUpdateAllConfig()
+			return goconfig.ShowLocalModulesConfig()
 		}
 		return go_update.UpdateAll()
 	}
