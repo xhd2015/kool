@@ -23,7 +23,7 @@ type ModuleUpdateInfo struct {
 }
 
 // UpdateAll reads the config, gets the LocalModules list, and updates dependencies to latest local tags
-func UpdateAll() error {
+func UpdateAll(dir string) error {
 	config, err := goconfig.GetLocalModulesConfig()
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func UpdateAll() error {
 	}
 
 	// Get current directory's go.mod info
-	currentModInfo, err := resolve.GetModuleInfo(".")
+	currentModInfo, err := resolve.GetModuleInfo(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get current module info: %w", err)
 	}
@@ -50,7 +50,7 @@ func UpdateAll() error {
 	var updateInfos []ModuleUpdateInfo
 
 	// Resolve all local modules and their dependency status
-	_, resolvedModules, err := resolve.ResolveLocalModules(".", config.LocalModules)
+	_, resolvedModules, err := resolve.ResolveLocalModules(dir, config.LocalModules)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func UpdateAll() error {
 	// Collect update info from resolved modules
 	for _, resolved := range resolvedModules {
 		if !resolved.IsDependency {
-			fmt.Printf("Skipping module %s: no dependency found\n", resolved.ModuleInfo.Module.Path)
+			// fmt.Printf("Skipping module %s: no dependency found\n", resolved.ModuleInfo.Module.Path)
 			continue
 		}
 
@@ -81,7 +81,7 @@ func UpdateAll() error {
 	}
 
 	// Phase 2: Execute updates
-	return executeModuleUpdates(updateInfos)
+	return executeModuleUpdates(dir, updateInfos)
 }
 
 // buildModuleUpdateInfo builds update information from a resolved local module
@@ -202,19 +202,6 @@ func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]Module
 			}
 		}
 
-		// If we have a real current version, validate and compare
-		if currentVersion != "" {
-			cleanCurrentVersion := stripVersionTagPrefix(versionPrefix, currentVersion)
-			if isValidVersionTag(cleanCurrentVersion) {
-				// Only update if local version is newer
-				if !isNewerVersion(cleanLatestVersion, cleanCurrentVersion) {
-					fmt.Printf("  Replacement %s: local version %s is not newer than current %s, skipping\n",
-						targetModPath, cleanLatestVersion, cleanCurrentVersion)
-					continue
-				}
-			}
-		}
-
 		infos = append(infos, ModuleUpdateInfo{
 			ModulePath:     oldModPath,
 			LocalPath:      targetDir,
@@ -229,17 +216,17 @@ func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]Module
 }
 
 // mergeUpdateInfos merges two slices of ModuleUpdateInfo, avoiding duplicates
-func mergeUpdateInfos(global, local []ModuleUpdateInfo) []ModuleUpdateInfo {
-	merged := make([]ModuleUpdateInfo, 0, len(global)+len(local))
+func mergeUpdateInfos(updates, replacements []ModuleUpdateInfo) []ModuleUpdateInfo {
+	merged := make([]ModuleUpdateInfo, 0, len(updates)+len(replacements))
 	// Create a map to track existing modules
 	existingMap := make(map[string]bool)
-	for _, info := range local {
+	for _, info := range replacements {
 		existingMap[info.ModulePath] = true
 		merged = append(merged, info)
 	}
 
 	// Add non-duplicate additional infos
-	for _, info := range global {
+	for _, info := range updates {
 		if !existingMap[info.ModulePath] {
 			merged = append(merged, info)
 		}
@@ -249,25 +236,37 @@ func mergeUpdateInfos(global, local []ModuleUpdateInfo) []ModuleUpdateInfo {
 }
 
 // executeModuleUpdates executes the actual updates for all collected module infos
-func executeModuleUpdates(updateInfos []ModuleUpdateInfo) error {
+func executeModuleUpdates(dir string, updateInfos []ModuleUpdateInfo) error {
 	fmt.Printf("Updating %d module(s):\n", len(updateInfos))
 
 	for _, info := range updateInfos {
-		fmt.Printf("  Updating %s from %s to %s\n", info.ModulePath, info.CurrentVersion, info.LatestVersion)
+		currentVersion := info.CurrentVersion
+		latestVersion := info.LatestVersion
+		targetModPath := info.ModulePath
 
 		// For replacements: drop replacement first
 		if info.IsReplacement {
-			if err := commands.GoModDropReplace(info.ModulePath, nil); err != nil {
+			if err := commands.GoModDropReplace(info.ModulePath, &commands.GoModEditOptions{Dir: dir}); err != nil {
 				return fmt.Errorf("failed to drop replacement for %s: %w", info.ModulePath, err)
 			}
 		}
 
+		// If we have a real current version, validate and compare
+		if currentVersion != "" && isValidVersionTag(currentVersion) {
+			// Only update if local version is newer
+			if !isNewerVersion(latestVersion, currentVersion) {
+				fmt.Printf("  %s: local version %s is not newer than current %s, skipping updating\n", targetModPath, latestVersion, currentVersion)
+				continue
+			}
+		}
 		// Update the module version (same for both replacements and regular dependencies)
-		if err := commands.GoModEditRequire(info.ModulePath, info.LatestVersion, nil); err != nil {
-			return fmt.Errorf("failed to update %s: %w", info.ModulePath, err)
+		if err := commands.GoModEditRequire(targetModPath, latestVersion, &commands.GoModEditOptions{
+			Dir: dir,
+		}); err != nil {
+			return fmt.Errorf("failed to update %s: %w", targetModPath, err)
 		}
 
-		fmt.Printf("  Successfully updated %s to %s\n", info.ModulePath, info.LatestVersion)
+		fmt.Printf("  Successfully updated %s to %s\n", targetModPath, latestVersion)
 	}
 
 	return nil

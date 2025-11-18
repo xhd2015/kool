@@ -117,10 +117,12 @@ func HandleUpdate(args []string) error {
 	var replaced bool
 	var all bool
 	var show bool
+	var dirFlag string
 	args, err := flags.
 		Bool("--all", &all).
 		Bool("--replaced", &replaced).
 		Bool("--show", &show).
+		String("--dir", &dirFlag).
 		Parse(args)
 	if err != nil {
 		return err
@@ -134,7 +136,7 @@ func HandleUpdate(args []string) error {
 		if len(args) > 0 {
 			return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
 		}
-		return go_update.UpdateReplaced()
+		return go_update.UpdateReplaced(dirFlag)
 	}
 
 	if all {
@@ -144,14 +146,18 @@ func HandleUpdate(args []string) error {
 		if show {
 			return goconfig.ShowLocalModulesConfig()
 		}
-		return go_update.UpdateAll()
+		return go_update.UpdateAll(dirFlag)
 	}
-
-	if len(args) == 0 {
-		return fmt.Errorf("requires dir")
+	var dir string
+	if dirFlag != "" {
+		dir = dirFlag
+	} else {
+		if len(args) == 0 {
+			return fmt.Errorf("requires dir")
+		}
+		dir = args[0]
+		args = args[1:]
 	}
-	dir := args[0]
-	args = args[1:]
 	if len(args) > 0 {
 		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
 	}

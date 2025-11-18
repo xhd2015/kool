@@ -7,9 +7,9 @@ import (
 	"github.com/xhd2015/kool/tools/go/resolve"
 )
 
-func UpdateReplaced() error {
+func UpdateReplaced(dir string) error {
 	// Get current directory's go.mod info
-	modInfo, err := resolve.GetModuleInfo(".")
+	modInfo, err := resolve.GetModuleInfo(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get module info: %w", err)
 	}
@@ -31,7 +31,7 @@ func UpdateReplaced() error {
 	}
 
 	// Execute updates using the shared function
-	if err := executeModuleUpdates(updateInfos); err != nil {
+	if err := executeModuleUpdates(dir, updateInfos); err != nil {
 		return err
 	}
 
