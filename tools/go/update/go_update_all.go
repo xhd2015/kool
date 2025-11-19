@@ -102,14 +102,14 @@ func buildModuleUpdateInfo(resolved *resolve.LocalModuleInfo) (*ModuleUpdateInfo
 	}
 
 	// Extract clean versions for comparison
-	cleanLatestVersion := stripVersionTagPrefix(versionPrefix, latestTag)
+	cleanLatestVersion := tag.StripVersionPrefix(versionPrefix, latestTag)
 	if !isValidVersionTag(cleanLatestVersion) {
 		fmt.Fprintf(os.Stderr, "  Latest version %s is not a valid semantic version, skipping\n", cleanLatestVersion)
 		return nil, nil
 	}
 
 	currentVersion := resolved.CurrentVersion
-	cleanCurrentVersion := stripVersionTagPrefix(versionPrefix, currentVersion)
+	cleanCurrentVersion := tag.StripVersionPrefix(versionPrefix, currentVersion)
 	if currentVersion != "" && !isValidVersionTag(cleanCurrentVersion) {
 		fmt.Fprintf(os.Stderr, "  Current version %s is not a valid semantic version, skipping\n", cleanCurrentVersion)
 		return nil, nil
@@ -188,7 +188,7 @@ func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]Module
 		}
 
 		// Validate the latest version for replacements (strict validation)
-		cleanLatestVersion := stripVersionTagPrefix(versionPrefix, latestTag)
+		cleanLatestVersion := tag.StripVersionPrefix(versionPrefix, latestTag)
 		if !isValidVersionTag(cleanLatestVersion) {
 			return nil, fmt.Errorf("replacement %s has invalid version %s: not a valid semantic version", targetModPath, cleanLatestVersion)
 		}
@@ -288,13 +288,7 @@ func calculateVersionPrefix(targetDir, modulePath string) (string, error) {
 		return "", fmt.Errorf("module path %s is not a submodule of root module path %s", modulePath, rootModPath)
 	}
 
-	// If it's the root module (empty submodule path), return empty prefix
-	if subModulePath == "" {
-		return "", nil
-	}
-
-	// For nested submodules, return the path with trailing slash
-	return subModulePath + "/", nil
+	return tag.AddVersionPrefix(subModulePath), nil
 }
 
 // cutSubmoduleSuffix safely extracts the submodule path from a full module path

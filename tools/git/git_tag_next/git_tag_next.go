@@ -6,6 +6,10 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/xhd2015/gitops/git"
+	"github.com/xhd2015/kool/tools/git/tag"
+	"github.com/xhd2015/less-gen/flags"
 )
 
 const help = `
@@ -21,68 +25,67 @@ Example:
 `
 
 type Options struct {
-	Show bool
-	Push bool
+	Dir     string
+	Show    bool
+	Push    bool
+	Verbose bool
 }
 
 func Handle(args []string) error {
-	opts := &Options{}
-	// Parse options
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--show":
-			opts.Show = true
-		case "--push":
-			opts.Push = true
-		case "--help", "-h":
-			fmt.Println(strings.TrimPrefix(help, "\n"))
-			return nil
-		default:
-			return fmt.Errorf("unknown option: %s", args[i])
-		}
+	opts := Options{}
+	args, err := flags.String("--dir", &opts.Dir).
+		Bool("--show", &opts.Show).
+		Bool("--push", &opts.Push).
+		Help("-h,--help", help).
+		Bool("-v,--verbose", &opts.Verbose).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
 	}
 
 	return handleGitTag(opts)
 }
 
-func handleGitTag(opts *Options) error {
-	// Check if HEAD is already tagged
-	start := 0
-	if !opts.Show {
-		start = 1
-		headTag, err := execGit("tag", "-l", "--points-at", "HEAD")
-		if err != nil {
-			return err
-		}
-		if headTag != "" {
-			return fmt.Errorf("already tagged: %s", headTag)
-		}
+func handleGitTag(opts Options) error {
+	dir := opts.Dir
+	versionPrefix, err := tag.GetVersionPrefix(dir)
+	if err != nil {
+		return err
 	}
 
-	// Find most recent tag
-	var tag string
-	for i := start; i < start+10; i++ {
-		commit := fmt.Sprintf("HEAD~%d", i)
-		currentTag, err := execGit("tag", "-l", "--points-at", commit)
-		if err != nil {
-			return err
-		}
-		if currentTag != "" {
-			tag = currentTag
-			break
-		}
+	// Find most recent latestTag
+	latestTag, err := tag.GetLatestVersionTag(dir, versionPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to get latest version tag: %w", err)
 	}
 
-	if tag == "" {
-		return fmt.Errorf("no tag for recent 10 commits, please make a new one manually")
+	if latestTag == "" {
+		return fmt.Errorf("no latest version tag found, please make a new one manually")
 	}
 
-	if strings.Contains(tag, "/") {
-		return fmt.Errorf("tag contains '/', please make a new one manually: %s", tag)
+	latestTagCommit, err := git.RevParseVerified(dir, latestTag)
+	if err != nil {
+		return fmt.Errorf("failed to get latest version tag commit: %w", err)
+	}
+	headCommit, err := git.RevParseVerified(dir, "HEAD")
+	if err != nil {
+		return fmt.Errorf("failed to get head commit: %w", err)
+	}
+
+	if latestTagCommit == headCommit {
+		if opts.Show {
+			fmt.Println(latestTag)
+			return nil
+		}
+		return fmt.Errorf("latest version tag %s is already tagged at HEAD", latestTag)
 	}
 
 	// Calculate next tag
-	nextTag, err := incrementTag(tag)
+	nextTag, err := incrementTag(latestTag)
 	if err != nil {
 		return fmt.Errorf("failed to increment tag: %v", err)
 	}
@@ -93,23 +96,23 @@ func handleGitTag(opts *Options) error {
 	}
 
 	// Create new tag
-	if err := runGitCmdPipeOutput("tag", nextTag); err != nil {
+	if err := runGitCmdPipeOutput(dir, "tag", nextTag); err != nil {
 		return fmt.Errorf("failed to create tag: %v", err)
 	}
 
 	if opts.Push {
 		// Get current branch
-		branch, err := execGit("branch", "--show-current")
+		branch, err := execGit(dir, "branch", "--show-current")
 		if err != nil {
 			return fmt.Errorf("failed to get current branch: %v", err)
 		}
 
 		// Push changes
-		if err := runGitCmdPipeOutput("push", "origin", fmt.Sprintf("HEAD:%s", branch)); err != nil {
+		if err := runGitCmdPipeOutput(dir, "push", "origin", fmt.Sprintf("HEAD:%s", branch)); err != nil {
 			return fmt.Errorf("failed to push changes: %v", err)
 		}
 
-		if err := runGitCmdPipeOutput("push", "origin", nextTag); err != nil {
+		if err := runGitCmdPipeOutput(dir, "push", "origin", nextTag); err != nil {
 			return fmt.Errorf("failed to push tag: %v", err)
 		}
 	}
@@ -147,8 +150,9 @@ func incrementTag(tag string) (string, error) {
 	return tag[:i+1] + strconv.Itoa(num+1), nil
 }
 
-func execGit(args ...string) (string, error) {
+func execGit(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git %s failed: %v", strings.Join(args, " "), err)
@@ -156,9 +160,10 @@ func execGit(args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func runGitCmdPipeOutput(args ...string) error {
+func runGitCmdPipeOutput(dir string, args ...string) error {
 	fmt.Println("git", strings.Join(args, " "))
 	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	if err := cmd.Run(); err != nil {

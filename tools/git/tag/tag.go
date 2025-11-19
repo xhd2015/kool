@@ -7,11 +7,20 @@ import (
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
-// ListTagsAtHEAD returns all tags pointing at HEAD in the target directory
+var ErrNoTag = fmt.Errorf("no tag found")
+
 func ListTagsAtHEAD(targetDir string) ([]string, error) {
-	tagOutput, err := cmd.Dir(targetDir).Output("git", "tag", "-l", "--points-at", "HEAD")
+	return ListTags(targetDir, "HEAD")
+}
+func GetVersionTagAtHEAD(targetDir, tagPrefix string) (string, error) {
+	return GetVersionTag(targetDir, "HEAD", tagPrefix)
+}
+
+// ListTagsAtHEAD returns all tags pointing at HEAD in the target directory
+func ListTags(targetDir string, commit string) ([]string, error) {
+	tagOutput, err := cmd.Dir(targetDir).Output("git", "tag", "-l", "--points-at", commit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tags at HEAD for %s: %w", targetDir, err)
+		return nil, fmt.Errorf("failed to get tags at %s for %s: %w", commit, targetDir, err)
 	}
 
 	tags := strings.Split(strings.TrimSpace(string(tagOutput)), "\n")
@@ -34,15 +43,15 @@ func ListTagsAtHEAD(targetDir string) ([]string, error) {
 // tagPrefix is an optional prefix for the tag (e.g., "path/to/submodule/" for nested modules)
 // If tagPrefix is empty, it will match tags like "v0.0.87"
 // If tagPrefix is provided, it will match tags like "path/to/submodule/v0.0.87"
-func GetVersionTagAtHEAD(targetDir, tagPrefix string) (string, error) {
+func GetVersionTag(targetDir, commit, tagPrefix string) (string, error) {
 	// Get all tags pointing at HEAD
-	tags, err := ListTagsAtHEAD(targetDir)
+	tags, err := ListTags(targetDir, commit)
 	if err != nil {
 		return "", err
 	}
 
 	if len(tags) == 0 {
-		return "", fmt.Errorf("no version tag found at HEAD in %s, please commit and tag first", targetDir)
+		return "", fmt.Errorf("%w: %s in %s, please commit and tag first", ErrNoTag, commit, targetDir)
 	}
 
 	// Find a matching version tag
@@ -65,9 +74,9 @@ func GetVersionTagAtHEAD(targetDir, tagPrefix string) (string, error) {
 
 	// No matching version tag found
 	if tagPrefix != "" {
-		return "", fmt.Errorf("no version tag with prefix %s found at HEAD in %s, please tag with format %sv0.0.X", tagPrefix, targetDir, tagPrefix)
+		return "", fmt.Errorf("%w: with prefix %s found at %s in %s, please tag with format %sv0.0.X", ErrNoTag, tagPrefix, commit, targetDir, tagPrefix)
 	}
-	return "", fmt.Errorf("no version tag (v0.0.X) found at HEAD in %s, please tag first", targetDir)
+	return "", fmt.Errorf("%w: (v0.0.X) found at %s in %s, please tag first", ErrNoTag, commit, targetDir)
 }
 
 // GetLatestVersionTag returns the latest version tag in the directory that has versionPrefix as prefix
@@ -75,14 +84,14 @@ func GetVersionTagAtHEAD(targetDir, tagPrefix string) (string, error) {
 // If versionPrefix is "", then the returned tag should not be nested (no "/" in it)
 func GetLatestVersionTag(dir string, versionPrefix string) (string, error) {
 	// Get all tags in the repository, sorted by version (latest first)
-	tagOutput, err := cmd.Dir(dir).Output("git", "tag", "-l", "--sort=-version:refname")
+	tagOutput, err := cmd.Dir(dir).Output("git", "tag", "-l", "--sort=-version:refname", versionPrefix+"*")
 	if err != nil {
 		return "", fmt.Errorf("failed to get tags for %s: %w", dir, err)
 	}
 
 	tags := strings.Split(strings.TrimSpace(string(tagOutput)), "\n")
 	if len(tags) == 1 && tags[0] == "" {
-		return "", fmt.Errorf("no tags found in %s", dir)
+		return "", fmt.Errorf("%w: %s", ErrNoTag, dir)
 	}
 
 	// Find the latest tag that matches the criteria
@@ -115,7 +124,7 @@ func GetLatestVersionTag(dir string, versionPrefix string) (string, error) {
 	}
 
 	if versionPrefix != "" {
-		return "", fmt.Errorf("no tag with prefix %s found in %s", versionPrefix, dir)
+		return "", fmt.Errorf("%w: (%sv0.0.X) in %s", ErrNoTag, versionPrefix, dir)
 	}
-	return "", fmt.Errorf("no non-nested tag found in %s", dir)
+	return "", fmt.Errorf("%w: (v0.0.X) in %s", ErrNoTag, dir)
 }

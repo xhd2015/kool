@@ -1,8 +1,6 @@
 package update
 
 import (
-	"strings"
-
 	"github.com/Masterminds/semver/v3"
 )
 
@@ -33,20 +31,4 @@ func isNewerVersion(a, b string) bool {
 	}
 
 	return semverA.GreaterThan(semverB)
-}
-
-// stripVersionTagPrefix strips the version prefix from a tag to get the clean version
-// Examples:
-//   - stripVersionTagPrefix("", "v1.2.3") -> "v1.2.3"
-//   - stripVersionTagPrefix("submodule/", "submodule/v1.2.3") -> "v1.2.3"
-//   - stripVersionTagPrefix("path/to/module/", "path/to/module/v2.0.0") -> "v2.0.0"
-func stripVersionTagPrefix(tagPrefix string, tag string) string {
-	if tagPrefix == "" {
-		return tag
-	}
-	if strings.HasPrefix(tag, tagPrefix) {
-		return strings.TrimPrefix(tag, tagPrefix)
-	}
-	// If tag doesn't have the expected prefix, return as-is
-	return tag
 }
