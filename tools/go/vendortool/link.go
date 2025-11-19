@@ -147,29 +147,30 @@ func linkVendorModule(modulePath, sourcePath, vendorDir string, verbose bool) er
 		return nil
 	}
 
-	// Create parent directories if needed
-	if err := os.MkdirAll(filepath.Dir(localVendorDir), 0755); err != nil {
-		return fmt.Errorf("failed to create vendor parent directories: %w", err)
+	err = fs.ValidateIsDir(filepath.Dir(localVendorDir))
+	if err != nil {
+		return fmt.Errorf("parent dir of %s not exists", localVendorDir)
 	}
 
 	// If directory exists (not symlink), rename it to __old
-	if _, err := os.Stat(localVendorDir); err == nil {
-		oldPath := localVendorDir + "__old"
-		if _, err := os.Stat(oldPath); err == nil {
-			return fmt.Errorf("backup path already exists: %s", oldPath)
-		}
-		if err := os.Rename(localVendorDir, oldPath); err != nil {
-			return fmt.Errorf("failed to backup existing vendor dir: %w", err)
-		}
-		if verbose {
-			fmt.Printf("Backed up existing vendor dir: %s -> %s\n", filepath.Base(localVendorDir), filepath.Base(oldPath))
-		}
+	oldPath := localVendorDir + "__old"
+
+	err = fs.ValidateNotExists(oldPath)
+	if err != nil {
+		return fmt.Errorf("backup path already exists: %s", oldPath)
+	}
+	if err := os.Rename(localVendorDir, oldPath); err != nil {
+		return fmt.Errorf("failed to backup existing vendor dir: %w", err)
 	}
 
 	fmt.Printf("symlink %s\n", sourcePath)
 
+	absSourcePath, err := filepath.Abs(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of %s: %w", sourcePath, err)
+	}
 	// Create symlink
-	if err := os.Symlink(sourcePath, localVendorDir); err != nil {
+	if err := os.Symlink(absSourcePath, localVendorDir); err != nil {
 		return fmt.Errorf("failed to create symlink: %w", err)
 	}
 
