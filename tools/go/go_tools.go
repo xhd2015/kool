@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -64,6 +66,8 @@ func Handle(args []string) error {
 		return HandleResolve(args)
 	case "inspect":
 		return HandleInspect(args)
+	case "rebuild":
+		return HandleRebuild(args)
 	case "refactor":
 		return HandleRefactor(args)
 	case "vendor":
@@ -80,6 +84,46 @@ func Handle(args []string) error {
 		return cmd.Debug().Run("go", args...)
 	}
 	return fmt.Errorf("unknown command: %s", args[0])
+}
+
+const rebuildHelp = `
+kool go rebuild helps to rebuild go command easily
+
+Commands:
+  rebuild
+
+Run kool <cmd> --help for more information.
+`
+
+// run "go build -o `which XX` ./"
+func HandleRebuild(args []string) error {
+	args, err := flags.
+		Help("-h,--help", rebuildHelp).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	cwd, err = filepath.Abs(cwd)
+	if err != nil {
+		return err
+	}
+	name := filepath.Base(cwd)
+	bin, err := exec.LookPath(name)
+	if err != nil {
+		return err
+	}
+	absBin, err := filepath.Abs(bin)
+	if err != nil {
+		return err
+	}
+	return cmd.Debug().Run("go", "build", "-o", absBin, "./")
 }
 
 func HandleReplace(args []string) error {
