@@ -19,12 +19,34 @@ var templateFS embed.FS
 //go:embed server_template
 var serverTemplateFS embed.FS
 
+const help = `
+kool create helps to create new projects.
+
+Usage: kool create <TEMPLATE> <project-name>
+
+TEMPLATE: 
+  react         create a new react project
+  go-react      create a new go-react project (go backend + react frontend)
+  frontend      create a new frontend project (react frontend)
+  server        create a new server project (go backend)
+
+Examples:
+  kool create frontend my-project
+  kool create server my-project
+  kool create go-react my-project
+  kool create react my-project
+`
+
 func Handle(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-react, frontend, server")
 	}
 
 	template := args[0]
+	if template == "--help" || template == "help" {
+		fmt.Println(strings.TrimPrefix(help, "\n"))
+		return nil
+	}
 	if template == "" {
 		return fmt.Errorf("requires template name, e.g. kool create frontend <project-name>")
 	}
