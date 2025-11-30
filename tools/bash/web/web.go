@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/tools/bash/history"
-	"github.com/xhd2015/kool/tools/stringtool"
 	_ "github.com/xhd2015/kool/tools/web"
 	"github.com/xhd2015/kool/tools/web/server"
 	"github.com/xhd2015/less-gen/flags"
@@ -78,40 +77,23 @@ func handleHistoryList(w http.ResponseWriter, r *http.Request) {
 		pageSize = 20
 	}
 
-	homeHistory, err := history.GetHomeHistory()
+	lines, err := history.GetHistoryLines()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get home history: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	lines, err := history.ReadLines(homeHistory)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to read history: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	var nonEmpty []string
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			nonEmpty = append(nonEmpty, line)
-		}
-	}
-	lines = nonEmpty
-
-	// Reverse lines to show latest first
-	uniqLines := stringtool.Uniq(stringtool.Reverse(lines))
-
 	if search := r.URL.Query().Get("search"); search != "" {
 		filtered := make([]string, 0)
-		for _, line := range uniqLines {
+		for _, line := range lines {
 			if strings.Contains(line, search) {
 				filtered = append(filtered, line)
 			}
 		}
-		uniqLines = filtered
+		lines = filtered
 	}
 
-	total := len(uniqLines)
+	total := len(lines)
 	start := (page - 1) * pageSize
 	if start > total {
 		start = total
@@ -123,7 +105,7 @@ func handleHistoryList(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"list":  uniqLines[start:end],
+		"list":  lines[start:end],
 		"total": total,
 	})
 }
@@ -147,13 +129,7 @@ func handleHistoryDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	homeHistory, err := history.GetHomeHistory()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get home history: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	err = history.DeleteFromHistoryFile(homeHistory, req.Cmd)
+	err := history.DelHistoryLine(req.Cmd)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete from history: %v", err), http.StatusInternalServerError)
 		return

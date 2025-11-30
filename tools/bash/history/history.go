@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/less-gen/flags"
 )
 
@@ -210,6 +211,37 @@ func handleClean(args []string) error {
 	return nil
 }
 
+func delLineFromFile(file string, line string) error {
+	lines, err := ReadLines(file)
+	if err != nil {
+		return err
+	}
+	var newLines []string = make([]string, 0, len(lines))
+	for _, l := range lines {
+		if l == line {
+			continue
+		}
+		newLines = append(newLines, l)
+	}
+	return os.WriteFile(file, []byte(strings.Join(newLines, "\n")), 0644)
+}
+
+// GetAllHistoryFiles returns all history files, including home history and log files
+func GetAllHistoryFiles() ([]string, error) {
+	homeHistory, err := GetHomeHistory()
+	if err != nil {
+		return nil, err
+	}
+	logFiles, err := readLogFiles()
+	if err != nil {
+		return nil, err
+	}
+	allFiles := make([]string, 0, len(logFiles)+1)
+	allFiles = append(allFiles, homeHistory)
+	allFiles = append(allFiles, logFiles...)
+	return allFiles, nil
+}
+
 func GetHomeHistory() (string, error) {
 	homeHistory, err := os.UserHomeDir()
 	if err != nil {
@@ -229,6 +261,21 @@ func GetHomeHistory() (string, error) {
 
 	return homeHistory, nil
 }
+
+func ReadNonEmptyLines(path string) ([]string, error) {
+	lines, err := ReadLines(path)
+	if err != nil {
+		return nil, err
+	}
+	nonEmpty := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			nonEmpty = append(nonEmpty, line)
+		}
+	}
+	return nonEmpty, nil
+}
+
 func ReadLines(path string) ([]string, error) {
 	lines, err := os.ReadFile(path)
 	if err != nil {
@@ -297,6 +344,33 @@ func getLogFilesPath() (string, error) {
 }
 
 func readLogFiles() ([]string, error) {
+	configLogFiles, err := readConfigLogFiles()
+	if err != nil {
+		return nil, err
+	}
+	// check if ~/.bash_history_log exists
+	bashHistoryLog, err := GetHomeHistoryLog()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(bashHistoryLog); err == nil {
+		configLogFiles = append(configLogFiles, bashHistoryLog)
+	}
+
+	// uniq
+	configLogFiles = stringtool.Uniq(configLogFiles)
+	return configLogFiles, nil
+}
+
+func GetHomeHistoryLog() (string, error) {
+	homeHistory, err := GetHomeHistory()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeHistory, ".bash_history_log"), nil
+}
+
+func readConfigLogFiles() ([]string, error) {
 	logFilesPath, err := getLogFilesPath()
 	if err != nil {
 		return nil, err
