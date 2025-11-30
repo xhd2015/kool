@@ -82,7 +82,7 @@ type StaticOptions struct {
 
 func Static(mux *http.ServeMux, opts StaticOptions) error {
 	// Serve static files from the embedded React build
-	reactFileSystem, err := fs.Sub(distFS, "PROJECT_NAME-react/dist")
+	reactFileSystem, err := fs.Sub(distFS, "react/dist")
 	if err != nil {
 		return fmt.Errorf("failed to create react file system: %v", err)
 	}
@@ -105,7 +105,7 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 
 	mux.Handle("/assets/", http.StripPrefix("/assets/", &mimeTypeHandler{http.FileServer(http.FS(assetsFileSystem))}))
 	// Serve React static files like vite.svg from root
-	mux.Handle("/PROJECT_NAME.svg", &mimeTypeHandler{http.FileServer(http.FS(reactFileSystem))})
+	mux.Handle("/kool.svg", &mimeTypeHandler{http.FileServer(http.FS(reactFileSystem))})
 
 	// Serve the main HTML page
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -120,14 +120,18 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 		// Otherwise, serve embedded index.html
 		indexFile, err := reactFileSystem.Open("index.html")
 		if err != nil {
-			http.Error(w, "Failed to load index.html", http.StatusInternalServerError)
+			errMsg := fmt.Sprintf("Failed to load index.html: %v", err)
+			fmt.Println(errMsg)
+			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 		defer indexFile.Close()
 
 		content, err := io.ReadAll(indexFile)
 		if err != nil {
-			http.Error(w, "Failed to read index.html", http.StatusInternalServerError)
+			errMsg := fmt.Sprintf("Failed to read index.html: %v", err)
+			fmt.Println(errMsg)
+			http.Error(w, errMsg, http.StatusInternalServerError)
 			return
 		}
 

@@ -59,6 +59,10 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	if len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "unrecognized extra args: %s\n", strings.Join(args, " "))
+		os.Exit(1)
+	}
 	switch cmd {
 	case "install":
 		err = install()
@@ -146,6 +150,49 @@ func preCommitCheck(noCommit bool, amend bool) error {
 	}
 	if isDeleted {
 		return fmt.Errorf("delete %s is not allowed", needKeepFile)
+	}
+
+	// check frontend build
+	err = cmd.Dir(filepath.Join(rootDir, "tools", "web", "react")).Run("bun", "run", "build")
+	if err != nil {
+		return fmt.Errorf("frontend build failed: %w", err)
+	}
+
+	// check go build
+	err = cmd.Dir(rootDir).Run("go", "build", "-o", "/dev/null", "./")
+	if err != nil {
+		return fmt.Errorf("go build failed: %w", err)
+	}
+
+	// tools/web/react/dist
+	webDistDir := filepath.Join(rootDir, "tools", "web", "react", "dist")
+	files, err := os.ReadDir(webDistDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	hasFile := false
+	for _, file := range files {
+		if file.Name() == ".DS_Store" {
+			continue
+		}
+		hasFile = true
+		break
+	}
+	if !hasFile {
+		placeholder := filepath.Join(webDistDir, "placeholder.txt")
+		err := os.MkdirAll(webDistDir, 0755)
+		if err != nil {
+			return err
+		}
+		err = os.WriteFile(placeholder, nil, 0644)
+		if err != nil {
+			return err
+		}
+		// force add
+		err = cmd.Dir(rootDir).Run("git", "add", "-f", "tools/web/react/dist/placeholder.txt")
+		if err != nil {
+			return err
+		}
 	}
 
 	// update revision

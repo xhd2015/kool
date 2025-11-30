@@ -62,18 +62,18 @@ func handleMerge(args []string) error {
 		return fmt.Errorf("requires input files")
 	}
 
-	homeHistory, err := getHomeHistory()
+	homeHistory, err := GetHomeHistory()
 	if err != nil {
 		return err
 	}
 
-	lines, err := readLines(homeHistory)
+	lines, err := ReadLines(homeHistory)
 	if err != nil {
 		return err
 	}
 
 	for _, arg := range args {
-		fileLines, err := readLines(arg)
+		fileLines, err := ReadLines(arg)
 		if err != nil {
 			return err
 		}
@@ -115,12 +115,12 @@ func handleDel(args []string) error {
 		return fmt.Errorf("unrecognized extra args: %v", args)
 	}
 
-	homeHistory, err := getHomeHistory()
+	homeHistory, err := GetHomeHistory()
 	if err != nil {
 		return err
 	}
 
-	err = deleteFromHistoryFile(homeHistory, delCmd)
+	err = DeleteFromHistoryFile(homeHistory, delCmd)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func handleDel(args []string) error {
 	}
 
 	for _, logFile := range logFiles {
-		err = deleteFromHistoryFile(logFile, delCmd)
+		err = DeleteFromHistoryFile(logFile, delCmd)
 		if err != nil {
 			fmt.Printf("Warning: failed to delete from %s: %v\n", logFile, err)
 		}
@@ -140,8 +140,8 @@ func handleDel(args []string) error {
 	return nil
 }
 
-func deleteFromHistoryFile(historyFile, delCmd string) error {
-	lines, err := readLines(historyFile)
+func DeleteFromHistoryFile(historyFile, delCmd string) error {
+	lines, err := ReadLines(historyFile)
 	if err != nil {
 		return err
 	}
@@ -182,13 +182,13 @@ func handleClean(args []string) error {
 			return fmt.Errorf("unrecognized extra args: %v", args)
 		}
 	} else {
-		historyFile, err = getHomeHistory()
+		historyFile, err = GetHomeHistory()
 		if err != nil {
 			return err
 		}
 	}
 
-	lines, err := readLines(historyFile)
+	lines, err := ReadLines(historyFile)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func handleClean(args []string) error {
 	return nil
 }
 
-func getHomeHistory() (string, error) {
+func GetHomeHistory() (string, error) {
 	homeHistory, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -229,7 +229,7 @@ func getHomeHistory() (string, error) {
 
 	return homeHistory, nil
 }
-func readLines(path string) ([]string, error) {
+func ReadLines(path string) ([]string, error) {
 	lines, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

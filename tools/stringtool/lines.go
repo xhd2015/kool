@@ -70,9 +70,9 @@ func HandleLines(args []string) error {
 		case "sort":
 			lines = sortLines(lines)
 		case "reverse":
-			lines = reverse(lines)
+			lines = Reverse(lines)
 		case "uniq":
-			lines = uniq(lines)
+			lines = UniqTail(lines)
 		default:
 			return fmt.Errorf("unknown line operation: %s", action)
 		}
@@ -134,7 +134,7 @@ func trimSpace(lines []string) []string {
 	return trimmedLines
 }
 
-func uniq(lines []string) []string {
+func UniqTail(lines []string) []string {
 	mapping := make(map[string]int, len(lines))
 	n := len(lines)
 	uniqLines := make([]string, 0, len(lines))
@@ -146,7 +146,20 @@ func uniq(lines []string) []string {
 		mapping[line] = i
 		uniqLines = append(uniqLines, line)
 	}
-	return reverse(uniqLines)
+	return Reverse(uniqLines)
+}
+
+func Uniq(lines []string) []string {
+	mapping := make(map[string]bool, len(lines))
+	uniqLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if mapping[line] {
+			continue
+		}
+		mapping[line] = true
+		uniqLines = append(uniqLines, line)
+	}
+	return uniqLines
 }
 
 func sortLines(lines []string) []string {
@@ -156,7 +169,7 @@ func sortLines(lines []string) []string {
 	return sortedLines
 }
 
-func reverse(lines []string) []string {
+func Reverse(lines []string) []string {
 	n := len(lines)
 	reversedLines := make([]string, n)
 	for i, line := range lines {

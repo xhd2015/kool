@@ -9,7 +9,7 @@ import (
 	"MODULE_NAME/server"
 )
 
-//go:embed PROJECT_NAME-react/dist
+//go:embed all:PROJECT_NAME-react/dist
 var distFS embed.FS
 
 func main() {

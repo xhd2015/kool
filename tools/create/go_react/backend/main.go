@@ -12,8 +12,11 @@ import (
 //go:embed PROJECT_NAME-react/dist
 var distFS embed.FS
 
+//go:embed PROJECT_NAME-react/template.html
+var templateHTML string
+
 func main() {
-	server.Init(distFS)
+	server.Init(distFS, templateHTML)
 
 	err := run.Run(os.Args[1:])
 	if err != nil {

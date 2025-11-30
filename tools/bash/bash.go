@@ -6,6 +6,7 @@ import (
 	"github.com/xhd2015/kool/tools/bash/client"
 	"github.com/xhd2015/kool/tools/bash/history"
 	"github.com/xhd2015/kool/tools/bash/server"
+	"github.com/xhd2015/kool/tools/bash/web"
 )
 
 func Handle(args []string) error {
@@ -23,6 +24,8 @@ func Handle(args []string) error {
 		return server.Handle(args)
 	case "server-exec":
 		return client.Handle(args)
+	case "web":
+		return web.Handle(args)
 	}
 
 	return fmt.Errorf("unknown command: %s", cmd)
