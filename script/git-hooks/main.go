@@ -170,15 +170,15 @@ func preCommitCheck(noCommit bool, amend bool) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	hasFile := false
+	hasPlaceholderFile := false
 	for _, file := range files {
-		if file.Name() == ".DS_Store" {
-			continue
+		if file.Name() == "placeholder.txt" {
+			hasPlaceholderFile = true
+			break
 		}
-		hasFile = true
-		break
 	}
-	if !hasFile {
+
+	if !hasPlaceholderFile {
 		placeholder := filepath.Join(webDistDir, "placeholder.txt")
 		err := os.MkdirAll(webDistDir, 0755)
 		if err != nil {
