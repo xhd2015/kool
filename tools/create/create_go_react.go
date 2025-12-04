@@ -12,7 +12,7 @@ import (
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
-//go:embed go_react
+//go:embed all:go_react
 var goReactTemplateFS embed.FS
 
 const goReactHelp = `	
@@ -31,30 +31,32 @@ func HandleCreateGoReact(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("requires project")
 	}
-	projectName := args[0]
+	projectDir := args[0]
 	args = args[1:]
 
 	if len(args) > 0 {
 		return fmt.Errorf("unrecognized extra arguments: %v", strings.Join(args, ","))
 	}
 
-	if _, statErr := os.Stat(projectName); statErr == nil {
-		return fmt.Errorf("project %s already exists", projectName)
+	if _, statErr := os.Stat(projectDir); statErr == nil {
+		return fmt.Errorf("project %s already exists", projectDir)
 	}
 
-	err = os.MkdirAll(projectName, 0755)
+	err = os.MkdirAll(projectDir, 0755)
 	if err != nil {
 		return err
 	}
+
+	baseProjectName := filepath.Base(projectDir)
 
 	engine := "bun"
 
-	reactProjectName := projectName + "-react"
-	err = cmd.Debug().Dir(projectName).Run(engine, "create", "vite", reactProjectName, "--template", "react-ts")
+	reactProjectName := baseProjectName + "-react"
+	err = cmd.Debug().Dir(projectDir).Run(engine, "create", "vite", reactProjectName, "--template", "react-ts")
 	if err != nil {
 		return err
 	}
-	reactDir := filepath.Join(projectName, reactProjectName)
+	reactDir := filepath.Join(projectDir, reactProjectName)
 	err = cmd.Debug().Dir(reactDir).Run("bun", "install")
 	if err != nil {
 		return err
@@ -78,33 +80,30 @@ func HandleCreateGoReact(args []string) error {
 		return fmt.Errorf("failed to update index.css: %v", err)
 	}
 
-	err = os.Rename(filepath.Join(reactDir, "public", "vite.svg"), filepath.Join(reactDir, "public", projectName+".svg"))
+	err = os.Rename(filepath.Join(reactDir, "public", "vite.svg"), filepath.Join(reactDir, "public", baseProjectName+".svg"))
 	if err != nil {
 		return err
 	}
 
-	err = replaceFile(filepath.Join(reactDir, "index.html"), "/vite.svg", "/"+projectName+".svg")
+	err = replaceFile(filepath.Join(reactDir, "index.html"), "/vite.svg", "/"+baseProjectName+".svg")
 	if err != nil {
 		return err
 	}
 
 	// Initialize Go Module
-	moduleName, err := suggestGoModPath(projectName)
-	if err != nil {
-		return err
-	}
-	if moduleName == "" {
-		moduleName = projectName
+	modulePath, _ := suggestGoModPath(projectDir)
+	if modulePath == "" {
+		modulePath = baseProjectName
 	}
 
-	err = cmd.Debug().Dir(projectName).Run("go", "mod", "init", moduleName)
+	err = cmd.Debug().Dir(projectDir).Run("go", "mod", "init", modulePath)
 	if err != nil {
 		return err
 	}
 
 	// Copy Backend Template Files
 	backendRoot := "go_react/backend"
-	err = copyTemplateDir(goReactTemplateFS, backendRoot, projectName, projectName, moduleName)
+	err = copyTemplateDir(goReactTemplateFS, backendRoot, projectDir, baseProjectName, modulePath)
 	if err != nil {
 		return err
 	}
@@ -124,7 +123,7 @@ func HandleCreateGoReact(args []string) error {
 
 	// Copy Frontend Template Files
 	frontendRoot := "go_react/frontend"
-	err = copyTemplateDir(goReactTemplateFS, frontendRoot, reactDir, projectName, moduleName)
+	err = copyTemplateDir(goReactTemplateFS, frontendRoot, reactDir, baseProjectName, modulePath)
 	if err != nil {
 		return err
 	}
@@ -149,7 +148,7 @@ func HandleCreateGoReact(args []string) error {
 	}
 
 	// Go Mod Tidy
-	err = cmd.Debug().Dir(projectName).Run("go", "mod", "tidy")
+	err = cmd.Debug().Dir(projectDir).Run("go", "mod", "tidy")
 	if err != nil {
 		return err
 	}

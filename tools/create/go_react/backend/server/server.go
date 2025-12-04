@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"io"
@@ -10,8 +11,12 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xhd2015/kool/pkgs/web"
@@ -25,6 +30,54 @@ func Init(fs embed.FS, tmpl string) {
 	templateHTML = tmpl
 }
 
+func checkPort(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), 1*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+func EnsureFrontendDevServer(ctx context.Context) (chan struct{}, error) {
+	// Check if 5173 is running
+	fmt.Println("Frontend dev server (port 5173) not detected. Starting it...")
+	cmd := exec.Command("bun", "run", "dev")
+	cmd.Dir = "PROJECT_NAME-react/"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Start()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start frontend dev server: %v", err)
+	}
+
+	done := make(chan struct{})
+	// Ensure sub-process is killed on context cancellation
+	go func() {
+		defer close(done)
+		<-ctx.Done()
+		if cmd.Process != nil {
+			fmt.Println("Stopping frontend dev server...")
+			// Kill the process group
+			cmd.Process.Kill()
+		}
+	}()
+
+	// Wait for port to be ready
+	fmt.Print("Waiting for frontend server...")
+	for i := 0; i < 30; i++ {
+		if checkPort(5173) {
+			fmt.Println(" Ready!")
+			return done, nil
+		}
+		time.Sleep(1 * time.Second)
+		fmt.Print(".")
+	}
+	fmt.Println()
+	return nil, fmt.Errorf("frontend server failed to start within timeout")
+}
+
 func Serve(port int, dev bool) error {
 	mux := http.NewServeMux()
 	server := &http.Server{
@@ -35,6 +88,36 @@ func Serve(port int, dev bool) error {
 	}
 
 	if dev {
+		if !checkPort(5173) {
+			// Create context for managing subprocesses
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Handle signals to gracefully shutdown subprocesses
+			go func() {
+				c := make(chan os.Signal, 1)
+				signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+				<-c
+				cancel()
+
+				// wait the dev server to be closed
+				if err := server.Close(); err != nil {
+					fmt.Printf("Failed to close server: %v\n", err)
+				}
+			}()
+
+			subProcessDone, err := EnsureFrontendDevServer(ctx)
+			if err != nil {
+				return err
+			}
+			if subProcessDone != nil {
+				defer func() {
+					fmt.Println("Waiting for frontend dev server to be closed...")
+					<-subProcessDone
+				}()
+			}
+		}
+
 		err := ProxyDev(mux)
 		if err != nil {
 			return err
