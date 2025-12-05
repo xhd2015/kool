@@ -153,6 +153,12 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
+	// Git Init
+	err = cmd.Debug().Dir(projectDir).Run("git", "init")
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
