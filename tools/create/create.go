@@ -19,6 +19,9 @@ var templateFS embed.FS
 //go:embed server_template
 var serverTemplateFS embed.FS
 
+//go:embed electron_app_template
+var electronAppTemplateFS embed.FS
+
 const help = `
 kool create helps to create new projects.
 
@@ -29,17 +32,19 @@ TEMPLATE:
   go-react      create a new go-react project (go backend + react frontend)
   frontend      create a new frontend project (react frontend)
   server        create a new server project (go backend)
+  electron      create a new electron project (electron frontend)
 
 Examples:
   kool create frontend my-project
   kool create server my-project
   kool create go-react my-project
   kool create react my-project
+  kool create electron my-project
 `
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-react, frontend, server")
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-react, frontend, server, electron")
 	}
 
 	template := args[0]
@@ -56,7 +61,7 @@ func Handle(args []string) error {
 	if template == "go-react" {
 		return HandleCreateGoReact(args[1:])
 	}
-	if template != "frontend" && template != "server" {
+	if template != "frontend" && template != "server" && template != "electron" {
 		return fmt.Errorf("unsupported template: %s", template)
 	}
 
@@ -83,9 +88,13 @@ func Handle(args []string) error {
 
 	srcFS := templateFS
 	srcRoot := "frontend_template"
-	if template == "server" {
+	switch template {
+	case "server":
 		srcFS = serverTemplateFS
 		srcRoot = "server_template"
+	case "electron":
+		srcFS = electronAppTemplateFS
+		srcRoot = "electron_app_template"
 	}
 	// Copy template files to new project
 	err := fs.WalkDir(srcFS, srcRoot, func(path string, d fs.DirEntry, err error) error {
@@ -159,11 +168,19 @@ func Handle(args []string) error {
 		if err != nil {
 			return err
 		}
+	} else if template == "electron" {
+		// run npm install
+		err := cmd.Debug().Dir(targetPath).Run("npm", "install")
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Printf("Successfully created new project: %s\n", projectName)
 	if template == "frontend" {
 		fmt.Printf("To get started: \n  cd %s \n  bun watch\n", projectName)
+	} else if template == "electron" {
+		fmt.Printf("To get started: \n  cd %s \n  npm run dev\n", projectName)
 	}
 	return nil
 }

@@ -60,6 +60,8 @@ kool debug go
 Debug go tools
 `
 
+// NOTE: go requires matching dlv version
+// go1.19 known to work with dlv 1.25.0
 func handleGo(args []string) error {
 	if len(args) == 0 {
 		return errors.New("requires command, try 'kool debug go --help'")

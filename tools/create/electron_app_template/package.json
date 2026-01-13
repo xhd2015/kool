@@ -1,0 +1,48 @@
+{
+  "name": "electron-app-template",
+  "version": "1.0.0",
+  "description": "Electron App Template",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "start": "npm run build && electron .",
+    "package": "npm run build && electron-builder build --mac",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on tcp:5173 && tsc -p tsconfig.electron.json && NODE_ENV=development electron .\""
+  },
+  "build": {
+    "appId": "com.template.app",
+    "productName": "TemplateApp",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "target": "dmg",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "wait-on": "^9.0.3"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.12.0"
+  }
+}
