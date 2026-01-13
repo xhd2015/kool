@@ -20,7 +20,8 @@ func GetStatedFiles(dir string, verbose bool) ([]string, error) {
 	if verbose {
 		c.Debug()
 	}
-	output, err := c.Dir(dir).Output("git", "diff", "--name-only", "--cached")
+	// exclude deleted files
+	output, err := c.Dir(dir).Output("git", "diff", "--name-only", "--cached", "--diff-filter=ACMR")
 	if err != nil {
 		return nil, err
 	}
