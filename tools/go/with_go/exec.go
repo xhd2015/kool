@@ -44,8 +44,13 @@ func ExecGoroot(goroot string, args []string, extraEnvs []string) error {
 	if err != nil {
 		return err
 	}
+
+	argEnvs, args := takeEnvs(args)
+
 	envs := os.Environ()
 	envs = append(envs, extraEnvs...)
+	envs = append(envs, argEnvs...)
+
 	PATH := filepath.Join(absGoroot, "bin") + string(os.PathListSeparator) + os.Getenv("PATH")
 	envs = append(envs, "GOROOT="+absGoroot, "PATH="+PATH)
 
@@ -87,4 +92,19 @@ func ExecGoroot(goroot string, args []string, extraEnvs []string) error {
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 	return execCmd.Run()
+}
+
+func takeEnvs(rawArgs []string) (envs []string, args []string) {
+	i := 0
+	n := len(rawArgs)
+	for i < n {
+		arg := rawArgs[i]
+		if !strings.Contains(arg, "=") {
+			args = rawArgs[i:]
+			break
+		}
+		envs = append(envs, arg)
+		i++
+	}
+	return
 }

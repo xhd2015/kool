@@ -73,7 +73,11 @@ func InstallGo(goVersion string, prompt string) (goRoot string, err error) {
 	if prompt != "" {
 		fmt.Fprint(os.Stderr, prompt)
 	}
-	err = cmd.Debug().Run("go", "run", downloadGo, "download", "--dir", installDir, goVersion)
+	// override GOOS and GOARCH
+	err = cmd.Debug().Env([]string{
+		"GOOS=",
+		"GOARCH=",
+	}).Run("go", "run", downloadGo, "download", "--dir", installDir, goVersion)
 	if err != nil {
 		return "", err
 	}
