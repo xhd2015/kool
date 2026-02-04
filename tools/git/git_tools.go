@@ -11,6 +11,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
 	"github.com/xhd2015/kool/tools/git/grep"
 	"github.com/xhd2015/kool/tools/git/hooks"
+	"github.com/xhd2015/kool/tools/git/line"
 	"github.com/xhd2015/kool/tools/git/ls"
 	"github.com/xhd2015/kool/tools/git/staged"
 	"github.com/xhd2015/kool/tools/git/worktree"
@@ -24,6 +25,7 @@ Usage: kool git <cmd> [OPTIONS]
 
 Available commands:
   ls                               list files that is able to be committed with git add -A
+  line                             line-related commands (history)
   worktree                         worktree commands
   tag-next                         tag next version
   show-tag                         show tag of current commit
@@ -42,11 +44,12 @@ Examples:
   kool git help                    show help message
   kool git ls                      list files
   kool git tag-next --push
+  kool git line history <file> 10  # show history of line 10
 `
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: tag-next, show-tag, show-exclude, check-merge,help")
+		return fmt.Errorf("commands: tag-next, show-tag, show-exclude, check-merge, line, help")
 	}
 	var isShowTag bool
 	var remainArgs []string
@@ -94,6 +97,8 @@ func Handle(args []string) error {
 		return staged.Handle(args[1:])
 	case "grep":
 		return grep.Handle(args[1:])
+	case "line":
+		return line.Handle(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}

@@ -10,3 +10,4 @@ __debug-main.bin
 **/.xgo/gen
 
 /tools/create/server_template/go.mod
+/tools/create/server_go_db_template/script/podman-compose/mysql_db

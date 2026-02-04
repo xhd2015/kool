@@ -1,0 +1,19 @@
+# Database
+/mysql_db
+
+# Build artifacts
+/server
+__debug_bin*
+
+# IDE
+.vscode
+!.vscode/tasks.json
+
+# OS
+.DS_Store
+
+# Logs
+/log
+
+# Generated files
+.podman-compose.yml

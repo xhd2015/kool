@@ -1,0 +1,28 @@
+# Docker/Podman compose file for MySQL database
+#
+# Usage (via Go script):
+#    go run ./script/podman-compose
+#    go run ./script/podman-compose up --build
+#    go run ./script/podman-compose down
+#
+# Import database:
+#    podman exec -it app_db bash -c "mysql -uroot -prootpassword app_db < /path/to/dump.sql"
+#
+# Access MySQL client:
+#    podman exec -it app_db mysql -uroot -prootpassword app_db
+
+services:
+  db:
+    image: public.ecr.aws/docker/library/mysql:${MYSQL_VERSION:-latest}
+    command: mysqld
+    container_name: app_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql_db:/var/lib/mysql
+    user: "${MYSQL_USER_MAPPING:-502:20}"
