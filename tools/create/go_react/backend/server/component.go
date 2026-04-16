@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/xhd2015/kool/pkgs/web"
@@ -35,6 +39,30 @@ func ServeComponent(port int, opts ServeOptions) error {
 	}
 
 	if opts.Dev {
+		if !checkPort(5173) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			go func() {
+				c := make(chan os.Signal, 1)
+				signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+				<-c
+				cancel()
+				server.Close()
+			}()
+
+			subProcessDone, err := EnsureFrontendDevServer(ctx)
+			if err != nil {
+				return err
+			}
+			if subProcessDone != nil {
+				defer func() {
+					fmt.Println("Waiting for frontend dev server to be closed...")
+					<-subProcessDone
+				}()
+			}
+		}
+
 		err := ProxyDev(mux)
 		if err != nil {
 			return err

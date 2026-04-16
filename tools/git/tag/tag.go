@@ -2,6 +2,7 @@ package tag
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/xhd2015/xgo/support/cmd"
@@ -79,9 +80,14 @@ func GetVersionTag(targetDir, commit, tagPrefix string) (string, error) {
 	return "", fmt.Errorf("%w: (v0.0.X) found at %s in %s, please tag first", ErrNoTag, commit, targetDir)
 }
 
+// numericVersionPattern matches version tags like v1.0.123, v2.3.456, etc.
+// The last component must be purely numeric (no letters like "ldb.t06")
+var numericVersionPattern = regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
+
 // GetLatestVersionTag returns the latest version tag in the directory that has versionPrefix as prefix
 // The basic name (part after stripping versionPrefix) should not contain "/"
 // If versionPrefix is "", then the returned tag should not be nested (no "/" in it)
+// Only tags matching the pattern vX.Y.Z (where X, Y, Z are numbers) are considered
 func GetLatestVersionTag(dir string, versionPrefix string) (string, error) {
 	// Get all tags in the repository, sorted by version (latest first)
 	tagOutput, err := cmd.Dir(dir).Output("git", "tag", "-l", "--sort=-version:refname", versionPrefix+"*")
@@ -112,9 +118,17 @@ func GetLatestVersionTag(dir string, versionPrefix string) (string, error) {
 			if strings.Contains(basicName, "/") {
 				continue
 			}
+			// Check if the version part matches numeric pattern (vX.Y.Z)
+			if !numericVersionPattern.MatchString("v" + basicName) {
+				continue
+			}
 		} else {
 			// If versionPrefix is "", tag should not be nested (no "/" in it)
 			if strings.Contains(tag, "/") {
+				continue
+			}
+			// Check if the tag matches numeric pattern (vX.Y.Z)
+			if !numericVersionPattern.MatchString(tag) {
 				continue
 			}
 		}
