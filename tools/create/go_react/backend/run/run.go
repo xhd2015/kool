@@ -11,17 +11,22 @@ import (
 )
 
 const help = `
-Usage: PROJECT_NAME <subcommand>
+Usage: PROJECT_NAME [options]
 
-Subcommands:
-  create    Create a new presentation
+Options:
+  --dev              run in dev mode (proxies to the vite dev server on :5173)
+  --port PORT        listen on PORT (default: auto-select starting at 8080)
+  --component NAME   render a single named component (default: full app)
+  -h, --help         show this help
 `
 
 func Run(args []string) error {
 	var devFlag bool
 	var component string
+	var port int
 	args, err := flags.
 		Bool("--dev", &devFlag).
+		Int("--port", &port).
 		String("--component", &component).
 		Help("-h,--help", help).
 		Parse(args)
@@ -38,10 +43,11 @@ func Run(args []string) error {
 		return nil
 	}
 
-	// next port
-	port, err := web.FindAvailablePort(8080, 100)
-	if err != nil {
-		return err
+	if port == 0 {
+		port, err = web.FindAvailablePort(8080, 100)
+		if err != nil {
+			return err
+		}
 	}
 
 	if component != "" {
@@ -58,12 +64,6 @@ func Run(args []string) error {
 			Dev: devFlag,
 			Static: server.StaticOptions{
 				IndexHtml: html,
-			},
-			OpenBrowserUrl: func(port int, url string) string {
-				if devFlag {
-					return fmt.Sprintf("%s/?component=%s", url, component)
-				}
-				return url
 			},
 		})
 	}

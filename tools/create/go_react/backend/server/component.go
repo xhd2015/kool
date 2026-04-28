@@ -9,16 +9,12 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/xhd2015/kool/pkgs/web"
 )
 
 type ServeOptions struct {
-	Static         StaticOptions
-	NoOpenBrowser  bool
-	OpenBrowserUrl func(port int, url string) string
-	Route          func(mux *http.ServeMux) error // Optional custom route registration
-	Dev            bool
+	Static StaticOptions
+	Route  func(mux *http.ServeMux) error // Optional custom route registration
+	Dev    bool
 }
 
 func ServeComponent(port int, opts ServeOptions) error {
@@ -39,31 +35,29 @@ func ServeComponent(port int, opts ServeOptions) error {
 	}
 
 	if opts.Dev {
-		if !checkPort(5173) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-			go func() {
-				c := make(chan os.Signal, 1)
-				signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-				<-c
-				cancel()
-				server.Close()
+		go func() {
+			c := make(chan os.Signal, 1)
+			signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+			<-c
+			cancel()
+			server.Close()
+		}()
+
+		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx)
+		if err != nil {
+			return err
+		}
+		if subProcessDone != nil {
+			defer func() {
+				fmt.Println("Waiting for frontend dev server to be closed...")
+				<-subProcessDone
 			}()
-
-			subProcessDone, err := EnsureFrontendDevServer(ctx)
-			if err != nil {
-				return err
-			}
-			if subProcessDone != nil {
-				defer func() {
-					fmt.Println("Waiting for frontend dev server to be closed...")
-					<-subProcessDone
-				}()
-			}
 		}
 
-		err := ProxyDev(mux)
+		err = ProxyDev(mux, vitePort)
 		if err != nil {
 			return err
 		}
@@ -87,20 +81,7 @@ func ServeComponent(port int, opts ServeOptions) error {
 		}
 	}
 
-	url := fmt.Sprintf("http://localhost:%d", port)
-
-	fmt.Printf("Serving at %s\n", url)
-
-	if !opts.NoOpenBrowser {
-		go func() {
-			time.Sleep(1 * time.Second)
-			openUrl := url
-			if opts.OpenBrowserUrl != nil {
-				openUrl = opts.OpenBrowserUrl(port, url)
-			}
-			web.OpenBrowser(openUrl)
-		}()
-	}
+	fmt.Printf("Serving at http://localhost:%d\n", port)
 
 	return server.ListenAndServe()
 }

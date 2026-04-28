@@ -13,6 +13,7 @@ import (
 
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
+	"github.com/xhd2015/kool/tools/go/modules"
 	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/vendortool"
 	"github.com/xhd2015/less-gen/flags"
@@ -37,6 +38,7 @@ Commands:
   refactor
   vendor
   find
+  modules
   example
   run
 
@@ -74,6 +76,8 @@ func Handle(args []string) error {
 		return vendortool.Handle(args)
 	case "find":
 		return find.Handle(args)
+	case "modules":
+		return modules.Handle(args)
 	case "example":
 		return example.Handle(args)
 	case "run":
@@ -83,7 +87,7 @@ func Handle(args []string) error {
 	case "env":
 		return cmd.Debug().Run("go", args...)
 	}
-	return fmt.Errorf("unknown command: %s", args[0])
+	return fmt.Errorf("unknown command: %s", gocmd)
 }
 
 const rebuildHelp = `

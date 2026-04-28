@@ -18,8 +18,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/xhd2015/kool/pkgs/web"
 )
 
 var distFS embed.FS
@@ -39,43 +37,90 @@ func checkPort(port int) bool {
 	return true
 }
 
-func EnsureFrontendDevServer(ctx context.Context) (chan struct{}, error) {
-	// Check if 5173 is running
-	fmt.Println("Frontend dev server (port 5173) not detected. Starting it...")
-	cmd := exec.Command("bun", "run", "dev")
+// EnsureFrontendDevServer starts `bun run dev` for the React app on an
+// auto-selected free port (starting at 5173) and blocks until the port
+// is reachable. It returns the chosen port along with a channel that
+// closes once the sub-process has fully terminated after ctx is
+// cancelled.
+//
+// Selecting a free port dynamically means multiple projects can run in
+// --dev mode in parallel; it also avoids accidentally proxying to
+// another project's vite instance that happens to own 5173.
+func EnsureFrontendDevServer(ctx context.Context) (int, chan struct{}, error) {
+	vitePort, err := findFreeVitePort(5173, 100)
+	if err != nil {
+		return 0, nil, fmt.Errorf("pick frontend port: %v", err)
+	}
+
+	fmt.Printf("Starting frontend dev server on port %d...\n", vitePort)
+	// `--` separates bun-run flags from the script's own flags so vite
+	// picks up `--port`.
+	cmd := exec.Command("bun", "run", "dev", "--", "--port", fmt.Sprintf("%d", vitePort))
 	cmd.Dir = "PROJECT_NAME-react/"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
-		return nil, fmt.Errorf("failed to start frontend dev server: %v", err)
+		return 0, nil, fmt.Errorf("failed to start frontend dev server: %v", err)
 	}
 
+	// childExited closes once the sub-process is fully reaped.
+	childExited := make(chan struct{})
+	go func() {
+		cmd.Wait()
+		close(childExited)
+	}()
+
 	done := make(chan struct{})
-	// Ensure sub-process is killed on context cancellation
 	go func() {
 		defer close(done)
-		<-ctx.Done()
-		if cmd.Process != nil {
-			fmt.Println("Stopping frontend dev server...")
-			// Kill the process group
-			cmd.Process.Kill()
+		select {
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				fmt.Println("Stopping frontend dev server...")
+				cmd.Process.Kill()
+			}
+			<-childExited
+		case <-childExited:
 		}
 	}()
 
-	// Wait for port to be ready
-	fmt.Print("Waiting for frontend server...")
+	fmt.Printf("Waiting for frontend server on port %d...", vitePort)
 	for i := 0; i < 30; i++ {
-		if checkPort(5173) {
-			fmt.Println(" Ready!")
-			return done, nil
+		// Exit the ready loop immediately if vite died (e.g. port in
+		// use) so we surface the failure instead of hanging 30s.
+		select {
+		case <-childExited:
+			fmt.Println()
+			return 0, nil, fmt.Errorf("frontend dev server exited before it became ready")
+		default:
 		}
-		time.Sleep(1 * time.Second)
+		if checkPort(vitePort) {
+			fmt.Println(" Ready!")
+			return vitePort, done, nil
+		}
+		time.Sleep(500 * time.Millisecond)
 		fmt.Print(".")
 	}
 	fmt.Println()
-	return nil, fmt.Errorf("frontend server failed to start within timeout")
+	return 0, nil, fmt.Errorf("frontend server failed to start within timeout")
+}
+
+// findFreeVitePort returns the first port >= startPort that has
+// nothing listening on localhost. Unlike FindAvailablePort (which uses
+// net.Listen on :port and can succeed even when another process has
+// bound the loopback interface on the same port family), this uses
+// `checkPort` so the result reflects "can vite's default loopback
+// listener use this port?"
+func findFreeVitePort(startPort, maxAttempts int) (int, error) {
+	for i := 0; i < maxAttempts; i++ {
+		port := startPort + i
+		if !checkPort(port) {
+			return port, nil
+		}
+	}
+	return 0, fmt.Errorf("no free port found in [%d, %d)", startPort, startPort+maxAttempts)
 }
 
 func Serve(port int, dev bool) error {
@@ -88,37 +133,32 @@ func Serve(port int, dev bool) error {
 	}
 
 	if dev {
-		if !checkPort(5173) {
-			// Create context for managing subprocesses
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-			// Handle signals to gracefully shutdown subprocesses
-			go func() {
-				c := make(chan os.Signal, 1)
-				signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-				<-c
-				cancel()
+		go func() {
+			c := make(chan os.Signal, 1)
+			signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+			<-c
+			cancel()
 
-				// wait the dev server to be closed
-				if err := server.Close(); err != nil {
-					fmt.Printf("Failed to close server: %v\n", err)
-				}
+			if err := server.Close(); err != nil {
+				fmt.Printf("Failed to close server: %v\n", err)
+			}
+		}()
+
+		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx)
+		if err != nil {
+			return err
+		}
+		if subProcessDone != nil {
+			defer func() {
+				fmt.Println("Waiting for frontend dev server to be closed...")
+				<-subProcessDone
 			}()
-
-			subProcessDone, err := EnsureFrontendDevServer(ctx)
-			if err != nil {
-				return err
-			}
-			if subProcessDone != nil {
-				defer func() {
-					fmt.Println("Waiting for frontend dev server to be closed...")
-					<-subProcessDone
-				}()
-			}
 		}
 
-		err := ProxyDev(mux)
+		err = ProxyDev(mux, vitePort)
 		if err != nil {
 			return err
 		}
@@ -136,22 +176,16 @@ func Serve(port int, dev bool) error {
 
 	fmt.Printf("Serving directory preview at http://localhost:%d\n", port)
 
-	go func() {
-		time.Sleep(1 * time.Second)
-		web.OpenBrowser(fmt.Sprintf("http://localhost:%d", port))
-	}()
-
 	return server.ListenAndServe()
 }
 
-func ProxyDev(mux *http.ServeMux) error {
-	targetURL, err := url.Parse("http://localhost:5173")
+func ProxyDev(mux *http.ServeMux, vitePort int) error {
+	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", vitePort))
 	if err != nil {
 		return fmt.Errorf("invalid proxy target: %v", err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
-	// Proxy everything else to the frontend dev server
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		r.Host = targetURL.Host
 		proxy.ServeHTTP(w, r)

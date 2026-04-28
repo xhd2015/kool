@@ -80,12 +80,10 @@ func HandleCreateGoReact(args []string) error {
 		return fmt.Errorf("failed to update index.css: %v", err)
 	}
 
-	err = os.Rename(filepath.Join(reactDir, "public", "vite.svg"), filepath.Join(reactDir, "public", baseProjectName+".svg"))
-	if err != nil {
-		return err
-	}
-
-	err = replaceFile(filepath.Join(reactDir, "index.html"), "/vite.svg", "/"+baseProjectName+".svg")
+	// Older vite templates produced `public/vite.svg`; newer ones (>=8.x)
+	// produce `public/favicon.svg` instead. Handle whichever is present so
+	// the scaffold keeps working across vite versions.
+	err = renameViteIcon(reactDir, baseProjectName)
 	if err != nil {
 		return err
 	}
@@ -204,6 +202,40 @@ func replaceFile(f string, old, new string) error {
 	}
 	content = []byte(strings.Replace(string(content), old, new, 1))
 	return os.WriteFile(f, content, 0644)
+}
+
+// renameViteIcon renames the vite-scaffolded icon (either `vite.svg` or
+// newer `favicon.svg`) in <reactDir>/public to <projectName>.svg, and
+// updates the corresponding reference in <reactDir>/index.html.
+//
+// If neither icon is present (e.g. a future vite template), it returns
+// nil so scaffolding can still proceed; the project's index.html will
+// simply keep its original href.
+func renameViteIcon(reactDir, projectName string) error {
+	publicDir := filepath.Join(reactDir, "public")
+	target := projectName + ".svg"
+
+	candidates := []string{"vite.svg", "favicon.svg"}
+	var source string
+	for _, c := range candidates {
+		if _, err := os.Stat(filepath.Join(publicDir, c)); err == nil {
+			source = c
+			break
+		}
+	}
+	if source == "" {
+		return nil
+	}
+	if source == target {
+		return nil
+	}
+
+	err := os.Rename(filepath.Join(publicDir, source), filepath.Join(publicDir, target))
+	if err != nil {
+		return fmt.Errorf("rename %s -> %s: %v", source, target, err)
+	}
+
+	return replaceFile(filepath.Join(reactDir, "index.html"), "/"+source, "/"+target)
 }
 
 func updateAppCSS(path string) error {
