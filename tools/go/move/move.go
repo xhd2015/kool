@@ -9,16 +9,33 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xhd2015/less-gen/flags"
 	"github.com/xhd2015/xgo/support/edit/goedit"
 	"github.com/xhd2015/xgo/support/goinfo"
 	"golang.org/x/tools/go/packages"
 )
 
+const moveHelp = `
+kool go refactor move moves a package and rewrites imports.
+
+Usage: kool go refactor move <src> <dst>
+
+Arguments:
+  src    source package directory
+  dst    destination package directory
+`
+
 // move a package from one directory to another
 // it's part of refactor
 func Handle(args []string) error {
+	args, err := flags.
+		Help("-h,--help", moveHelp).
+		Parse(args)
+	if err != nil {
+		return err
+	}
 	if len(args) < 2 {
-		return fmt.Errorf("usage: kool go move <src> <dst>")
+		return fmt.Errorf("usage: kool go refactor move <src> <dst>")
 	}
 	if len(args) > 2 {
 		return fmt.Errorf("unrecognized extra argments: %v", args[2:])
