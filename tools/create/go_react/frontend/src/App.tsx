@@ -1,7 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useState } from 'react';
 __APP_GEN_IMPORT__
+import { getRoutePrefix } from './routePrefix';
 import './App.css';
+
+const routePrefix = getRoutePrefix();
 
 function Home() {
     const [count, setCount] = useState(0);
@@ -40,7 +43,7 @@ function About() {
 
 function App() {
     return (
-        <Router>
+        <Router basename={routePrefix || undefined}>
             <nav style={{ padding: '10px 20px', borderBottom: '1px solid #eee', display: 'flex', gap: '20px' }}>
                 <Link to="/">Home</Link>
                 <Link to="/about">About</Link>

@@ -14,19 +14,22 @@ const help = `
 Usage: PROJECT_NAME [options]
 
 Options:
-  --dev              run in dev mode (proxies to the vite dev server on :5173)
-  --port PORT        listen on PORT (default: auto-select starting at 8080)
-  --component NAME   render a single named component (default: full app)
-  -h, --help         show this help
+  --dev                    run in dev mode (proxies to the vite dev server)
+  --port PORT              listen on PORT (default: auto-select starting at 8080)
+  --route-prefix PREFIX    mount the whole app under PREFIX, e.g. my-app
+  --component NAME         render a single named component (default: full app)
+  -h, --help               show this help
 `
 
 func Run(args []string) error {
 	var devFlag bool
 	var component string
 	var port int
+	var routePrefix string
 	args, err := flags.
 		Bool("--dev", &devFlag).
 		Int("--port", &port).
+		String("--route-prefix", &routePrefix).
 		String("--component", &component).
 		Help("-h,--help", help).
 		Parse(args)
@@ -61,12 +64,13 @@ func Run(args []string) error {
 			}
 		}
 		return server.ServeComponent(port, server.ServeOptions{
-			Dev: devFlag,
+			Dev:         devFlag,
+			RoutePrefix: routePrefix,
 			Static: server.StaticOptions{
 				IndexHtml: html,
 			},
 		})
 	}
 
-	return server.Serve(port, devFlag)
+	return server.Serve(port, devFlag, routePrefix)
 }

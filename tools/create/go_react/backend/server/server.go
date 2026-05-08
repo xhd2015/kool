@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -46,7 +48,7 @@ func checkPort(port int) bool {
 // Selecting a free port dynamically means multiple projects can run in
 // --dev mode in parallel; it also avoids accidentally proxying to
 // another project's vite instance that happens to own 5173.
-func EnsureFrontendDevServer(ctx context.Context) (int, chan struct{}, error) {
+func EnsureFrontendDevServer(ctx context.Context, routePrefix string) (int, chan struct{}, error) {
 	vitePort, err := findFreeVitePort(5173, 100)
 	if err != nil {
 		return 0, nil, fmt.Errorf("pick frontend port: %v", err)
@@ -55,7 +57,11 @@ func EnsureFrontendDevServer(ctx context.Context) (int, chan struct{}, error) {
 	fmt.Printf("Starting frontend dev server on port %d...\n", vitePort)
 	// `--` separates bun-run flags from the script's own flags so vite
 	// picks up `--port`.
-	cmd := exec.Command("bun", "run", "dev", "--", "--port", fmt.Sprintf("%d", vitePort))
+	cmdArgs := []string{"run", "dev", "--", "--port", fmt.Sprintf("%d", vitePort)}
+	if base := NormalizeRoutePrefix(routePrefix); base != "" {
+		cmdArgs = append(cmdArgs, "--base", strings.TrimRight(base, "/")+"/")
+	}
+	cmd := exec.Command("bun", cmdArgs...)
 	cmd.Dir = "PROJECT_NAME-react/"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -123,13 +129,14 @@ func findFreeVitePort(startPort, maxAttempts int) (int, error) {
 	return 0, fmt.Errorf("no free port found in [%d, %d)", startPort, startPort+maxAttempts)
 }
 
-func Serve(port int, dev bool) error {
+func Serve(port int, dev bool, routePrefix string) error {
+	routePrefix = NormalizeRoutePrefix(routePrefix)
 	mux := http.NewServeMux()
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		Handler:      mux,
+		Handler:      mountRoutePrefix(routePrefix, mux),
 	}
 
 	if dev {
@@ -147,7 +154,7 @@ func Serve(port int, dev bool) error {
 			}
 		}()
 
-		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx)
+		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx, routePrefix)
 		if err != nil {
 			return err
 		}
@@ -158,12 +165,12 @@ func Serve(port int, dev bool) error {
 			}()
 		}
 
-		err = ProxyDev(mux, vitePort)
+		err = ProxyDev(mux, vitePort, routePrefix)
 		if err != nil {
 			return err
 		}
 	} else {
-		err := Static(mux, StaticOptions{})
+		err := Static(mux, StaticOptions{RoutePrefix: routePrefix})
 		if err != nil {
 			return err
 		}
@@ -174,17 +181,29 @@ func Serve(port int, dev bool) error {
 		return err
 	}
 
-	fmt.Printf("Serving directory preview at http://localhost:%d\n", port)
+	fmt.Printf("Serving directory preview at %s\n", localURL(port, routePrefix, "/"))
 
 	return server.ListenAndServe()
 }
 
-func ProxyDev(mux *http.ServeMux, vitePort int) error {
+func ProxyDev(mux *http.ServeMux, vitePort int, routePrefix string) error {
 	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", vitePort))
 	if err != nil {
 		return fmt.Errorf("invalid proxy target: %v", err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	routePrefix = NormalizeRoutePrefix(routePrefix)
+	defaultDirector := proxy.Director
+	proxy.Director = func(r *http.Request) {
+		defaultDirector(r)
+		if routePrefix == "" {
+			return
+		}
+		r.URL.Path = joinRoutePrefix(routePrefix, r.URL.Path)
+		if r.URL.RawPath != "" {
+			r.URL.RawPath = joinRoutePrefix(routePrefix, r.URL.RawPath)
+		}
+	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		r.Host = targetURL.Host
@@ -194,10 +213,12 @@ func ProxyDev(mux *http.ServeMux, vitePort int) error {
 }
 
 type StaticOptions struct {
-	IndexHtml string // Custom HTML content to serve instead of embedded index.html
+	IndexHtml   string // Custom HTML content to serve instead of embedded index.html
+	RoutePrefix string
 }
 
 func Static(mux *http.ServeMux, opts StaticOptions) error {
+	routePrefix := NormalizeRoutePrefix(opts.RoutePrefix)
 	// Serve static files from the embedded React build
 	reactFileSystem, err := fs.Sub(distFS, "PROJECT_NAME-react/dist")
 	if err != nil {
@@ -230,7 +251,7 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 
 		// Use custom IndexHtml if provided
 		if opts.IndexHtml != "" {
-			w.Write([]byte(opts.IndexHtml))
+			w.Write(prepareFrontendHTML([]byte(opts.IndexHtml), routePrefix, true))
 			return
 		}
 
@@ -248,9 +269,102 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 			return
 		}
 
-		w.Write(content)
+		w.Write(prepareFrontendHTML(content, routePrefix, true))
 	})
 	return nil
+}
+
+// NormalizeRoutePrefix converts values like "my-app" and "/my-app/" to
+// "/my-app". Empty and "/" mean the app is mounted at the host root.
+func NormalizeRoutePrefix(prefix string) string {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" || prefix == "/" {
+		return ""
+	}
+	return path.Clean("/" + strings.Trim(prefix, "/"))
+}
+
+func mountRoutePrefix(routePrefix string, handler http.Handler) http.Handler {
+	routePrefix = NormalizeRoutePrefix(routePrefix)
+	if routePrefix == "" {
+		return handler
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == routePrefix {
+			http.Redirect(w, r, routePrefix+"/", http.StatusTemporaryRedirect)
+			return
+		}
+		if !strings.HasPrefix(r.URL.Path, routePrefix+"/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		r2 := new(http.Request)
+		*r2 = *r
+		u2 := new(url.URL)
+		*u2 = *r.URL
+		u2.Path = strings.TrimPrefix(r.URL.Path, routePrefix)
+		if u2.Path == "" {
+			u2.Path = "/"
+		}
+		if u2.RawPath != "" {
+			u2.RawPath = strings.TrimPrefix(u2.RawPath, routePrefix)
+			if u2.RawPath == "" {
+				u2.RawPath = "/"
+			}
+		}
+		r2.URL = u2
+		handler.ServeHTTP(w, r2)
+	})
+}
+
+func joinRoutePrefix(routePrefix string, requestPath string) string {
+	routePrefix = NormalizeRoutePrefix(routePrefix)
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	if !strings.HasPrefix(requestPath, "/") {
+		requestPath = "/" + requestPath
+	}
+	if routePrefix == "" {
+		return requestPath
+	}
+	if requestPath == "/" {
+		return routePrefix + "/"
+	}
+	return routePrefix + requestPath
+}
+
+func localURL(port int, routePrefix string, requestPath string) string {
+	return fmt.Sprintf("http://localhost:%d%s", port, joinRoutePrefix(routePrefix, requestPath))
+}
+
+func prepareFrontendHTML(indexHTML []byte, routePrefix string, rewriteRootAssets bool) []byte {
+	routePrefix = NormalizeRoutePrefix(routePrefix)
+	html := string(indexHTML)
+	if rewriteRootAssets && routePrefix != "" {
+		html = prefixRootAbsoluteHTMLAttrs(html, routePrefix)
+	}
+	routePrefixJSON, _ := json.Marshal(routePrefix)
+	script := "<script>window.__KOOL_ROUTE_PREFIX__=" + string(routePrefixJSON) + ";</script>"
+	if !strings.Contains(html, "window.__KOOL_ROUTE_PREFIX__") {
+		if strings.Contains(html, "</head>") {
+			html = strings.Replace(html, "</head>", "  "+script+"\n</head>", 1)
+		} else {
+			html = script + "\n" + html
+		}
+	}
+	return []byte(html)
+}
+
+func prefixRootAbsoluteHTMLAttrs(html string, routePrefix string) string {
+	for _, attr := range []string{"src", "href"} {
+		needle := attr + `="/`
+		replacement := attr + `="` + routePrefix + `/`
+		html = strings.ReplaceAll(html, needle, replacement)
+	}
+	html = strings.ReplaceAll(html, `import "/`, `import "`+routePrefix+`/`)
+	return html
 }
 
 func RegisterAPI(mux *http.ServeMux) error {

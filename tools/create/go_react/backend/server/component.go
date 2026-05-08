@@ -12,9 +12,10 @@ import (
 )
 
 type ServeOptions struct {
-	Static StaticOptions
-	Route  func(mux *http.ServeMux) error // Optional custom route registration
-	Dev    bool
+	Static      StaticOptions
+	Route       func(mux *http.ServeMux) error // Optional custom route registration
+	Dev         bool
+	RoutePrefix string
 }
 
 func ServeComponent(port int, opts ServeOptions) error {
@@ -46,7 +47,7 @@ func ServeComponent(port int, opts ServeOptions) error {
 			server.Close()
 		}()
 
-		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx)
+		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx, opts.RoutePrefix)
 		if err != nil {
 			return err
 		}
@@ -57,12 +58,14 @@ func ServeComponent(port int, opts ServeOptions) error {
 			}()
 		}
 
-		err = ProxyDev(mux, vitePort)
+		err = ProxyDev(mux, vitePort, opts.RoutePrefix)
 		if err != nil {
 			return err
 		}
 	} else {
-		err := Static(mux, opts.Static)
+		staticOpts := opts.Static
+		staticOpts.RoutePrefix = opts.RoutePrefix
+		err := Static(mux, staticOpts)
 		if err != nil {
 			return err
 		}
@@ -81,8 +84,9 @@ func ServeComponent(port int, opts ServeOptions) error {
 		}
 	}
 
-	fmt.Printf("Serving at http://localhost:%d\n", port)
+	fmt.Printf("Serving at %s\n", localURL(port, opts.RoutePrefix, "/"))
 
+	server.Handler = mountRoutePrefix(opts.RoutePrefix, mux)
 	return server.ListenAndServe()
 }
 
