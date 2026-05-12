@@ -94,16 +94,20 @@ func Handle(args []string) error {
 const rebuildHelp = `
 kool go rebuild helps to rebuild go command easily
 
-Usage: kool go rebuild [OPTIONS]
+Usage: kool go rebuild [OPTIONS] [DIR]
 
 Options:
   --gopath                         always install to the first GOPATH bin dir
   -h,--help                        show help message
 
+Examples:
+  kool go rebuild
+  kool go rebuild ./some/cli
+
 Run kool <cmd> --help for more information.
 `
 
-// run "go build -o `which XX` ./"
+// run "go build -o `which XX` ./" or "go -C <target dir> build -o `which XX` ./"
 func HandleRebuild(args []string) error {
 	var gopath bool
 	args, err := flags.
@@ -113,23 +117,63 @@ func HandleRebuild(args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(args) > 0 {
-		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	if len(args) > 1 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args[1:], " "))
 	}
-	cwd, err := os.Getwd()
+	targetDir := "./"
+	if len(args) == 1 {
+		targetDir = args[0]
+	}
+	name, err := rebuildTargetBinaryName(targetDir)
 	if err != nil {
 		return err
 	}
-	cwd, err = filepath.Abs(cwd)
-	if err != nil {
-		return err
-	}
-	name := filepath.Base(cwd)
 	absBin, err := resolveRebuildOutputPath(name, gopath)
 	if err != nil {
 		return err
 	}
-	return cmd.Debug().Run("go", "build", "-o", absBin, "./")
+	goBuildArgs, err := rebuildGoBuildArgs(targetDir, absBin)
+	if err != nil {
+		return err
+	}
+	return cmd.Debug().Run("go", goBuildArgs...)
+}
+
+func rebuildGoBuildArgs(targetDir string, outputPath string) ([]string, error) {
+	absTargetDir, err := filepath.Abs(targetDir)
+	if err != nil {
+		return nil, err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	absCwd, err := filepath.Abs(cwd)
+	if err != nil {
+		return nil, err
+	}
+
+	var args []string
+	if absTargetDir != absCwd {
+		args = append(args, "-C", targetDir)
+	}
+	args = append(args, "build", "-o", outputPath, "./")
+	return args, nil
+}
+
+func rebuildTargetBinaryName(targetDir string) (string, error) {
+	if targetDir == "" {
+		return "", fmt.Errorf("target dir is empty")
+	}
+	absTargetDir, err := filepath.Abs(targetDir)
+	if err != nil {
+		return "", err
+	}
+	name := filepath.Base(absTargetDir)
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		return "", fmt.Errorf("cannot infer binary name from target dir: %s", targetDir)
+	}
+	return name, nil
 }
 
 func resolveRebuildOutputPath(name string, forceGOPATH bool) (string, error) {

@@ -3,6 +3,7 @@ package go_tools
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -71,5 +72,69 @@ func TestResolveRebuildOutputPathForceGOPATHRequiresGOPATH(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "GOPATH is not set") {
 		t.Fatalf("error = %q, want GOPATH message", err)
+	}
+}
+
+func TestRebuildTargetBinaryNameUsesCurrentDirByDefault(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+
+	name, err := rebuildTargetBinaryName("./")
+	if err != nil {
+		t.Fatalf("rebuildTargetBinaryName returned error: %v", err)
+	}
+
+	want := filepath.Base(root)
+	if name != want {
+		t.Fatalf("binary name = %q, want %q", name, want)
+	}
+}
+
+func TestRebuildTargetBinaryNameUsesTargetDirBase(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "some", "cli"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	name, err := rebuildTargetBinaryName("./some/cli")
+	if err != nil {
+		t.Fatalf("rebuildTargetBinaryName returned error: %v", err)
+	}
+	if name != "cli" {
+		t.Fatalf("binary name = %q, want cli", name)
+	}
+}
+
+func TestRebuildGoBuildArgsUsesPlainBuildForCurrentDir(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+
+	args, err := rebuildGoBuildArgs("./", "/tmp/bin/current")
+	if err != nil {
+		t.Fatalf("rebuildGoBuildArgs returned error: %v", err)
+	}
+
+	want := []string{"build", "-o", "/tmp/bin/current", "./"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %v, want %v", args, want)
+	}
+}
+
+func TestRebuildGoBuildArgsUsesGoCForTargetDir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "some", "cli"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	args, err := rebuildGoBuildArgs("./some/cli", "/tmp/bin/cli")
+	if err != nil {
+		t.Fatalf("rebuildGoBuildArgs returned error: %v", err)
+	}
+
+	want := []string{"-C", "./some/cli", "build", "-o", "/tmp/bin/cli", "./"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %v, want %v", args, want)
 	}
 }
