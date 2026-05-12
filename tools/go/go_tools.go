@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -93,15 +94,20 @@ func Handle(args []string) error {
 const rebuildHelp = `
 kool go rebuild helps to rebuild go command easily
 
-Commands:
-  rebuild
+Usage: kool go rebuild [OPTIONS]
+
+Options:
+  --gopath                         always install to the first GOPATH bin dir
+  -h,--help                        show help message
 
 Run kool <cmd> --help for more information.
 `
 
 // run "go build -o `which XX` ./"
 func HandleRebuild(args []string) error {
+	var gopath bool
 	args, err := flags.
+		Bool("--gopath", &gopath).
 		Help("-h,--help", rebuildHelp).
 		Parse(args)
 	if err != nil {
@@ -119,15 +125,67 @@ func HandleRebuild(args []string) error {
 		return err
 	}
 	name := filepath.Base(cwd)
-	bin, err := exec.LookPath(name)
-	if err != nil {
-		return err
-	}
-	absBin, err := filepath.Abs(bin)
+	absBin, err := resolveRebuildOutputPath(name, gopath)
 	if err != nil {
 		return err
 	}
 	return cmd.Debug().Run("go", "build", "-o", absBin, "./")
+}
+
+func resolveRebuildOutputPath(name string, forceGOPATH bool) (string, error) {
+	name = executableName(name)
+	if forceGOPATH {
+		return rebuildGOPATHOutputPath(name)
+	}
+	bin, err := exec.LookPath(name)
+	if err == nil {
+		absBin, err := filepath.Abs(bin)
+		if err != nil {
+			return "", err
+		}
+		return absBin, nil
+	}
+
+	gopathBin, gopathErr := rebuildGOPATHOutputPath(name)
+	if gopathErr == nil {
+		return gopathBin, nil
+	}
+	return "", fmt.Errorf("%s not found in PATH and cannot install to GOPATH: %w", name, gopathErr)
+}
+
+func rebuildGOPATHOutputPath(name string) (string, error) {
+	binDir, err := firstGOPATHBinDir(os.Getenv("GOPATH"))
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return "", fmt.Errorf("create GOPATH bin dir: %w", err)
+	}
+	absBin, err := filepath.Abs(filepath.Join(binDir, name))
+	if err != nil {
+		return "", err
+	}
+	return absBin, nil
+}
+
+func firstGOPATHBinDir(gopath string) (string, error) {
+	if gopath == "" {
+		return "", fmt.Errorf("GOPATH is not set")
+	}
+	for _, path := range filepath.SplitList(gopath) {
+		if path == "" {
+			continue
+		}
+		return filepath.Join(path, "bin"), nil
+	}
+	return "", fmt.Errorf("GOPATH has no usable path")
+}
+
+func executableName(name string) string {
+	if runtime.GOOS == "windows" && !strings.HasSuffix(strings.ToLower(name), ".exe") {
+		return name + ".exe"
+	}
+	return name
 }
 
 func HandleReplace(args []string) error {
