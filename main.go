@@ -13,6 +13,7 @@ import (
 	"github.com/xhd2015/kool/tools/debug"
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/encoding"
+	for_each_dir "github.com/xhd2015/kool/tools/for-each-dir"
 	"github.com/xhd2015/kool/tools/git"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/with_go"
@@ -230,6 +231,8 @@ func handle(args []string) error {
 		return js.Handle(args)
 	case "timeout":
 		return timeout.Handle(args)
+	case "for-each-dir":
+		return for_each_dir.Handle(args)
 	case "?":
 		return handleQuestion(args)
 	default:
