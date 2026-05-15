@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -744,12 +745,33 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		WriteTimeout: 30 * time.Second,
 	}
 
-	fmt.Printf("Serving directory preview at http://localhost:%d\n", port)
+	browserURL := fmt.Sprintf("http://localhost:%d", port)
+	if initialFile != "" {
+		initialFilePath := initialFile
+		if !filepath.IsAbs(initialFilePath) {
+			initialFilePath = filepath.Join(absDir, initialFilePath)
+		}
+		initialFilePath = filepath.Clean(initialFilePath)
+
+		relInitialFile, err := filepath.Rel(absDir, initialFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to resolve initial file: %v", err)
+		}
+		if relInitialFile == ".." || strings.HasPrefix(relInitialFile, ".."+string(filepath.Separator)) || filepath.IsAbs(relInitialFile) {
+			return fmt.Errorf("initial file is outside preview directory: %s", initialFilePath)
+		}
+
+		params := url.Values{}
+		params.Set("file", filepath.ToSlash(relInitialFile))
+		browserURL += "/?" + params.Encode()
+	}
+
+	fmt.Printf("Serving directory preview at %s\n", browserURL)
 	fmt.Printf("Directory: %s\n", absDir)
 
 	go func() {
 		time.Sleep(1 * time.Second)
-		web.OpenBrowser(fmt.Sprintf("http://localhost:%d", port))
+		web.OpenBrowser(browserURL)
 	}()
 
 	return server.ListenAndServe()

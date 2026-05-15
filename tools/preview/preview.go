@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/xhd2015/kool/tools/preview/viewer"
 	"github.com/xhd2015/less-gen/flags"
@@ -42,11 +43,10 @@ func Handle(args []string) error {
 		return err
 	}
 
-	if len(args) == 0 {
-		return fmt.Errorf("requires a file or directory to preview")
+	path := "."
+	if len(args) > 0 {
+		path = args[0]
 	}
-
-	path := args[0]
 
 	// Check if path exists
 	stat, err := os.Stat(path)
@@ -69,5 +69,9 @@ func Handle(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get current working directory: %v", err)
 	}
-	return viewer.ServeWithInitialFile(cwd, plantumlServer, absPath)
+	rootDir := cwd
+	if rel, err := filepath.Rel(cwd, absPath); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		rootDir = filepath.Dir(absPath)
+	}
+	return viewer.ServeWithInitialFile(rootDir, plantumlServer, absPath)
 }
