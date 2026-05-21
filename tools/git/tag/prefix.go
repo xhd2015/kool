@@ -43,12 +43,21 @@ func GetSubPath(dir string) (string, []string, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	topLevel = strings.TrimSpace(topLevel)
 
 	absTopLevel, err := filepath.Abs(topLevel)
 	if err != nil {
 		return "", nil, err
 	}
+	absTopLevel, err = filepath.EvalSymlinks(absTopLevel)
+	if err != nil {
+		return "", nil, err
+	}
 	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", nil, err
+	}
+	absDir, err = filepath.EvalSymlinks(absDir)
 	if err != nil {
 		return "", nil, err
 	}
@@ -59,7 +68,7 @@ func GetSubPath(dir string) (string, []string, error) {
 	}
 	var subPathList []string
 	if subPath != "" && subPath != "." {
-		subPathList = filepath.SplitList(subPath)
+		subPathList = strings.Split(filepath.ToSlash(subPath), "/")
 	}
 
 	return topLevel, subPathList, nil

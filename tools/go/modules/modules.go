@@ -20,13 +20,19 @@ Usage: kool go modules [OPTIONS]
 
 Options:
   --dir <dir>          root directory, default is current directory
+  --update-local-deps  tag local modules and update local dependency versions
+  --dry-run            print expected --update-local-deps output without touching anything
   -h,--help            show help message
 `
 
 func Handle(args []string) error {
 	var dir string
+	var updateLocalDeps bool
+	var dryRun bool
 	args, err := flags.
 		String("--dir", &dir).
+		Bool("--update-local-deps", &updateLocalDeps).
+		Bool("--dry-run", &dryRun).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
@@ -37,6 +43,13 @@ func Handle(args []string) error {
 	}
 	if dir == "" {
 		dir = "."
+	}
+
+	if dryRun && !updateLocalDeps {
+		return fmt.Errorf("--dry-run requires --update-local-deps")
+	}
+	if updateLocalDeps {
+		return UpdateLocalDepsAndRender(os.Stdout, dir, dryRun)
 	}
 
 	modules, err := Find(dir)
@@ -51,7 +64,21 @@ type Module struct {
 	Path    string
 	Depends []string
 
+	Requires []ModuleRequire
+	Replaces []ModuleReplace
+
 	requirePaths []string
+}
+
+type ModuleRequire struct {
+	Path    string
+	Version string
+}
+
+type ModuleReplace struct {
+	OldPath    string
+	NewPath    string
+	NewVersion string
 }
 
 func Find(root string) ([]Module, error) {
@@ -152,8 +179,19 @@ func readModule(dir string, rel string) (Module, error) {
 	requirePaths := make([]string, 0, len(modFile.Require))
 	for _, req := range modFile.Require {
 		requirePaths = append(requirePaths, req.Mod.Path)
+		module.Requires = append(module.Requires, ModuleRequire{
+			Path:    req.Mod.Path,
+			Version: req.Mod.Version,
+		})
 	}
 	module.requirePaths = requirePaths
+	for _, repl := range modFile.Replace {
+		module.Replaces = append(module.Replaces, ModuleReplace{
+			OldPath:    repl.Old.Path,
+			NewPath:    repl.New.Path,
+			NewVersion: repl.New.Version,
+		})
+	}
 
 	return module, nil
 }
@@ -284,6 +322,23 @@ func newTreeNode(name string) *treeNode {
 }
 
 func Render(w io.Writer, modules []Module) error {
+	return RenderAnnotated(w, modules, nil)
+}
+
+type ModuleAnnotation struct {
+	UpdatedDeps []DependencyAnnotation
+	NewTag      string
+}
+
+type DependencyAnnotation struct {
+	Dir            string
+	ModulePath     string
+	OldVersion     string
+	NewVersion     string
+	RemovedReplace bool
+}
+
+func RenderAnnotated(w io.Writer, modules []Module, annotations map[string]ModuleAnnotation) error {
 	root := newTreeNode(".")
 	for i := range modules {
 		addModule(root, &modules[i])
@@ -292,7 +347,7 @@ func Render(w io.Writer, modules []Module) error {
 	if _, err := fmt.Fprintln(w, root.name); err != nil {
 		return err
 	}
-	return renderChildren(w, root, "")
+	return renderChildren(w, root, "", annotations)
 }
 
 func addModule(root *treeNode, module *Module) {
@@ -318,7 +373,7 @@ func addModule(root *treeNode, module *Module) {
 	node.module = module
 }
 
-func renderChildren(w io.Writer, node *treeNode, prefix string) error {
+func renderChildren(w io.Writer, node *treeNode, prefix string, annotations map[string]ModuleAnnotation) error {
 	entries := make([]treeEntry, 0, len(node.children)+1)
 	for _, child := range node.children {
 		entries = append(entries, treeEntry{name: child.name, node: child})
@@ -340,14 +395,20 @@ func renderChildren(w io.Writer, node *treeNode, prefix string) error {
 			nextPrefix = prefix + "    "
 		}
 
-		if _, err := fmt.Fprintln(w, prefix+connector+entry.name); err != nil {
+		line := prefix + connector + entry.name
+		if entry.module != nil {
+			if annotation := formatAnnotation(annotations[entry.module.Dir]); annotation != "" {
+				line += " " + annotation
+			}
+		}
+		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 		if err := renderDependencyLines(w, entry.module, nextPrefix); err != nil {
 			return err
 		}
 		if entry.node != nil {
-			if err := renderChildren(w, entry.node, nextPrefix); err != nil {
+			if err := renderChildren(w, entry.node, nextPrefix, annotations); err != nil {
 				return err
 			}
 		}
@@ -383,4 +444,27 @@ func depGoModPath(dir string) string {
 		return "go.mod"
 	}
 	return dir + "/go.mod"
+}
+
+func formatAnnotation(annotation ModuleAnnotation) string {
+	var parts []string
+	for _, dep := range annotation.UpdatedDeps {
+		label := depGoModPath(dep.Dir)
+		if dep.OldVersion != "" && dep.OldVersion != dep.NewVersion {
+			label += " " + dep.OldVersion + " -> " + dep.NewVersion
+		} else {
+			label += " -> " + dep.NewVersion
+		}
+		if dep.RemovedReplace {
+			label += ", replace removed"
+		}
+		parts = append(parts, "updated: "+label)
+	}
+	if annotation.NewTag != "" {
+		parts = append(parts, "new tag: "+annotation.NewTag)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parts, "; ") + "]"
 }

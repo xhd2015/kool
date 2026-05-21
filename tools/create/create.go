@@ -22,6 +22,9 @@ var serverTemplateFS embed.FS
 //go:embed electron_app_template
 var electronAppTemplateFS embed.FS
 
+//go:embed all:go_cli_template
+var goCLITemplateFS embed.FS
+
 const help = `
 kool create helps to create new projects.
 
@@ -29,6 +32,7 @@ Usage: kool create <TEMPLATE> <project-name>
 
 TEMPLATE: 
   react         create a new react project
+  go-cli        create a new go cli project
   go-react      create a new go-react project (go backend + react frontend)
   frontend      create a new frontend project (react frontend)
   server        create a new server project (go backend)
@@ -37,6 +41,7 @@ TEMPLATE:
 Examples:
   kool create frontend my-project
   kool create server my-project
+  kool create go-cli my-project
   kool create go-react my-project
   kool create react my-project
   kool create electron my-project
@@ -44,7 +49,7 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-react, frontend, server, electron")
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-cli, go-react, frontend, server, electron")
 	}
 
 	template := args[0]
@@ -61,6 +66,9 @@ func Handle(args []string) error {
 	if template == "go-react" {
 		return HandleCreateGoReact(args[1:])
 	}
+	if template == "go-cli" {
+		return HandleCreateGoCLI(args[1:])
+	}
 	if template != "frontend" && template != "server" && template != "electron" {
 		return fmt.Errorf("unsupported template: %s", template)
 	}
@@ -76,14 +84,9 @@ func Handle(args []string) error {
 
 	targetPath := projectName
 
-	// Check if target directory already exists
-	if _, err := os.Stat(targetPath); err == nil {
-		return fmt.Errorf("directory %s already exists", projectName)
-	}
-
-	// Create the target directory
-	if err := os.MkdirAll(targetPath, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %v", err)
+	created, err := prepareProjectDir(targetPath)
+	if err != nil {
+		return err
 	}
 
 	srcFS := templateFS
@@ -97,7 +100,7 @@ func Handle(args []string) error {
 		srcRoot = "electron_app_template"
 	}
 	// Copy template files to new project
-	err := fs.WalkDir(srcFS, srcRoot, func(path string, d fs.DirEntry, err error) error {
+	err = fs.WalkDir(srcFS, srcRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -133,8 +136,9 @@ func Handle(args []string) error {
 	})
 
 	if err != nil {
-		// Clean up on failure
-		os.RemoveAll(targetPath)
+		if created {
+			os.RemoveAll(targetPath)
+		}
 		return fmt.Errorf("failed to copy template: %v", err)
 	}
 
@@ -183,6 +187,30 @@ func Handle(args []string) error {
 		fmt.Printf("To get started: \n  cd %s \n  npm run dev\n", projectName)
 	}
 	return nil
+}
+
+func prepareProjectDir(targetPath string) (bool, error) {
+	info, err := os.Stat(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return false, fmt.Errorf("failed to create directory: %v", err)
+			}
+			return true, nil
+		}
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("%s already exists and is not a directory", targetPath)
+	}
+	entries, err := os.ReadDir(targetPath)
+	if err != nil {
+		return false, err
+	}
+	if len(entries) > 0 {
+		return false, fmt.Errorf("directory %s already exists and is not empty", targetPath)
+	}
+	return false, nil
 }
 
 const defaultMod = "github.com/xhd2015/kool/tools/create/server_template"

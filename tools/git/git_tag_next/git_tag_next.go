@@ -85,7 +85,7 @@ func handleGitTag(opts Options) error {
 	}
 
 	// Calculate next tag
-	nextTag, err := incrementTag(latestTag)
+	nextTag, err := IncrementTag(latestTag)
 	if err != nil {
 		return fmt.Errorf("failed to increment tag: %v", err)
 	}
@@ -120,7 +120,7 @@ func handleGitTag(opts Options) error {
 	return nil
 }
 
-func incrementTag(tag string) (string, error) {
+func IncrementTag(tag string) (string, error) {
 	// Find the last numeric part
 	n := len(tag)
 	i := n - 1

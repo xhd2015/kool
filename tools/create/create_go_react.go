@@ -38,11 +38,7 @@ func HandleCreateGoReact(args []string) error {
 		return fmt.Errorf("unrecognized extra arguments: %v", strings.Join(args, ","))
 	}
 
-	if _, statErr := os.Stat(projectDir); statErr == nil {
-		return fmt.Errorf("project %s already exists", projectDir)
-	}
-
-	err = os.MkdirAll(projectDir, 0755)
+	_, err = prepareProjectDir(projectDir)
 	if err != nil {
 		return err
 	}
