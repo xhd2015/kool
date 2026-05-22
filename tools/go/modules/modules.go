@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/xhd2015/kool/tools/git/tag"
 	"github.com/xhd2015/less-gen/flags"
 	"golang.org/x/mod/modfile"
 )
@@ -16,23 +18,103 @@ import (
 const help = `
 kool go modules lists Go module directories under the current directory.
 
-Usage: kool go modules [OPTIONS]
+Usage: kool go modules [OPTIONS] [COMMAND]
+
+Commands:
+  ls-files           list files owned by a module
+  update-local-deps  tag local modules and update local dependency versions
 
 Options:
-  --dir <dir>          root directory, default is current directory
-  --update-local-deps  tag local modules and update local dependency versions
-  --dry-run            print expected --update-local-deps output without touching anything
-  -h,--help            show help message
+  --dir <dir>        root directory, default is current directory
+  --no-tags          hide latest tag annotations
+  -h,--help          show help message
+`
+
+const lsFilesHelp = `
+Usage: kool go modules ls-files [OPTIONS]
+
+List files owned by a Go module, including untracked files and excluding
+git-ignored files and nested module directories.
+
+Options:
+  --dir <dir>        root directory, default is current directory
+  --module <module>  module directory, such as "." or "types"
+  -h,--help          show help message
+`
+
+const updateLocalDepsHelp = `
+Usage: kool go modules update-local-deps [OPTIONS]
+
+Tag local modules and update local dependency versions.
+
+Options:
+  --dir <dir>        root directory, default is current directory
+  --dry-run          print expected output without touching anything
+  -h,--help          show help message
 `
 
 func Handle(args []string) error {
+	return handle(os.Stdout, args)
+}
+
+func handle(w io.Writer, args []string) error {
 	var dir string
-	var updateLocalDeps bool
-	var dryRun bool
+	var noTags bool
+	args, err := parseLeadingModulesFlags(args, &dir, &noTags)
+	if err != nil {
+		return err
+	}
+	if dir == "" {
+		dir = "."
+	}
+
+	if len(args) > 0 {
+		switch args[0] {
+		case "ls-files":
+			return handleLsFiles(w, dir, args[1:])
+		case "update-local-deps":
+			if noTags {
+				return fmt.Errorf("--no-tags is not supported with update-local-deps")
+			}
+			return handleUpdateLocalDeps(w, dir, args[1:])
+		case "help", "--help", "-h":
+			fmt.Fprint(w, strings.TrimPrefix(help, "\n"))
+			return nil
+		}
+	}
+
+	return handleDefault(w, dir, noTags, args)
+}
+
+func parseLeadingModulesFlags(args []string, dir *string, noTags *bool) ([]string, error) {
+	for len(args) > 0 {
+		arg := args[0]
+		switch {
+		case arg == "-h" || arg == "--help":
+			return []string{arg}, nil
+		case arg == "--dir":
+			if len(args) < 2 {
+				return nil, fmt.Errorf("--dir requires a value")
+			}
+			*dir = args[1]
+			args = args[2:]
+		case strings.HasPrefix(arg, "--dir="):
+			*dir = strings.TrimPrefix(arg, "--dir=")
+			args = args[1:]
+		case arg == "--no-tags":
+			*noTags = true
+			args = args[1:]
+		default:
+			return args, nil
+		}
+	}
+	return args, nil
+}
+
+func handleDefault(w io.Writer, dir string, noTags bool, args []string) error {
 	args, err := flags.
 		String("--dir", &dir).
-		Bool("--update-local-deps", &updateLocalDeps).
-		Bool("--dry-run", &dryRun).
+		Bool("--no-tags", &noTags).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
@@ -45,24 +127,70 @@ func Handle(args []string) error {
 		dir = "."
 	}
 
-	if dryRun && !updateLocalDeps {
-		return fmt.Errorf("--dry-run requires --update-local-deps")
-	}
-	if updateLocalDeps {
-		return UpdateLocalDepsAndRender(os.Stdout, dir, dryRun)
-	}
-
-	modules, err := Find(dir)
+	modules, err := FindWithOptions(dir, FindOptions{NoTags: noTags})
 	if err != nil {
 		return err
 	}
-	return Render(os.Stdout, modules)
+	return Render(w, modules)
+}
+
+func handleLsFiles(w io.Writer, dir string, args []string) error {
+	var moduleDir string
+	args, err := flags.
+		String("--dir", &dir).
+		String("--module", &moduleDir).
+		Help("-h,--help", lsFilesHelp).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+	if dir == "" {
+		dir = "."
+	}
+	if moduleDir == "" {
+		return fmt.Errorf("--module is required")
+	}
+
+	files, err := ListModuleFiles(dir, moduleDir)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if _, err := fmt.Fprintln(w, file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handleUpdateLocalDeps(w io.Writer, dir string, args []string) error {
+	var dryRun bool
+	args, err := flags.
+		String("--dir", &dir).
+		Bool("--dry-run", &dryRun).
+		Help("-h,--help", updateLocalDepsHelp).
+		Parse(args)
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+	if dir == "" {
+		dir = "."
+	}
+	return UpdateLocalDepsAndRender(w, dir, dryRun)
 }
 
 type Module struct {
-	Dir     string
-	Path    string
-	Depends []string
+	Dir            string
+	Path           string
+	Depends        []string
+	LatestTag      string
+	LatestTagKnown bool
 
 	Requires []ModuleRequire
 	Replaces []ModuleReplace
@@ -81,7 +209,15 @@ type ModuleReplace struct {
 	NewVersion string
 }
 
+type FindOptions struct {
+	NoTags bool
+}
+
 func Find(root string) ([]Module, error) {
+	return FindWithOptions(root, FindOptions{})
+}
+
+func FindWithOptions(root string, opts FindOptions) ([]Module, error) {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return nil, err
@@ -122,7 +258,7 @@ func Find(root string) ([]Module, error) {
 			if err != nil {
 				return err
 			}
-			module, err := readModule(path, filepath.ToSlash(rel))
+			module, err := readModule(path, filepath.ToSlash(rel), opts)
 			if err != nil {
 				return err
 			}
@@ -153,7 +289,7 @@ func hasGoMod(dir string) (bool, error) {
 	return !info.IsDir(), nil
 }
 
-func readModule(dir string, rel string) (Module, error) {
+func readModule(dir string, rel string, opts FindOptions) (Module, error) {
 	goModPath := filepath.Join(dir, "go.mod")
 	data, err := os.ReadFile(goModPath)
 	if err != nil {
@@ -163,6 +299,9 @@ func readModule(dir string, rel string) (Module, error) {
 	module := Module{
 		Dir:  rel,
 		Path: modfile.ModulePath(data),
+	}
+	if !opts.NoTags {
+		module.LatestTag, module.LatestTagKnown = findLatestModuleTag(dir)
 	}
 
 	modFile, err := modfile.Parse(goModPath, data, nil)
@@ -194,6 +333,21 @@ func readModule(dir string, rel string) (Module, error) {
 	}
 
 	return module, nil
+}
+
+func findLatestModuleTag(dir string) (string, bool) {
+	versionPrefix, err := tag.GetVersionPrefix(dir)
+	if err != nil {
+		return "", false
+	}
+	latestTag, err := tag.GetLatestVersionTag(dir, versionPrefix)
+	if err != nil {
+		if errors.Is(err, tag.ErrNoTag) {
+			return "", true
+		}
+		return "", false
+	}
+	return latestTag, true
 }
 
 func fillDependencies(modules []Module) {
@@ -327,6 +481,7 @@ func Render(w io.Writer, modules []Module) error {
 
 type ModuleAnnotation struct {
 	UpdatedDeps []DependencyAnnotation
+	PreviousTag string
 	NewTag      string
 }
 
@@ -340,14 +495,16 @@ type DependencyAnnotation struct {
 
 func RenderAnnotated(w io.Writer, modules []Module, annotations map[string]ModuleAnnotation) error {
 	root := newTreeNode(".")
+	moduleByDir := make(map[string]*Module, len(modules))
 	for i := range modules {
 		addModule(root, &modules[i])
+		moduleByDir[modules[i].Dir] = &modules[i]
 	}
 
 	if _, err := fmt.Fprintln(w, root.name); err != nil {
 		return err
 	}
-	return renderChildren(w, root, "", annotations)
+	return renderChildren(w, root, "", annotations, moduleByDir)
 }
 
 func addModule(root *treeNode, module *Module) {
@@ -373,7 +530,7 @@ func addModule(root *treeNode, module *Module) {
 	node.module = module
 }
 
-func renderChildren(w io.Writer, node *treeNode, prefix string, annotations map[string]ModuleAnnotation) error {
+func renderChildren(w io.Writer, node *treeNode, prefix string, annotations map[string]ModuleAnnotation, moduleByDir map[string]*Module) error {
 	entries := make([]treeEntry, 0, len(node.children)+1)
 	for _, child := range node.children {
 		entries = append(entries, treeEntry{name: child.name, node: child})
@@ -397,18 +554,18 @@ func renderChildren(w io.Writer, node *treeNode, prefix string, annotations map[
 
 		line := prefix + connector + entry.name
 		if entry.module != nil {
-			if annotation := formatAnnotation(annotations[entry.module.Dir]); annotation != "" {
+			if annotation := formatModuleAnnotation(entry.module, annotations[entry.module.Dir]); annotation != "" {
 				line += " " + annotation
 			}
 		}
 		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
-		if err := renderDependencyLines(w, entry.module, nextPrefix); err != nil {
+		if err := renderDependencyLines(w, entry.module, nextPrefix, moduleByDir); err != nil {
 			return err
 		}
 		if entry.node != nil {
-			if err := renderChildren(w, entry.node, nextPrefix, annotations); err != nil {
+			if err := renderChildren(w, entry.node, nextPrefix, annotations, moduleByDir); err != nil {
 				return err
 			}
 		}
@@ -422,7 +579,7 @@ type treeEntry struct {
 	module *Module
 }
 
-func renderDependencyLines(w io.Writer, module *Module, prefix string) error {
+func renderDependencyLines(w io.Writer, module *Module, prefix string, moduleByDir map[string]*Module) error {
 	if module == nil {
 		return nil
 	}
@@ -431,11 +588,28 @@ func renderDependencyLines(w io.Writer, module *Module, prefix string) error {
 		if i == len(module.Depends)-1 {
 			connector = "└── "
 		}
-		if _, err := fmt.Fprintf(w, "%s%s(depends on) %s\n", prefix, connector, depGoModPath(dep)); err != nil {
+		line := fmt.Sprintf("%s%s(depends on) %s", prefix, connector, depGoModPath(dep))
+		if version := dependencyVersion(module, dep, moduleByDir); version != "" {
+			line += " [version: " + version + "]"
+		}
+		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func dependencyVersion(module *Module, depDir string, moduleByDir map[string]*Module) string {
+	depModule := moduleByDir[depDir]
+	if depModule == nil {
+		return ""
+	}
+	for _, req := range module.Requires {
+		if req.Path == depModule.Path {
+			return req.Version
+		}
+	}
+	return ""
 }
 
 func depGoModPath(dir string) string {
@@ -446,8 +620,31 @@ func depGoModPath(dir string) string {
 	return dir + "/go.mod"
 }
 
-func formatAnnotation(annotation ModuleAnnotation) string {
+func formatModuleAnnotation(module *Module, annotation ModuleAnnotation) string {
 	var parts []string
+	if module != nil && module.LatestTagKnown {
+		latestTag := module.LatestTag
+		if latestTag == "" {
+			latestTag = "<none>"
+		}
+		parts = append(parts, "latest tag: "+latestTag)
+	}
+	parts = appendModuleAnnotationParts(parts, annotation)
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parts, "; ") + "]"
+}
+
+func formatAnnotation(annotation ModuleAnnotation) string {
+	parts := appendModuleAnnotationParts(nil, annotation)
+	if len(parts) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(parts, "; ") + "]"
+}
+
+func appendModuleAnnotationParts(parts []string, annotation ModuleAnnotation) []string {
 	for _, dep := range annotation.UpdatedDeps {
 		label := depGoModPath(dep.Dir)
 		if dep.OldVersion != "" && dep.OldVersion != dep.NewVersion {
@@ -461,10 +658,11 @@ func formatAnnotation(annotation ModuleAnnotation) string {
 		parts = append(parts, "updated: "+label)
 	}
 	if annotation.NewTag != "" {
-		parts = append(parts, "new tag: "+annotation.NewTag)
+		if annotation.PreviousTag != "" {
+			parts = append(parts, "new tag: "+annotation.PreviousTag+" -> "+annotation.NewTag)
+		} else {
+			parts = append(parts, "new tag: "+annotation.NewTag)
+		}
 	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return "[" + strings.Join(parts, "; ") + "]"
+	return parts
 }

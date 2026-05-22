@@ -66,7 +66,7 @@ func updateLocalDeps(absRoot string, gitRoot string, opts updateLocalDepsOptions
 	state := newUpdateLocalDepsState()
 
 	for {
-		modules, err := Find(absRoot)
+		modules, err := FindWithOptions(absRoot, FindOptions{NoTags: true})
 		if err != nil {
 			return nil, err
 		}
@@ -133,12 +133,13 @@ func processModuleLocalDeps(absRoot string, gitRoot string, module Module, modul
 		if err != nil {
 			return ModuleAnnotation{}, err
 		}
-		newTag, err := planTagModuleHead(moduleAbsDir, module.Dir, len(updatedDeps) > 0, state)
+		previousTag, newTag, err := planTagModuleHead(moduleAbsDir, module.Dir, len(updatedDeps) > 0, state)
 		if err != nil {
 			return ModuleAnnotation{}, err
 		}
 		return ModuleAnnotation{
 			UpdatedDeps: updatedDeps,
+			PreviousTag: previousTag,
 			NewTag:      newTag,
 		}, nil
 	}
@@ -159,13 +160,14 @@ func processModuleLocalDeps(absRoot string, gitRoot string, module Module, modul
 		}
 	}
 
-	newTag, err := tagModuleHead(moduleAbsDir)
+	previousTag, newTag, err := tagModuleHead(moduleAbsDir)
 	if err != nil {
 		return ModuleAnnotation{}, err
 	}
 	if newTag != "" {
 		state.plannedTags[module.Dir] = newTag
 	}
+	annotation.PreviousTag = previousTag
 	annotation.NewTag = newTag
 	return annotation, nil
 }
@@ -259,62 +261,181 @@ func latestModuleVersion(absRoot string, dep Module, state *updateLocalDepsState
 	return tag.StripVersionPrefix(versionPrefix, latestTag), nil
 }
 
-func planTagModuleHead(moduleAbsDir string, moduleDir string, plannedCommit bool, state *updateLocalDepsState) (string, error) {
+func planTagModuleHead(moduleAbsDir string, moduleDir string, plannedCommit bool, state *updateLocalDepsState) (string, string, error) {
 	versionPrefix, err := tag.GetVersionPrefix(moduleAbsDir)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if !plannedCommit {
-		if _, err := tag.GetVersionTag(moduleAbsDir, "HEAD", versionPrefix); err == nil {
-			return "", nil
-		} else if !errors.Is(err, tag.ErrNoTag) {
-			return "", err
+		needsTag, err := moduleHeadNeedsTag(moduleAbsDir, versionPrefix)
+		if err != nil {
+			return "", "", err
+		}
+		if !needsTag {
+			return "", "", nil
 		}
 	}
 
-	nextTag, err := nextModuleTag(moduleAbsDir, versionPrefix)
+	previousTag, nextTag, err := nextModuleTag(moduleAbsDir, versionPrefix)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	state.plannedTags[moduleDir] = nextTag
-	return nextTag, nil
+	return previousTag, nextTag, nil
 }
 
-func tagModuleHead(moduleAbsDir string) (string, error) {
+func tagModuleHead(moduleAbsDir string) (string, string, error) {
 	versionPrefix, err := tag.GetVersionPrefix(moduleAbsDir)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	if _, err := tag.GetVersionTag(moduleAbsDir, "HEAD", versionPrefix); err == nil {
-		return "", nil
-	} else if !errors.Is(err, tag.ErrNoTag) {
-		return "", err
-	}
-
-	nextTag, err := nextModuleTag(moduleAbsDir, versionPrefix)
+	needsTag, err := moduleHeadNeedsTag(moduleAbsDir, versionPrefix)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	if !needsTag {
+		return "", "", nil
+	}
+
+	previousTag, nextTag, err := nextModuleTag(moduleAbsDir, versionPrefix)
+	if err != nil {
+		return "", "", err
 	}
 	if err := runGitCmd(moduleAbsDir, "tag", nextTag); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if err := runGitCmd(moduleAbsDir, "push", "origin", nextTag); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return nextTag, nil
+	return previousTag, nextTag, nil
 }
 
-func nextModuleTag(moduleAbsDir string, versionPrefix string) (string, error) {
+func moduleHeadNeedsTag(moduleAbsDir string, versionPrefix string) (bool, error) {
+	if _, err := tag.GetVersionTag(moduleAbsDir, "HEAD", versionPrefix); err == nil {
+		return false, nil
+	} else if !errors.Is(err, tag.ErrNoTag) {
+		return false, err
+	}
+
 	latestTag, err := tag.GetLatestVersionTag(moduleAbsDir, versionPrefix)
 	if err != nil {
 		if errors.Is(err, tag.ErrNoTag) {
-			return initialModuleTag(versionPrefix), nil
+			return true, nil
 		}
-		return "", err
+		return false, err
 	}
-	return git_tag_next.IncrementTag(latestTag)
+
+	differs, err := moduleTreeDiffers(moduleAbsDir, latestTag, "HEAD")
+	if err != nil {
+		return false, err
+	}
+	return differs, nil
+}
+
+func moduleTreeDiffers(moduleAbsDir string, oldRef string, newRef string) (bool, error) {
+	oldEntries, err := moduleOwnedTreeEntries(moduleAbsDir, oldRef)
+	if err != nil {
+		return false, err
+	}
+	newEntries, err := moduleOwnedTreeEntries(moduleAbsDir, newRef)
+	if err != nil {
+		return false, err
+	}
+	if len(oldEntries) != len(newEntries) {
+		return true, nil
+	}
+	for path, oldEntry := range oldEntries {
+		if newEntries[path] != oldEntry {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func moduleOwnedTreeEntries(moduleAbsDir string, ref string) (map[string]string, error) {
+	entries, err := listTreeEntries(moduleAbsDir, ref)
+	if err != nil {
+		return nil, err
+	}
+	nestedModuleDirs := findNestedModuleDirs(entries)
+	owned := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		if isUnderNestedModule(entry.Path, nestedModuleDirs) {
+			continue
+		}
+		owned[entry.Path] = entry.Identity
+	}
+	return owned, nil
+}
+
+type gitTreeEntry struct {
+	Path     string
+	Identity string
+}
+
+func listTreeEntries(moduleAbsDir string, ref string) ([]gitTreeEntry, error) {
+	args := []string{"ls-tree", "-r", "-z", ref, "--", "."}
+	output, err := gitOutput(moduleAbsDir, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []gitTreeEntry
+	for _, record := range strings.Split(output, "\x00") {
+		if record == "" {
+			continue
+		}
+		header, path, ok := strings.Cut(record, "\t")
+		if !ok {
+			return nil, fmt.Errorf("cannot parse git ls-tree record: %q", record)
+		}
+		fields := strings.Fields(header)
+		if len(fields) < 3 {
+			return nil, fmt.Errorf("cannot parse git ls-tree record header: %q", header)
+		}
+		entries = append(entries, gitTreeEntry{
+			Path:     filepath.ToSlash(path),
+			Identity: fields[0] + " " + fields[1] + " " + fields[2],
+		})
+	}
+	return entries, nil
+}
+
+func findNestedModuleDirs(entries []gitTreeEntry) []string {
+	var dirs []string
+	for _, entry := range entries {
+		if entry.Path == "go.mod" || !strings.HasSuffix(entry.Path, "/go.mod") {
+			continue
+		}
+		dirs = append(dirs, strings.TrimSuffix(entry.Path, "/go.mod"))
+	}
+	return dirs
+}
+
+func isUnderNestedModule(path string, nestedModuleDirs []string) bool {
+	for _, dir := range nestedModuleDirs {
+		if path == dir || strings.HasPrefix(path, dir+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func nextModuleTag(moduleAbsDir string, versionPrefix string) (string, string, error) {
+	latestTag, err := tag.GetLatestVersionTag(moduleAbsDir, versionPrefix)
+	if err != nil {
+		if errors.Is(err, tag.ErrNoTag) {
+			return "", initialModuleTag(versionPrefix), nil
+		}
+		return "", "", err
+	}
+	nextTag, err := git_tag_next.IncrementTag(latestTag)
+	if err != nil {
+		return "", "", err
+	}
+	return latestTag, nextTag, nil
 }
 
 func initialModuleTag(versionPrefix string) string {
@@ -393,7 +514,7 @@ func requireCleanGitRepo(gitRoot string) error {
 		return err
 	}
 	if strings.TrimSpace(status) != "" {
-		return fmt.Errorf("git repo must be clean before --update-local-deps:\n%s", strings.TrimRight(status, "\n"))
+		return fmt.Errorf("git repo must be clean before update-local-deps:\n%s", strings.TrimRight(status, "\n"))
 	}
 	return nil
 }
@@ -462,6 +583,7 @@ func hasAnnotation(annotation ModuleAnnotation) bool {
 func mergeAnnotation(a ModuleAnnotation, b ModuleAnnotation) ModuleAnnotation {
 	a.UpdatedDeps = append(a.UpdatedDeps, b.UpdatedDeps...)
 	if b.NewTag != "" {
+		a.PreviousTag = b.PreviousTag
 		a.NewTag = b.NewTag
 	}
 	return a

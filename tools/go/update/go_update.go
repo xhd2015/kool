@@ -5,12 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
-	"github.com/xhd2015/kool/tools/git/git_tag_next"
 	"github.com/xhd2015/kool/tools/git/tag"
 	"github.com/xhd2015/kool/tools/go/commands"
-	"github.com/xhd2015/kool/tools/go/resolve"
 )
 
 func Update(dir string) error {
@@ -39,65 +36,29 @@ func Update(dir string) error {
 		return fmt.Errorf("not a go module: %s", dir)
 	}
 
-	// try best effort to get the tag
-	tags, err := tag.ListTagsAtHEAD(dir)
+	versionPrefix, err := calculateVersionPrefix(dir, mod.Module.Path)
 	if err != nil {
-		return fmt.Errorf("failed to get tag: %v", err)
+		return fmt.Errorf("failed to calculate version prefix for %s: %w", mod.Module.Path, err)
 	}
-	var tagStr string
-	if len(tags) > 0 {
-		tagStr = tags[0]
+	latestTag, err := tag.GetLatestVersionTag(dir, versionPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to get latest version tag for %s: %w", mod.Module.Path, err)
 	}
-	var usePlainReplace bool
-	var plainReplaceWith string
-	gitRef := tagStr
-	if tagStr == "" {
-		commitHash, _ := git_tag_next.ShowHeadCommitHash(dir)
-		if commitHash != "" {
-			gitRef = commitHash
-			resolvedTag, _ := resolve.GoResolveVersion(dir, mod.Module.Path, commitHash)
-			if resolvedTag != "" {
-				tagStr = resolvedTag
-			} else {
-				usePlainReplace = true
-				plainReplaceWith = commitHash
-			}
-		}
-	}
-	if tagStr == "" && !usePlainReplace {
-		return fmt.Errorf("no tag at HEAD: %s", dir)
+	version := tag.StripVersionPrefix(versionPrefix, latestTag)
+	if !isValidVersionTag(version) {
+		return fmt.Errorf("latest version tag %s resolved to invalid version %s", latestTag, version)
 	}
 
 	// do not use go get, not always work
-	t := time.Now()
-	var PLACEHOLDER = fmt.Sprintf("v1.0.%s%d-FAKE", t.Format("20060102150405"), t.Nanosecond())
-	editRef := stripSubDirFromTag(tagStr, mod.Module.Path)
-	if usePlainReplace {
-		editRef = PLACEHOLDER
-	}
-
 	// Drop the replacement first, then update the version
 	if err := commands.GoModDropReplace(mod.Module.Path, nil); err != nil {
 		return err
 	}
-	if err := commands.GoModEditRequire(mod.Module.Path, editRef, nil); err != nil {
+	if err := commands.GoModEditRequire(mod.Module.Path, version, nil); err != nil {
 		return err
 	}
 
-	if usePlainReplace {
-		modFile, err := os.ReadFile("go.mod")
-		if err != nil {
-			return fmt.Errorf("failed to read go mod: %v", err)
-		}
-		fmt.Fprintf(os.Stderr, "replace %s %s => %s\n", mod.Module.Path, PLACEHOLDER, plainReplaceWith)
-		newModFile := strings.ReplaceAll(string(modFile), PLACEHOLDER, plainReplaceWith)
-		err = os.WriteFile("go.mod", []byte(newModFile), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write go mod: %v", err)
-		}
-	}
-
-	msgCmd := exec.Command("git", "log", "-1", "--format=%s", gitRef)
+	msgCmd := exec.Command("git", "log", "-1", "--format=%s", latestTag)
 	msgCmd.Dir = dir
 	msgCmd.Stderr = os.Stderr
 	msgOutput, err := msgCmd.Output()
