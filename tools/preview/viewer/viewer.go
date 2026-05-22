@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,8 +61,62 @@ var plantumlContainer struct {
 var fileWatcher struct {
 	watcher *fsnotify.Watcher
 
-	mutex   sync.Mutex
-	clients map[*websocket.Conn]bool
+	mutex          sync.Mutex
+	clients        map[*websocket.Conn]bool
+	watchedDirs    int
+	maxWatchedDirs int
+}
+
+const (
+	defaultMaxWatchedDirs   = 1024
+	fileWatcherWarningLimit = 10
+)
+
+var (
+	errStopFileWatcherSetup = errors.New("stop file watcher setup")
+	errWatchLimitReached    = errors.New("watch limit reached")
+)
+
+type ServeOptions struct {
+	PlantUMLServer string
+	NoWatch        bool
+	MaxWatchedDirs int
+}
+
+type warningLimiter struct {
+	limit      int
+	shown      int
+	suppressed int
+}
+
+func (l *warningLimiter) Warnf(format string, args ...interface{}) {
+	if l.limit <= 0 {
+		l.suppressed++
+		return
+	}
+	if l.shown < l.limit {
+		fmt.Printf(format, args...)
+		l.shown++
+		return
+	}
+	l.suppressed++
+}
+
+func (l *warningLimiter) Flush(summary string) {
+	if l.suppressed > 0 {
+		fmt.Printf(summary, l.suppressed)
+	}
+}
+
+func isTooManyOpenFiles(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "too many open files")
+}
+
+func normalizeServeOptions(opts ServeOptions) ServeOptions {
+	if opts.MaxWatchedDirs <= 0 {
+		opts.MaxWatchedDirs = defaultMaxWatchedDirs
+	}
+	return opts
 }
 
 type FileNode struct {
@@ -120,13 +175,14 @@ func generateGitDiff(oldContent, newContent, filename string) (string, error) {
 	return string(output), nil
 }
 
-func Serve(dir string, plantumlServer string) error {
-	return ServeWithInitialFile(dir, plantumlServer, "")
+func Serve(dir string, opts ServeOptions) error {
+	return ServeWithInitialFile(dir, opts, "")
 }
 
 const PLANT_UTML_PORT = 6743
 
-func ServeWithInitialFile(dir string, plantumlServer string, initialFile string) error {
+func ServeWithInitialFile(dir string, opts ServeOptions, initialFile string) error {
+	opts = normalizeServeOptions(opts)
 	// Convert to absolute path
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -191,7 +247,7 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 			return
 		}
 
-		plantServer := strings.TrimSuffix(plantumlServer, "/")
+		plantServer := strings.TrimSuffix(opts.PlantUMLServer, "/")
 
 		// If we have a running local PlantUML container, use that instead
 		if plantumlContainer.isRunning && plantumlContainer.port > 0 {
@@ -348,9 +404,14 @@ func ServeWithInitialFile(dir string, plantumlServer string, initialFile string)
 		json.NewEncoder(w).Encode(response)
 	})
 
-	// Initialize file watcher
-	if err := initFileWatcher(absDir); err != nil {
-		return fmt.Errorf("failed to initialize file watcher: %v", err)
+	if opts.NoWatch {
+		fmt.Println("File watcher disabled by --no-watch; preview will continue without live reload")
+	} else {
+		// Initialize file watcher on a best-effort basis. Preview should still work
+		// even when a large directory tree exceeds the process file descriptor limit.
+		if err := initFileWatcher(absDir, opts.MaxWatchedDirs); err != nil {
+			fmt.Printf("Warning: file watcher disabled: %v\n", err)
+		}
 	}
 
 	// API to handle file change notifications via WebSocket
@@ -826,26 +887,31 @@ func buildFileTreeWithRelativePaths(rootPath, baseDir string) (*FileNode, error)
 }
 
 // initFileWatcher initializes fsnotify watcher for the given directory
-func initFileWatcher(dir string) error {
+func initFileWatcher(dir string, maxWatchedDirs int) error {
+	if maxWatchedDirs <= 0 {
+		maxWatchedDirs = defaultMaxWatchedDirs
+	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
 
-	fileWatcher.watcher = watcher
-	fileWatcher.mutex.Lock()
-	fileWatcher.clients = make(map[*websocket.Conn]bool)
-	fileWatcher.mutex.Unlock()
-
 	// Add the root directory to watch
 	err = watcher.Add(dir)
 	if err != nil {
+		watcher.Close()
 		return fmt.Errorf("failed to watch directory %s: %v", dir, err)
 	}
 
+	warnings := warningLimiter{limit: fileWatcherWarningLimit}
+	watchedDirs := 1
 	// Walk through subdirectories and add them to watch
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			warnings.Warnf("Warning: failed to access path for file watching %s: %v\n", path, err)
+			if isTooManyOpenFiles(err) || warnings.suppressed > 0 {
+				return errStopFileWatcherSetup
+			}
 			return nil // Skip files/dirs we can't access
 		}
 
@@ -858,16 +924,44 @@ func initFileWatcher(dir string) error {
 		}
 
 		if info.IsDir() {
+			if path == dir {
+				return nil
+			}
+			if watchedDirs >= maxWatchedDirs {
+				return errWatchLimitReached
+			}
 			err = watcher.Add(path)
 			if err != nil {
-				fmt.Printf("Warning: failed to watch directory %s: %v\n", path, err)
+				warnings.Warnf("Warning: failed to watch directory %s: %v\n", path, err)
+				if isTooManyOpenFiles(err) || warnings.suppressed > 0 {
+					return errStopFileWatcherSetup
+				}
+			} else {
+				watchedDirs++
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("failed to walk directory tree: %v", err)
+	warnings.Flush("Warning: suppressed %d additional file watcher warnings\n")
+	if errors.Is(err, errWatchLimitReached) {
+		fmt.Printf("Warning: file watcher reached directory limit (%d); only watched the first %d directories\n", maxWatchedDirs, watchedDirs)
+		err = nil
 	}
+	if errors.Is(err, errStopFileWatcherSetup) || warnings.suppressed > 0 {
+		watcher.Close()
+		fmt.Println("Warning: file watcher disabled after too many watch failures; preview will continue without live reload")
+		return nil
+	}
+	if err != nil {
+		fmt.Printf("Warning: failed to walk directory tree for file watcher: %v\n", err)
+	}
+
+	fileWatcher.watcher = watcher
+	fileWatcher.mutex.Lock()
+	fileWatcher.clients = make(map[*websocket.Conn]bool)
+	fileWatcher.watchedDirs = watchedDirs
+	fileWatcher.maxWatchedDirs = maxWatchedDirs
+	fileWatcher.mutex.Unlock()
 
 	// Start watching for events
 	go watchFileEvents(dir)
@@ -877,6 +971,7 @@ func initFileWatcher(dir string) error {
 
 // watchFileEvents handles file system events and notifies clients
 func watchFileEvents(baseDir string) {
+	warnings := warningLimiter{limit: fileWatcherWarningLimit}
 	for {
 		select {
 		case event, ok := <-fileWatcher.watcher.Events:
@@ -901,7 +996,17 @@ func watchFileEvents(baseDir string) {
 
 				// If a new directory is created, add it to the watcher
 				if stat, err := os.Stat(event.Name); err == nil && stat.IsDir() {
-					fileWatcher.watcher.Add(event.Name)
+					fileWatcher.mutex.Lock()
+					if fileWatcher.maxWatchedDirs > 0 && fileWatcher.watchedDirs >= fileWatcher.maxWatchedDirs {
+						fileWatcher.mutex.Unlock()
+						warnings.Warnf("Warning: file watcher directory limit reached; not watching new directory %s\n", event.Name)
+					} else if err := fileWatcher.watcher.Add(event.Name); err != nil {
+						fileWatcher.mutex.Unlock()
+						warnings.Warnf("Warning: failed to watch new directory %s: %v\n", event.Name, err)
+					} else {
+						fileWatcher.watchedDirs++
+						fileWatcher.mutex.Unlock()
+					}
 				}
 			} else if event.Op&fsnotify.Remove == fsnotify.Remove {
 				eventType = "delete"
@@ -935,7 +1040,7 @@ func watchFileEvents(baseDir string) {
 			if !ok {
 				return
 			}
-			fmt.Printf("File watcher error: %v\n", err)
+			warnings.Warnf("File watcher error: %v\n", err)
 		}
 	}
 }

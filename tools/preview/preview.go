@@ -14,6 +14,7 @@ const help = `
 
 Options:
   --plant-uml-server ADDR    plantuml server url, default is https://www.plantuml.com/plantuml, can be http://localhost:8080
+  --no-watch                 disable file watching and live reload
 
 Example plantuml server:
   docker run --rm -p 8080:8080 plantuml/plantuml-server:jetty
@@ -35,12 +36,18 @@ Example plantuml server:
 // - [ ] remember per-file zoom state
 func Handle(args []string) error {
 	var plantumlServer string
+	var noWatch bool
 
 	args, err := flags.String("--plant-uml-server", &plantumlServer).
+		Bool("--no-watch", &noWatch).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {
 		return err
+	}
+	opts := viewer.ServeOptions{
+		PlantUMLServer: plantumlServer,
+		NoWatch:        noWatch,
 	}
 
 	path := "."
@@ -56,7 +63,7 @@ func Handle(args []string) error {
 
 	// If it's a directory, use the viewer
 	if stat.IsDir() {
-		return viewer.Serve(path, plantumlServer)
+		return viewer.Serve(path, opts)
 	}
 	// Use the viewer for UML files (it has built-in UML support)
 	// Get absolute path for the initial file
@@ -73,5 +80,5 @@ func Handle(args []string) error {
 	if rel, err := filepath.Rel(cwd, absPath); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		rootDir = filepath.Dir(absPath)
 	}
-	return viewer.ServeWithInitialFile(rootDir, plantumlServer, absPath)
+	return viewer.ServeWithInitialFile(rootDir, opts, absPath)
 }
