@@ -27,6 +27,7 @@ import (
 	"github.com/xhd2015/kool/tools/preview"
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
+	"github.com/xhd2015/kool/tools/scaffold"
 	"github.com/xhd2015/kool/tools/service"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/kool/tools/timeout"
@@ -74,6 +75,7 @@ VSCode:
 
 Project:  
   create <template> <project-name>   create new project
+  scaffold <name>                    print a project scaffold
   snippet <name>                     print snippet
   go
     replace <dir>                    replace go module in the given directory
@@ -153,6 +155,8 @@ func handle(args []string) error {
 		return handleVscode(args)
 	case "create":
 		return create.Handle(args)
+	case "scaffold":
+		return scaffold.Handle(args)
 	case "snippet":
 		return handleSnippet(args)
 	case "debug":
