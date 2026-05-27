@@ -34,11 +34,35 @@ go run ./ --dev --route-prefix my-app
 
 The Go server starts and proxies to a Vite dev server on a free port, so you get instant hot-reload for React changes.
 
+### External React Source
+
+The generated frontend includes an `external_src/` directory next to `src/`.
+Code in that directory can be imported with the `@external_src` alias:
+
+```tsx
+import { ExternalDemo } from '@external_src/demo-external/frontend/src/ExternalDemo';
+```
+
+The demo route at `/external` shows this pattern: keep `@external_src` mapped
+to the local `external_src/` directory, then import through the same relative
+path you would use inside that directory. For example, a checkout at
+`external_src/agent-traces` can expose a React component at:
+
+```tsx
+import { AgentTracesPage } from '@external_src/agent-traces/frontend/src/agent-trace/AgentTracesPage';
+```
+
+You can put as many external React source checkouts, packages, or worktrees as
+you need under `external_src/`, such as `external_src/admin` and
+`external_src/agent-traces`, then import them with paths like
+`@external_src/admin/frontend/src/...` or
+`@external_src/agent-traces/frontend/src/...`.
+
 ### Release Mode (Production Build)
 
 1. Build the frontend:
 ```sh
-go run ./script/build
+go run ./script/build-frontend
 ```
 
 2. Run the server (embeds the built frontend):
@@ -49,5 +73,5 @@ go run ./
 ### Build Binary
 
 ```sh
-go run ./script/build && go build -o /tmp/PROJECT_NAME ./
+go run ./script/build-frontend && go build -o /tmp/PROJECT_NAME ./
 ```

@@ -43,6 +43,11 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
+	err = copyTemplateFile(goReactTemplateFS, "go_react/.gitignore", filepath.Join(projectDir, ".gitignore"), "", "")
+	if err != nil {
+		return err
+	}
+
 	baseProjectName := filepath.Base(projectDir)
 
 	engine := "bun"
@@ -60,6 +65,12 @@ func HandleCreateGoReact(args []string) error {
 
 	// Install react-router-dom
 	err = cmd.Debug().Dir(reactDir).Run("bun", "add", "react-router-dom")
+	if err != nil {
+		return err
+	}
+
+	// Install Node types for vite.config.ts aliases that use node:* imports.
+	err = cmd.Debug().Dir(reactDir).Run("bun", "add", "-d", "@types/node")
 	if err != nil {
 		return err
 	}
@@ -118,6 +129,11 @@ func HandleCreateGoReact(args []string) error {
 	// Copy Frontend Template Files
 	frontendRoot := "go_react/frontend"
 	err = copyTemplateDir(goReactTemplateFS, frontendRoot, reactDir, baseProjectName, modulePath)
+	if err != nil {
+		return err
+	}
+
+	err = cmd.Debug().Dir(filepath.Join(reactDir, "external_src")).Run("git", "init")
 	if err != nil {
 		return err
 	}
@@ -189,6 +205,17 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 
 		return os.WriteFile(targetFilePath, []byte(content), 0644)
 	})
+}
+
+func copyTemplateFile(templateFS embed.FS, src, target, projectName, moduleName string) error {
+	contentBytes, err := templateFS.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	content := string(contentBytes)
+	content = strings.ReplaceAll(content, "PROJECT_NAME", projectName)
+	content = strings.ReplaceAll(content, "MODULE_NAME", moduleName)
+	return os.WriteFile(target, []byte(content), 0644)
 }
 
 func replaceFile(f string, old, new string) error {

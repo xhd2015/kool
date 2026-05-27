@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useState } from 'react';
+import { ExternalDemo } from '@external_src/demo-external/frontend/src/ExternalDemo';
 __APP_GEN_IMPORT__
 import { getRoutePrefix } from './routePrefix';
 import './App.css';
@@ -47,12 +48,14 @@ function App() {
             <nav style={{ padding: '10px 20px', borderBottom: '1px solid #eee', display: 'flex', gap: '20px' }}>
                 <Link to="/">Home</Link>
                 <Link to="/about">About</Link>
+                <Link to="/external">External Source</Link>
                 __APP_GEN_LINK__
             </nav>
 
             <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/external" element={<ExternalDemo />} />
                 __APP_GEN_ROUTE__
             </Routes>
         </Router>
