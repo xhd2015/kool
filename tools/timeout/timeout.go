@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -47,7 +48,7 @@ func Handle(args []string) error {
 	cmdArgs := args[2:]
 
 	// Parse duration
-	duration, err := time.ParseDuration(durationStr)
+	duration, err := parseDuration(durationStr)
 	if err != nil {
 		return fmt.Errorf("invalid duration '%s': %v", durationStr, err)
 	}
@@ -57,6 +58,19 @@ func Handle(args []string) error {
 	}
 
 	return runWithTimeout(duration, command, cmdArgs)
+}
+
+// parseDuration parses a duration string, treating bare numbers as seconds.
+func parseDuration(s string) (time.Duration, error) {
+	dur, durErr := time.ParseDuration(s)
+	if durErr == nil {
+		return dur, nil
+	}
+	d, err := strconv.ParseInt(s, 10, 64)
+	if err == nil {
+		return time.Duration(d) * time.Second, nil
+	}
+	return 0, durErr
 }
 
 func runWithTimeout(timeout time.Duration, command string, args []string) error {
