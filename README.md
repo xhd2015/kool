@@ -3,18 +3,18 @@ The tool that does more with less.
 
 # Install
 
-Plain `go install`:
+`curl` (recommended):
+```sh
+curl -fsSL https://github.com/xhd2015/kool/raw/master/install.sh | bash
+```
+
+Plain `go install` (no web ability):
 ```sh
 # for go1.20 and later
 go install github.com/xhd2015/kool@latest
 
 # for go1.19 and below
 go run github.com/xhd2015/kool/cmd/kool-with-go1.24@latest go install github.com/xhd2015/kool@latest
-```
-
-`curl` from github:
-```sh
-curl -fsSL https://github.com/xhd2015/kool/raw/master/install.sh | bash
 ```
 
 # Usage
