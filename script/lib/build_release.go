@@ -46,6 +46,10 @@ func BuildRelease(specs []*Spec) (*BuildReleaseResult, error) {
 		return nil, fmt.Errorf("tag %s is not a valid version, must start with 'v'", tag)
 	}
 
+	if err := buildFrontend(); err != nil {
+		return nil, fmt.Errorf("frontend build failed: %v", err)
+	}
+
 	var files []string
 	for _, spec := range specs {
 		filename := fmt.Sprintf("kool-%s-%s-%s", tag, spec.OS, spec.Arch)
@@ -60,4 +64,8 @@ func BuildRelease(specs []*Spec) (*BuildReleaseResult, error) {
 		files = append(files, filename)
 	}
 	return &BuildReleaseResult{Tag: tag, Files: files}, nil
+}
+
+func buildFrontend() error {
+	return cmd.Debug().Run("go", "run", "./script/build-react")
 }

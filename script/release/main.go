@@ -54,9 +54,9 @@ func handle() error {
 
 	client := github.NewReleaseClient(creds.Token, creds.Owner, creds.Repo)
 
-	release, err := client.GetReleaseByTag(result.Tag)
+	release, err := client.GetOrCreateRelease(result.Tag)
 	if err != nil {
-		return fmt.Errorf("failed to get release for tag %s: %v", result.Tag, err)
+		return fmt.Errorf("failed to get or create release for tag %s: %v", result.Tag, err)
 	}
 
 	for _, file := range result.Files {
@@ -87,7 +87,7 @@ func handleDryRun() error {
 	for _, spec := range lib.DefaultSpecs {
 		fmt.Printf("[dry-run] would build: kool-%s-%s-%s\n", tag, spec.OS, spec.Arch)
 	}
-	fmt.Printf("[dry-run] would upload to %s/%s release\n", creds.Owner, creds.Repo)
+	fmt.Printf("[dry-run] would upload to %s/%s release (creates if 404)\n", creds.Owner, creds.Repo)
 	return nil
 }
 
