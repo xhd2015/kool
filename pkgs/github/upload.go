@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,21 +72,21 @@ func (c *ReleaseClient) GetReleaseByTag(tag string) (*Release, error) {
 }
 
 func (c *ReleaseClient) UploadReleaseAsset(releaseID int64, filePath string) error {
-	f, err := os.Open(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	name := filepath.Base(filePath)
 	url := fmt.Sprintf("https://uploads.github.com/repos/%s/%s/releases/%d/assets?name=%s", c.Owner, c.Repo, releaseID, name)
 
-	req, err := http.NewRequest("POST", url, f)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/octet-stream")
+	req.ContentLength = int64(len(data))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
