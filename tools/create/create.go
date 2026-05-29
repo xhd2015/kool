@@ -189,6 +189,14 @@ func Handle(args []string) error {
 	return nil
 }
 
+func initGitRepo(dir string) error {
+	gitDir := filepath.Join(dir, ".git")
+	if _, err := os.Stat(gitDir); err == nil {
+		return nil
+	}
+	return cmd.Debug().Dir(dir).Run("git", "init")
+}
+
 func prepareProjectDir(targetPath string) (bool, error) {
 	info, err := os.Stat(targetPath)
 	if err != nil {
@@ -207,7 +215,13 @@ func prepareProjectDir(targetPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(entries) > 0 {
+	nonGitEntries := 0
+	for _, e := range entries {
+		if e.Name() != ".git" {
+			nonGitEntries++
+		}
+	}
+	if nonGitEntries > 0 {
 		return false, fmt.Errorf("directory %s already exists and is not empty", targetPath)
 	}
 	return false, nil
@@ -235,7 +249,11 @@ func suggestGoModPath(dir string) (string, error) {
 		// get relative path to git root
 		subPaths, subPathsErr := getRelativePathToGitRoot(dir)
 		if subPathsErr == nil {
-			return githubRepo + "/" + strings.Join(subPaths, "/"), nil
+			joined := strings.Join(subPaths, "/")
+			if joined == "" {
+				return githubRepo, nil
+			}
+			return githubRepo + "/" + joined, nil
 		} else {
 			return githubRepo, nil
 		}

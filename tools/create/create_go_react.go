@@ -16,22 +16,27 @@ import (
 var goReactTemplateFS embed.FS
 
 const goReactHelp = `	
-Usage: kool create go-react <project-name>
+Usage: kool create go-react [--go-module <module-path>] <project-name>
 
 Create a new go-react project.
+
+  --go-module  specify the Go module path (e.g. github.com/user/repo)
+               otherwise auto-detected from git remote, falls back to <project-name>
 `
 
 func HandleCreateGoReact(args []string) error {
-	args, err := flags.Help("-h,--help", goReactHelp).
+	var goModule string
+	args, err := flags.String("--go-module", &goModule).
+		Help("-h,--help", goReactHelp).
 		Parse(args)
 	if err != nil {
 		return err
 	}
 
 	if len(args) == 0 {
-		return fmt.Errorf("requires project")
+		return fmt.Errorf("requires project, try `kool create go-react --help`")
 	}
-	projectDir := args[0]
+	projectDir := filepath.Clean(args[0])
 	args = args[1:]
 
 	if len(args) > 0 {
@@ -96,7 +101,10 @@ func HandleCreateGoReact(args []string) error {
 	}
 
 	// Initialize Go Module
-	modulePath, _ := suggestGoModPath(projectDir)
+	modulePath := goModule
+	if modulePath == "" {
+		modulePath, _ = suggestGoModPath(projectDir)
+	}
 	if modulePath == "" {
 		modulePath = baseProjectName
 	}
@@ -133,8 +141,7 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
-	err = cmd.Debug().Dir(filepath.Join(reactDir, "external_src")).Run("git", "init")
-	if err != nil {
+	if err := initGitRepo(filepath.Join(reactDir, "external_src")); err != nil {
 		return err
 	}
 
@@ -164,11 +171,9 @@ func HandleCreateGoReact(args []string) error {
 	}
 
 	// Git Init
-	err = cmd.Debug().Dir(projectDir).Run("git", "init")
-	if err != nil {
+	if err := initGitRepo(projectDir); err != nil {
 		return err
 	}
-
 	return nil
 }
 

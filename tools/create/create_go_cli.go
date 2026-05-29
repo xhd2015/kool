@@ -25,7 +25,7 @@ func HandleCreateGoCLI(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("requires dir")
 	}
-	projectDir := args[0]
+	projectDir := filepath.Clean(args[0])
 	args = args[1:]
 	if len(args) > 0 {
 		return fmt.Errorf("unrecognized extra arguments: %v", strings.Join(args, ","))
@@ -56,8 +56,7 @@ func HandleCreateGoCLI(args []string) error {
 		return err
 	}
 
-	err = cmd.Debug().Dir(projectDir).Run("git", "init")
-	if err != nil {
+	if err := initGitRepo(projectDir); err != nil {
 		return err
 	}
 
