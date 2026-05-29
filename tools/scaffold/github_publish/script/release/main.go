@@ -1,27 +1,46 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/xhd2015/kool/pkgs/github"
 	"github.com/xhd2015/kool/pkgs/release"
+	"github.com/xhd2015/less-gen/flags"
 )
 
+const help = `
+Usage: go run ./script/release [--dry-run]
+
+Release __NAME__ to GitHub Releases.
+
+Options:
+  --dry-run    print what would be done without actually building or uploading
+  -h,--help    show help message
+`
+
 func main() {
-	err := handle()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	if err := handle(); err != nil {
+		fmt.Fprintf(os.Stderr, "__NAME__ release: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func handle() error {
-	dryRun := flag.Bool("dry-run", false, "print what would be done without actually building or uploading")
-	flag.Parse()
+	var dryRun bool
+	args, err := flags.
+		Bool("--dry-run", &dryRun).
+		Help("-h,--help", help).
+		Parse(os.Args[1:])
+	if err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
 
-	if *dryRun {
+	if dryRun {
 		return handleDryRun()
 	}
 
@@ -30,7 +49,7 @@ func handle() error {
 		return err
 	}
 
-	result, err := release.BuildRelease("kool", buildFrontend, release.DefaultSpecs)
+	result, err := release.BuildRelease("__NAME__", nil, release.DefaultSpecs)
 	if err != nil {
 		return err
 	}
@@ -61,17 +80,13 @@ func handleDryRun() error {
 	creds, credsErr := release.LoadCredentials(".upload-credentials.json")
 	if credsErr != nil {
 		fmt.Fprintf(os.Stderr, "[dry-run] warning: %v\n", credsErr)
-		creds = &release.Credentials{Owner: "?", Repo: "?"}
+		creds = &release.Credentials{Owner: "__OWNER__", Repo: "__REPO__"}
 	}
 
 	fmt.Printf("[dry-run] tag: %s\n", tag)
 	for _, spec := range release.DefaultSpecs {
-		fmt.Printf("[dry-run] would build: kool-%s-%s-%s\n", tag, spec.OS, spec.Arch)
+		fmt.Printf("[dry-run] would build: __NAME__-%s-%s-%s\n", tag, spec.OS, spec.Arch)
 	}
 	fmt.Printf("[dry-run] would upload to %s/%s release (creates if 404)\n", creds.Owner, creds.Repo)
-	return nil
-}
-
-func buildFrontend() error {
 	return nil
 }

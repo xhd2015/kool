@@ -5,6 +5,8 @@
 dlv.log
 __debug-main.bin
 
+.agents
+
 /kool-*
 /kool
 **/.xgo/gen

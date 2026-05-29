@@ -8,6 +8,11 @@ The tool that does more with less.
 curl -fsSL https://github.com/xhd2015/kool/raw/master/install.sh | bash
 ```
 
+via `script/install`:
+```sh
+go run github.com/xhd2015/kool/script/install@latest
+```
+
 Plain `go install` (no web ability):
 ```sh
 # for go1.20 and later

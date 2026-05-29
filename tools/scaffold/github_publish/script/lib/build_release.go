@@ -2,13 +2,11 @@ package lib
 
 import (
 	"github.com/xhd2015/kool/pkgs/release"
-	"github.com/xhd2015/xgo/support/cmd"
 )
 
 var DefaultSpecs = release.DefaultSpecs
 
 func BuildRelease(specs []*release.Spec) (*release.BuildReleaseResult, error) {
-	return release.BuildRelease("kool", func() error {
-		return cmd.Debug().Run("go", "run", "./script/build-react")
-	}, specs)
+	// Add custom pre-build steps here (e.g. frontend build, asset generation)
+	return release.BuildRelease("__NAME__", nil, specs)
 }
