@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Editor from '../editor/Editor';
 import UMLPreview from './UMLPreview';
 import MermaidPreview from './MermaidPreview';
+import DOTPreview from './DOTPreview';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownPreviewV2 from './MarkdownPreviewV2';
 import { useResize } from '../../hooks/useResize';
@@ -90,6 +91,8 @@ const EditablePreview = ({ selectedFile, fileType, fileModifiedExternally, onRel
                 return <UMLPreview content={currentContent} />;
             case 'mermaid':
                 return <MermaidPreview content={currentContent} />;
+            case 'dot':
+                return <DOTPreview content={currentContent} />;
             case 'markdown':
                 return useV2 ?
                     <MarkdownPreviewV2 content={currentContent} /> :

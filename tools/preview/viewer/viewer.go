@@ -372,6 +372,23 @@ func ServeWithInitialFile(dir string, opts ServeOptions, initialFile string) err
 			return
 		}
 
+		// Handle DOT files
+		if ext == ".dot" {
+			content, err := os.ReadFile(absFilePath)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			response := map[string]interface{}{
+				"type":    "dot",
+				"content": string(content),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
 		// Handle Markdown files
 		if ext == ".md" {
 			content, err := os.ReadFile(absFilePath)

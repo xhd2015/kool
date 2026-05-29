@@ -62,7 +62,8 @@
     display: block;
 }
 
-.preview-mermaid {
+.preview-mermaid,
+.preview-dot {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -116,7 +117,8 @@
 }
 
 .zoomable-container img,
-.zoomable-container .mermaid-container {
+.zoomable-container .mermaid-container,
+.zoomable-container .dot-container {
     max-width: none;
     max-height: none;
     transition: transform 0.1s ease-out;
@@ -133,7 +135,8 @@ body.dark-theme .preview-uml {
     background-color: #ffffff;
 }
 
-body.dark-theme .preview-mermaid {
+body.dark-theme .preview-mermaid,
+body.dark-theme .preview-dot {
     background-color: #1e1e1e;
 }
 

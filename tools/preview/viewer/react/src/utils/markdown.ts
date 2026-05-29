@@ -3,6 +3,7 @@ import mermaid from 'mermaid';
 import './mermaid'; // initialize mermaid
 import { encode } from 'plantuml-encoder';
 import { highlightCode } from './syntaxHighlighting';
+import { renderDotToSvg } from './dot';
 
 
 // Pure function for rendering markdown to HTML with SVGs directly rendered (no side effects, no closure dependencies)
@@ -11,9 +12,10 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
         return '';
     }
 
-    // First pass: collect all mermaid and plantuml code blocks
+    // First pass: collect all mermaid, plantuml, and dot code blocks
     const mermaidBlocks: { id: string; code: string; placeholder: string }[] = [];
     const plantumlBlocks: { id: string; code: string; placeholder: string }[] = [];
+    const dotBlocks: { id: string; code: string; placeholder: string }[] = [];
 
     // Track first heading for copy all functionality
     let isFirstHeading = true;
@@ -87,6 +89,12 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
                 plantumlBlocks.push({ id: elementID, code: token.text, placeholder });
                 return placeholder;
             }
+            case 'dot': {
+                const elementID = `dot-${crypto.randomUUID()}`;
+                const placeholder = `__DOT_PLACEHOLDER_${elementID}__`;
+                dotBlocks.push({ id: elementID, code: token.text, placeholder });
+                return placeholder;
+            }
             default:
                 return highlightCode(token.text, token.lang || '');
         }
@@ -134,6 +142,26 @@ export async function renderMarkdownToHtml(content: string, handleMermaidContext
         } catch {
             // Fall back to showing the code
             const fallback = `<pre style="text-align: left; padding: 16px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px;"><code class="language-plantuml">${block.code}</code></pre>`;
+            html = html.replace(block.placeholder, fallback);
+        }
+    }
+
+    // Fourth pass: render all DOT diagrams and replace placeholders
+    for (const block of dotBlocks) {
+        try {
+            const svg = await renderDotToSvg(block.code);
+
+            // Add context menu functionality to the SVG
+            const svgWithEvents = svg.replace(
+                '<svg',
+                '<svg style="max-width: 100%; height: auto; user-select: none;" oncontextmenu="window.' + handleMermaidContextMenu + '(event, this)"'
+            );
+
+            const finalSvg = `<div class="dot-container">${svgWithEvents}</div>`;
+            html = html.replace(block.placeholder, finalSvg);
+        } catch {
+            // Fall back to showing the code
+            const fallback = `<pre style="text-align: left; padding: 16px; background: #f8f8f8; border: 1px solid #ddd; border-radius: 4px;"><code class="language-dot">${block.code}</code></pre>`;
             html = html.replace(block.placeholder, fallback);
         }
     }

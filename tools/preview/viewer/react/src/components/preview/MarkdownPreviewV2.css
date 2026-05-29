@@ -270,8 +270,9 @@
     margin: 2em 0;
 }
 
-/* Mermaid Diagram Styles */
-.mermaid-container-v2 {
+/* Mermaid/Graphviz Diagram Styles */
+.mermaid-container-v2,
+.dot-container-v2 {
     margin: 1em 0;
     padding: 16px;
     background-color: #f8f9fa;
@@ -282,7 +283,8 @@
     position: relative;
 }
 
-.mermaid-error-v2 {
+.mermaid-error-v2,
+.dot-error-v2 {
     background: #fee2e2;
     border: 1px solid #fecaca;
     padding: 12px;
@@ -294,7 +296,8 @@
     line-height: 1.4;
 }
 
-.mermaid-error-v2 strong {
+.mermaid-error-v2 strong,
+.dot-error-v2 strong {
     font-weight: 600;
 }
 
@@ -303,7 +306,8 @@
     font-size: 16px;
 }
 
-.mermaid-container-v2 svg {
+.mermaid-container-v2 svg,
+.dot-container-v2 svg {
     max-width: 100%;
     height: auto;
     pointer-events: all;
@@ -317,10 +321,12 @@
     outline: none !important;
 }
 
-/* Ensure no borders on any Mermaid-generated elements */
+/* Ensure no borders on any Mermaid/DOT-generated elements */
 .mermaid-container-v2 svg *,
 .mermaid-container-v2 .mermaid *,
-.mermaid-container-v2 * {
+.mermaid-container-v2 *,
+.dot-container-v2 svg *,
+.dot-container-v2 * {
     border: none !important;
     outline: none !important;
 }

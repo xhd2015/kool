@@ -253,8 +253,9 @@
     margin: 2em 0;
 }
 
-/* Mermaid Diagram Styles */
-.mermaid-container {
+/* Mermaid/Graphviz Diagram Styles */
+.mermaid-container,
+.dot-container {
     margin: 1em 0;
     padding: 16px;
     background-color: #f8f9fa;

@@ -10,6 +10,7 @@ import { encode } from 'plantuml-encoder';
 import { copyAsPng, svgToPng, pngBlobToDataUrl } from '../../utils/svg';
 import { ScrollPositionManager } from '../../utils/scrollSync';
 import { highlightCode } from '../../utils/syntaxHighlighting';
+import { renderDotToSvg } from '../../utils/dot';
 
 import './MarkdownPreviewV2.css';
 
@@ -443,6 +444,45 @@ const MarkdownPreviewV2 = ({ content }: MarkdownPreviewV2Props) => {
                 );
             }
 
+            if (language === 'dot') {
+                const elementID = useMemo(() => `dot-${crypto.randomUUID()}`, []);
+                const code = String(children).replace(/\n$/, '');
+
+                useEffect(() => {
+                    const renderDot = async () => {
+                        try {
+                            const element = document.getElementById(elementID);
+                            if (element) {
+                                const svg = await renderDotToSvg(code);
+                                const svgWithEvents = svg.replace(
+                                    '<svg',
+                                    `<svg style="max-width: 100%; height: auto; user-select: none;" oncontextmenu="window.${handleMermaidContextMenuUniqFn}(event, this)"`
+                                );
+                                element.innerHTML = svgWithEvents;
+                            }
+                        } catch (err) {
+                            const element = document.getElementById(elementID);
+                            if (element) {
+                                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                                element.innerHTML = `
+                                    <div class="dot-error-v2">
+                                        <strong>⚠️ DOT Rendering Error:</strong> ${errorMessage}
+                                    </div>
+                                    <pre class="code-block-v2" style="text-align: left;"><code class="language-dot">${code}</code></pre>
+                                `;
+                            }
+                        }
+                    };
+                    renderDot();
+                }, [elementID, code]);
+
+                return (
+                    <div className="dot-container-v2">
+                        <div id={elementID}></div>
+                    </div>
+                );
+            }
+
             if (language === 'plantuml' || language === 'puml' || language === 'uml') {
                 const code = String(children).replace(/\n$/, '');
                 const encoded = encode(code);
@@ -516,7 +556,8 @@ const MarkdownPreviewV2 = ({ content }: MarkdownPreviewV2Props) => {
             child.props.className.includes('language-mermaid') ||
             child.props.className.includes('language-plantuml') ||
             child.props.className.includes('language-puml') ||
-            child.props.className.includes('language-uml')
+            child.props.className.includes('language-uml') ||
+            child.props.className.includes('language-dot')
         );
 
         if (isDiagramCode) {

@@ -3,6 +3,7 @@ import { isEditableFile } from '../../utils/fileUtils';
 import EditablePreview from './EditablePreview';
 import UMLPreview from './UMLPreview';
 import MermaidPreview from './MermaidPreview';
+import DOTPreview from './DOTPreview';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownPreviewV2 from './MarkdownPreviewV2';
 import { useV2 } from '../../utils/config';
@@ -75,6 +76,8 @@ const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewPro
             fileType = 'uml';
         } else if (ext === '.mmd') {
             fileType = 'mermaid';
+        } else if (ext === '.dot') {
+            fileType = 'dot';
         }
 
         return <EditablePreview
@@ -110,6 +113,9 @@ const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewPro
 
         case 'mermaid':
             return <MermaidPreview content={previewData.content} />;
+
+        case 'dot':
+            return <DOTPreview content={previewData.content} />;
 
         case 'markdown':
             return useV2 ?
