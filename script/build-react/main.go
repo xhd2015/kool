@@ -178,15 +178,8 @@ func buildFrontend(rootDir string, item frontend, manager string, skipInstall bo
 func installArgs(dir string, manager string) []string {
 	switch manager {
 	case "bun":
-		args := []string{"install"}
-		if fileExists(filepath.Join(dir, "bun.lock")) || fileExists(filepath.Join(dir, "bun.lockb")) {
-			args = append(args, "--frozen-lockfile")
-		}
-		return args
+		return []string{"install"}
 	case "npm":
-		if fileExists(filepath.Join(dir, "package-lock.json")) {
-			return []string{"ci"}
-		}
 		return []string{"install", "--no-package-lock"}
 	default:
 		panic("unsupported package manager: " + manager)
