@@ -1,13 +1,16 @@
 package history
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	llsrun "github.com/xhd2015/lls/run"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/less-gen/flags"
+	"golang.org/x/term"
 )
 
 const help = `
@@ -44,7 +47,7 @@ func Handle(args []string) error {
 	case "clean", "compact":
 		return handleClean(args)
 	case "del":
-		return handleDel(args)
+		return HandleDel(args)
 	case "log-file":
 		return handleLogFile(args)
 	}
@@ -99,21 +102,21 @@ func handleMerge(args []string) error {
 	return nil
 }
 
-func handleDel(args []string) error {
+func HandleDel(args []string) error {
 	args, err := flags.Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}
 
-	if len(args) == 0 {
-		return fmt.Errorf("requires command, usage: del '<command>'")
-	}
+	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
 
-	delCmd := args[0]
-	args = args[1:]
-
+	var delCmd string
 	if len(args) > 0 {
-		return fmt.Errorf("unrecognized extra args: %v", args)
+		delCmd = args[0]
+		args = args[1:]
+		if len(args) > 0 {
+			return fmt.Errorf("unrecognized extra args: %v", args)
+		}
 	}
 
 	homeHistory, err := GetHomeHistory()
@@ -121,12 +124,51 @@ func handleDel(args []string) error {
 		return err
 	}
 
-	err = DeleteFromHistoryFile(homeHistory, delCmd)
+	logFiles, err := readLogFiles()
 	if err != nil {
 		return err
 	}
 
-	logFiles, err := readLogFiles()
+	allFiles := append([]string{homeHistory}, logFiles...)
+
+	if delCmd == "" {
+		if !isTTY {
+			return fmt.Errorf("requires command, usage: del '<command>'")
+		}
+		selected, err := selectFromHistory(allFiles, "")
+		if err != nil {
+			return err
+		}
+		if selected == "" {
+			return nil
+		}
+		if !confirmDelete(selected) {
+			return nil
+		}
+		delCmd = selected
+	} else {
+		exists, err := commandExistsInFiles(allFiles, delCmd)
+		if err != nil {
+			return err
+		}
+		if !exists && isTTY {
+			selected, err := selectFromHistory(allFiles, delCmd)
+			if err != nil {
+				return err
+			}
+			if selected == "" {
+				return nil
+			}
+			if !confirmDelete(selected) {
+				return nil
+			}
+			delCmd = selected
+		} else if !exists {
+			return fmt.Errorf("command not found in history: %s", delCmd)
+		}
+	}
+
+	err = DeleteFromHistoryFile(homeHistory, delCmd)
 	if err != nil {
 		return err
 	}
@@ -139,6 +181,57 @@ func handleDel(args []string) error {
 	}
 
 	return nil
+}
+
+func selectFromHistory(files []string, query string) (string, error) {
+	seen := make(map[string]bool)
+	var commands []string
+	for _, file := range files {
+		lines, err := ReadNonEmptyLines(file)
+		if err != nil {
+			continue
+		}
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || seen[line] {
+				continue
+			}
+			seen[line] = true
+			commands = append(commands, line)
+		}
+	}
+
+	if len(commands) == 0 {
+		return "", fmt.Errorf("no history found")
+	}
+
+	return llsrun.SelectWithFzf(commands, query)
+}
+
+func commandExistsInFiles(files []string, cmd string) (bool, error) {
+	for _, file := range files {
+		lines, err := ReadNonEmptyLines(file)
+		if err != nil {
+			continue
+		}
+		for _, line := range lines {
+			if strings.TrimSpace(line) == cmd {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func confirmDelete(cmd string) bool {
+	fmt.Fprintf(os.Stderr, "Really delete '%s'? [Y/n] ", cmd)
+	reader := bufio.NewReader(os.Stdin)
+	answer, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+	answer = strings.TrimSpace(strings.ToLower(answer))
+	return answer == "" || answer == "y" || answer == "yes"
 }
 
 func DeleteFromHistoryFile(historyFile, delCmd string) error {
