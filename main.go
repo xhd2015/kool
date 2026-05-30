@@ -93,6 +93,7 @@ Project:
     tag-next                         tag next
 	show-tag [<dir>]                 show the tag of the given directory
 	show-exclude                     show the exclude rules
+	tmp-exclude|tmp-ignore <p>       temporarily add patterns to .git/info/exclude
 	show-children <commit>           show the children of the given commit
 	check-merge <ref1> <ref2> ...    check if refs are merged into HEAD
   http

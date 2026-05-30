@@ -9,6 +9,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
+	"github.com/xhd2015/kool/tools/git/git_tmp_exclude"
 	"github.com/xhd2015/kool/tools/git/grep"
 	"github.com/xhd2015/kool/tools/git/hooks"
 	"github.com/xhd2015/kool/tools/git/line"
@@ -30,6 +31,7 @@ Available commands:
   tag-next                         tag next version
   show-tag                         show tag of current commit
   show-exclude                     show exclude files
+  tmp-exclude,tmp-ignore           temporarily add patterns to .git/info/exclude
   init-hooks                       init git hooks
   help                             show help message
 
@@ -66,6 +68,8 @@ func Handle(args []string) error {
 		remainArgs = args[1:]
 	case "show-exclude":
 		return git_show_exclude.Handle()
+	case "tmp-exclude", "tmp-ignore":
+		return git_tmp_exclude.Handle(args[1:])
 	case "init-hooks":
 		return hooks.HandleInit(args[1:])
 	case "show":
