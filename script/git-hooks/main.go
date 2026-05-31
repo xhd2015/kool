@@ -153,7 +153,13 @@ func preCommitCheck(noCommit bool, amend bool) error {
 	}
 
 	// check frontend build
-	err = cmd.Dir(filepath.Join(rootDir, "tools", "web", "react")).Run("bun", "run", "build")
+	frontendDir := filepath.Join(rootDir, "tools", "web", "react")
+	if _, err := os.Stat(filepath.Join(frontendDir, "node_modules")); os.IsNotExist(err) {
+		if err := cmd.Dir(frontendDir).Run("bun", "install", "--frozen-lockfile"); err != nil {
+			return fmt.Errorf("frontend install failed: %w", err)
+		}
+	}
+	err = cmd.Dir(frontendDir).Run("bun", "run", "build")
 	if err != nil {
 		return fmt.Errorf("frontend build failed: %w", err)
 	}
