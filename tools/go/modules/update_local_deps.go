@@ -303,6 +303,9 @@ func tagModuleHead(moduleAbsDir string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	if nextTag == "" {
+		return "", "", nil
+	}
 	if err := runGitCmd(moduleAbsDir, "tag", nextTag); err != nil {
 		return "", "", err
 	}
@@ -322,7 +325,7 @@ func moduleHeadNeedsTag(moduleAbsDir string, versionPrefix string) (bool, error)
 	latestTag, err := tag.GetLatestVersionTag(moduleAbsDir, versionPrefix)
 	if err != nil {
 		if errors.Is(err, tag.ErrNoTag) {
-			return true, nil
+			return false, nil
 		}
 		return false, err
 	}
@@ -427,7 +430,7 @@ func nextModuleTag(moduleAbsDir string, versionPrefix string) (string, string, e
 	latestTag, err := tag.GetLatestVersionTag(moduleAbsDir, versionPrefix)
 	if err != nil {
 		if errors.Is(err, tag.ErrNoTag) {
-			return "", initialModuleTag(versionPrefix), nil
+			return "", "", nil
 		}
 		return "", "", err
 	}
@@ -436,13 +439,6 @@ func nextModuleTag(moduleAbsDir string, versionPrefix string) (string, string, e
 		return "", "", err
 	}
 	return latestTag, nextTag, nil
-}
-
-func initialModuleTag(versionPrefix string) string {
-	if versionPrefix == "" {
-		return "v0.0.1"
-	}
-	return versionPrefix + "0.0.1"
 }
 
 func commitModuleChanges(gitRoot string, moduleAbsDir string, updatedDeps []DependencyAnnotation) error {
