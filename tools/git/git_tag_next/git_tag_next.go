@@ -9,7 +9,7 @@ import (
 
 	"github.com/xhd2015/gitops/git"
 	"github.com/xhd2015/kool/tools/git/tag"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -33,7 +33,7 @@ type Options struct {
 
 func Handle(args []string) error {
 	opts := Options{}
-	args, err := flags.String("--dir", &opts.Dir).
+	args, err := lessflags.String("--dir", &opts.Dir).
 		Bool("--show", &opts.Show).
 		Bool("--push", &opts.Push).
 		Help("-h,--help", help).

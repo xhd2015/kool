@@ -9,7 +9,7 @@ import (
 	"github.com/xhd2015/kool/tools/bash/history"
 	_ "github.com/xhd2015/kool/tools/web"
 	"github.com/xhd2015/kool/tools/web/server"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -24,7 +24,7 @@ Options:
 
 func Handle(args []string) error {
 	var port int
-	args, err := flags.
+	args, err := lessflags.
 		Int("--port", &port).
 		Help("-h,--help", help).
 		Parse(args)

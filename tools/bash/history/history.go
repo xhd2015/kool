@@ -9,7 +9,7 @@ import (
 
 	llsrun "github.com/xhd2015/lls/run"
 	"github.com/xhd2015/kool/tools/stringtool"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"golang.org/x/term"
 )
 
@@ -57,7 +57,7 @@ func Handle(args []string) error {
 
 func handleMerge(args []string) error {
 	var writeBack bool
-	args, err := flags.Bool("-w", &writeBack).Help("-h,--help", help).Parse(args)
+	args, err := lessflags.Bool("-w", &writeBack).Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func handleMerge(args []string) error {
 }
 
 func HandleDel(args []string) error {
-	args, err := flags.Help("-h,--help", help).Parse(args)
+	args, err := lessflags.Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}
@@ -263,7 +263,7 @@ func DeleteFromHistoryFile(historyFile, delCmd string) error {
 
 func handleClean(args []string) error {
 	var writeBack bool
-	args, err := flags.Bool("-w", &writeBack).Help("-h,--help", help).Parse(args)
+	args, err := lessflags.Bool("-w", &writeBack).Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}
@@ -397,7 +397,7 @@ func cleanLines(lines []string) []string {
 }
 
 func handleLogFile(args []string) error {
-	args, err := flags.Help("-h,--help", help).Parse(args)
+	args, err := lessflags.Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}

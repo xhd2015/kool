@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -53,8 +53,8 @@ Examples:
 
 func handleHistory(args []string) error {
 	var verbose bool
-	// "github.com/xhd2015/less-gen/flags"
-	args, err := flags.Help("-h,--help", historyHelp).
+	// "github.com/xhd2015/less-flags"
+	args, err := lessflags.Help("-h,--help", historyHelp).
 		Bool("-v,--verbose", &verbose).
 		Parse(args)
 	if err != nil {

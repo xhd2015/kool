@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -36,7 +36,7 @@ func main() {
 func Handle(args []string) error {
 	var verbose bool
 	var modulePath string
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		Bool("-v,--verbose", &verbose).
 		String("--module", &modulePath).

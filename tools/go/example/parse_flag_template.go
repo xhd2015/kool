@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -58,7 +58,7 @@ func Handle(args []string) error {
 func handle(args []string) error {
 	var verbose bool
 	var dir string
-	args, err := flags.String("--dir", &dir).
+	args, err := lessflags.String("--dir", &dir).
 		Bool("-v,--verbose", &verbose).
 		Help("-h,--help", help).
 		Parse(args)

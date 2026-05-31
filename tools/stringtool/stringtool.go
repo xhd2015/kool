@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/pkgs/terminal"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 func HandleSplit(args []string) error {
 	var separator string = ","
-	args, err := flags.String("-s,--separator", &separator).
+	args, err := lessflags.String("-s,--separator", &separator).
 		Parse(args)
 	if err != nil {
 		return err

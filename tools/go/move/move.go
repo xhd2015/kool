@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/edit/goedit"
 	"github.com/xhd2015/xgo/support/goinfo"
 	"golang.org/x/tools/go/packages"
@@ -28,7 +28,7 @@ Arguments:
 // move a package from one directory to another
 // it's part of refactor
 func Handle(args []string) error {
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", moveHelp).
 		Parse(args)
 	if err != nil {

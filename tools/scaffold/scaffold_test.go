@@ -40,7 +40,7 @@ func TestHandleGoCmdRunLib(t *testing.T) {
 		"# pkgs/__NAME__/__NAME__.go",
 		`__NAME__ "__MODULE__/run/__NAME__"`,
 		`core "__MODULE__/pkgs/__NAME__"`,
-		"github.com/xhd2015/less-gen/flags",
+		"github.com/xhd2015/less-flags",
 		"func Run(args []string) error",
 		"func Run(config Config) error",
 	} {
@@ -77,7 +77,7 @@ func TestHandleGitHubPublish(t *testing.T) {
 		"__NAME__",
 		"__OWNER__",
 		"__REPO__",
-		"github.com/xhd2015/less-gen/flags",
+		"github.com/xhd2015/less-flags",
 		"func BuildRelease",
 		"--dry-run",
 	}

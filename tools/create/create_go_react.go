@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -26,7 +26,7 @@ Create a new go-react project.
 
 func HandleCreateGoReact(args []string) error {
 	var goModule string
-	args, err := flags.String("--go-module", &goModule).
+	args, err := lessflags.String("--go-module", &goModule).
 		Help("-h,--help", goReactHelp).
 		Parse(args)
 	if err != nil {

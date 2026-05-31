@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/xhd2015/kool/tools/bash/server/model"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -38,7 +38,7 @@ type Server struct {
 
 func Handle(args []string) error {
 	var port int
-	args, err := flags.Int("--port", &port).Help("-h,--help", help).Parse(args)
+	args, err := lessflags.Int("--port", &port).Help("-h,--help", help).Parse(args)
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -21,10 +21,10 @@ Options:
 `
 
 func Handle(args []string) error {
-	// "github.com/xhd2015/less-gen/flags"
+	// "github.com/xhd2015/less-flags"
 	var verbose bool
 	var dir string
-	args, err := flags.String("--dir", &dir).
+	args, err := lessflags.String("--dir", &dir).
 		Help("-h,--help", help).
 		Bool("-v,--verbose", &verbose).
 		Parse(args)

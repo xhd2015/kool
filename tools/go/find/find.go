@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/pkgs/reflectfield"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/less-gen/go/astinfo"
 	"github.com/xhd2015/less-gen/go/load"
 )
@@ -40,7 +40,7 @@ func Handle(args []string) error {
 	var get bool
 	var verbose bool
 	var loadArgs []string
-	args, err := flags.String("--dir", &dir).
+	args, err := lessflags.String("--dir", &dir).
 		StringSlice("--load-args,--load-arg", &loadArgs).
 		Bool("--set", &set).
 		Bool("--get", &get).
@@ -51,7 +51,7 @@ func Handle(args []string) error {
 		return err
 	}
 
-	name, err := flags.OnlyArg(args)
+	name, err := lessflags.OnlyArg(args)
 	if err != nil {
 		return fmt.Errorf("name: %w", err)
 	}

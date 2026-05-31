@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 //go:embed all:github_publish
@@ -70,7 +70,7 @@ import (
     "strings"
 
     core "__MODULE__/pkgs/__NAME__"
-    "github.com/xhd2015/less-gen/flags"
+    "github.com/xhd2015/less-flags"
 )
 
 const help = ` + "`" + `
@@ -82,7 +82,7 @@ Options:
 
 func Run(args []string) error {
     config := core.Config{}
-    args, err := flags.
+    args, err := lessflags.
         Help("-h,--help", help).
         Parse(args)
     if err != nil {
@@ -111,7 +111,7 @@ func Handle(args []string) error {
 
 func HandleWithWriter(w io.Writer, args []string) error {
 	var list bool
-	args, err := flags.Bool("--list", &list).
+	args, err := lessflags.Bool("--list", &list).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {

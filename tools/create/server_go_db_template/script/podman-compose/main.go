@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -45,7 +45,7 @@ func Handle(args []string) error {
 	var build bool
 	var detach bool
 
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		Bool("-v,--verbose", &verbose).
 		Bool("--build", &build).

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/xhd2015/kool/tools/dlv"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/cmd/xgo/pathsum"
 	"github.com/xhd2015/xgo/support/cmd"
 	"github.com/xhd2015/xgo/support/netutil"
@@ -67,7 +67,7 @@ func HandleOpts(args []string, opts Options) error {
 	var gcflags []string
 	var passStdin bool
 
-	fb := flags.
+	fb := lessflags.
 		Bool("--stdin", &passStdin).
 		StringSlice("-gcflags,--gcflags", &gcflags).
 		Help("-h,--help", debugHelp)

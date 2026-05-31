@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 // TODO:
@@ -649,7 +649,7 @@ func handleAdd(args []string) error {
 	var name string
 	var pwd string
 
-	args, err := flags.String("--name", &name).
+	args, err := lessflags.String("--name", &name).
 		String("--pwd", &pwd).
 		Parse(args)
 	if err != nil {

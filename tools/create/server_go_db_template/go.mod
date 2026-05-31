@@ -9,6 +9,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/xhd2015/arc-orm v0.0.16
+	github.com/xhd2015/less-flags v1.0.0
 	github.com/xhd2015/less-gen v0.0.19
 	github.com/xhd2015/xgo v1.1.7
 	go.uber.org/zap v1.27.0

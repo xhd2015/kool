@@ -16,7 +16,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/ls"
 	"github.com/xhd2015/kool/tools/git/staged"
 	"github.com/xhd2015/kool/tools/git/worktree"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -153,7 +153,7 @@ func HandleLs(args []string) error {
 	var dir string
 	var staged bool
 	var verbose bool
-	args, err := flags.String("--dir", &dir).
+	args, err := lessflags.String("--dir", &dir).
 		Bool("--cached,--staged", &staged).
 		Bool("-v,--verbose", &verbose).
 		Help("-h,--help", lsHelp).

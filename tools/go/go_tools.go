@@ -17,7 +17,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/modules"
 	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/vendortool"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 
 	goconfig "github.com/xhd2015/kool/tools/go/config"
@@ -110,7 +110,7 @@ Run kool <cmd> --help for more information.
 // run "go build -o `which XX` ./" or "go -C <target dir> build -o `which XX` ./"
 func HandleRebuild(args []string) error {
 	var gopath bool
-	args, err := flags.
+	args, err := lessflags.
 		Bool("--gopath", &gopath).
 		Help("-h,--help", rebuildHelp).
 		Parse(args)
@@ -235,7 +235,7 @@ func executableName(name string) string {
 func HandleReplace(args []string) error {
 	var all bool
 	var show bool
-	args, err := flags.
+	args, err := lessflags.
 		Bool("--all", &all).
 		Bool("--show", &show).
 		Parse(args)
@@ -268,7 +268,7 @@ func HandleUpdate(args []string) error {
 	var all bool
 	var show bool
 	var dirFlag string
-	args, err := flags.
+	args, err := lessflags.
 		Bool("--all", &all).
 		Bool("--replaced", &replaced).
 		Bool("--show", &show).

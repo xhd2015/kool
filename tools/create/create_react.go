@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -33,7 +33,7 @@ func HandleCreateReact(args []string) error {
 	var chakraUI bool
 	var reactScript bool
 	var bun *bool // auto
-	args, err := flags.Bool("--chakra-ui", &chakraUI).
+	args, err := lessflags.Bool("--chakra-ui", &chakraUI).
 		Bool("--react-script", &reactScript).
 		Bool("--bun", &bun).
 		Help("-h,--help", reactHelp).

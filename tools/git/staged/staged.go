@@ -12,7 +12,7 @@ import (
 	"github.com/xhd2015/kool/tools/fs"
 	"github.com/xhd2015/kool/tools/git/ls"
 	"github.com/xhd2015/kool/tools/stringtool"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 func Handle(args []string) error {
@@ -39,7 +39,7 @@ func Handle(args []string) error {
 
 func HandleBackup(args []string) error {
 	var dir string
-	args, err := flags.String("--dir", &dir).Parse(args)
+	args, err := lessflags.String("--dir", &dir).Parse(args)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func HandleBackup(args []string) error {
 
 func HandleRestore(args []string) error {
 	var dir string
-	args, err := flags.String("--dir", &dir).Parse(args)
+	args, err := lessflags.String("--dir", &dir).Parse(args)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ Options:
 func HandleVet(args []string) error {
 	var dir string
 	var verbose bool
-	args, err := flags.String("--dir", &dir).
+	args, err := lessflags.String("--dir", &dir).
 		Help("-h,--help", vetHelp).Bool("-v,--verbose", &verbose).
 		Parse(args)
 	if err != nil {

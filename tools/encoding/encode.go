@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/pkgs/terminal"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const encodeHelp = `
@@ -23,7 +23,7 @@ Supported algorithms:
 
 func HandleEncode(args []string) error {
 	var verbose bool
-	args, err := flags.String("--verbose", &verbose).
+	args, err := lessflags.String("--verbose", &verbose).
 		Help("-h,--help", encodeHelp).
 		Parse(args)
 	if err != nil {

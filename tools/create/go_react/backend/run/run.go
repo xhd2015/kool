@@ -7,7 +7,7 @@ import (
 	"MODULE_NAME/server"
 
 	"github.com/xhd2015/kool/pkgs/web"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -26,7 +26,7 @@ func Run(args []string) error {
 	var component string
 	var port int
 	var routePrefix string
-	args, err := flags.
+	args, err := lessflags.
 		Bool("--dev", &devFlag).
 		Int("--port", &port).
 		String("--route-prefix", &routePrefix).

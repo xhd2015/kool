@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 	"github.com/xhd2015/xgo/support/filecopy"
 	"github.com/xhd2015/xgo/support/fileutil"
@@ -51,7 +51,7 @@ func main() {
 
 	var noCommit bool
 	var amend bool
-	args, err := flags.Bool("-no-commit", &noCommit).
+	args, err := lessflags.Bool("-no-commit", &noCommit).
 		Bool("--amend", &amend).
 		Help("-h,--help", help).
 		Parse(args)

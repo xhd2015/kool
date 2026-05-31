@@ -11,7 +11,7 @@ import (
 
 	"github.com/xhd2015/kool/pkgs/jsondecode"
 	"github.com/xhd2015/kool/pkgs/terminal"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
 )
@@ -86,7 +86,7 @@ func handleDiff(args []string) error {
 	var jsonFlag bool
 
 	var wordDiff bool
-	args, err := flags.Bool("--json", &jsonFlag).
+	args, err := lessflags.Bool("--json", &jsonFlag).
 		Bool("--word-diff", &wordDiff).
 		Parse(args)
 	if err != nil {

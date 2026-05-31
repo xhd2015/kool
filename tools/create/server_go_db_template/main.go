@@ -13,7 +13,7 @@ import (
 	"github.com/xhd2015/kool/tools/create/server_go_db_template/lib/middleware"
 	"github.com/xhd2015/kool/tools/create/server_go_db_template/route"
 	"github.com/xhd2015/kool/tools/create/server_go_db_template/task"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -58,7 +58,7 @@ func start(args []string) error {
 	var configPath string
 	var cmdFlags config.Flags
 
-	args, err := flags.String("--config", &configPath).
+	args, err := lessflags.String("--config", &configPath).
 		// Server flags
 		Int("--port", &cmdFlags.Port).
 		String("--static", &cmdFlags.Static).

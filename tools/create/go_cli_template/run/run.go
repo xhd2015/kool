@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -18,7 +18,7 @@ type Config struct{}
 
 func Main(args []string) error {
 	config := Config{}
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {

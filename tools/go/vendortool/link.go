@@ -9,7 +9,7 @@ import (
 	"github.com/xhd2015/kool/tools/fs"
 	goconfig "github.com/xhd2015/kool/tools/go/config"
 	"github.com/xhd2015/kool/tools/go/resolve"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -69,7 +69,7 @@ func HandleLink(args []string) error {
 	var verbose bool
 	var all bool
 	var show bool
-	args, err := flags.
+	args, err := lessflags.
 		String("--dir", &dir).
 		Help("-h,--help", linkHelp).
 		Bool("-v,--verbose", &verbose).

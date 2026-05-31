@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/xhd2015/kool/tools/create/server_go_db_template/script/dev/util"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -38,7 +38,7 @@ func Handle(args []string) error {
 	var debug bool
 	var verbose bool
 
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		String("-o,--output", &output).
 		Bool("--debug", &debug).

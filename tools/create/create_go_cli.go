@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -17,7 +17,7 @@ Create a new Go CLI project.
 `
 
 func HandleCreateGoCLI(args []string) error {
-	args, err := flags.Help("-h,--help", goCLIHelp).
+	args, err := lessflags.Help("-h,--help", goCLIHelp).
 		Parse(args)
 	if err != nil {
 		return err

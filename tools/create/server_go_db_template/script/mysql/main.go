@@ -8,7 +8,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"github.com/xhd2015/xgo/support/cmd"
 	"golang.org/x/term"
 )
@@ -69,7 +69,7 @@ func Handle(args []string) error {
 func handleLocal(args []string) error {
 	var container string
 
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		String("--container", &container).
 		Parse(args)
@@ -99,7 +99,7 @@ func handleCheck(args []string) error {
 	var timeout time.Duration
 	var verbose bool
 
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", help).
 		String("--host", &host).
 		String("--port", &port).

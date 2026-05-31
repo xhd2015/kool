@@ -43,7 +43,7 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 		"type Config struct{}",
 		"func Main(args []string) error",
 		"func Run(config Config) error",
-		"github.com/xhd2015/less-gen/flags",
+		"github.com/xhd2015/less-flags",
 	} {
 		if !strings.Contains(runGo, want) {
 			t.Fatalf("run.go missing %q:\n%s", want, runGo)

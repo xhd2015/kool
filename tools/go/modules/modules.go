@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/tools/git/tag"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 	"golang.org/x/mod/modfile"
 )
 
@@ -112,7 +112,7 @@ func parseLeadingModulesFlags(args []string, dir *string, noTags *bool) ([]strin
 }
 
 func handleDefault(w io.Writer, dir string, noTags bool, args []string) error {
-	args, err := flags.
+	args, err := lessflags.
 		String("--dir", &dir).
 		Bool("--no-tags", &noTags).
 		Help("-h,--help", help).
@@ -136,7 +136,7 @@ func handleDefault(w io.Writer, dir string, noTags bool, args []string) error {
 
 func handleLsFiles(w io.Writer, dir string, args []string) error {
 	var moduleDir string
-	args, err := flags.
+	args, err := lessflags.
 		String("--dir", &dir).
 		String("--module", &moduleDir).
 		Help("-h,--help", lsFilesHelp).
@@ -168,7 +168,7 @@ func handleLsFiles(w io.Writer, dir string, args []string) error {
 
 func handleUpdateLocalDeps(w io.Writer, dir string, args []string) error {
 	var dryRun bool
-	args, err := flags.
+	args, err := lessflags.
 		String("--dir", &dir).
 		Bool("--dry-run", &dryRun).
 		Help("-h,--help", updateLocalDepsHelp).

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/tools/cmd"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -20,7 +20,7 @@ git log -S "invalid param" --all --source -p
 // git log -S "invalid param" --all --source -p
 func Handle(args []string) error {
 	var verbose bool
-	args, err := flags.Bool("-v,--verbose", &verbose).
+	args, err := lessflags.Bool("-v,--verbose", &verbose).
 		Help("-h,--help", help).
 		Parse(args)
 	if err != nil {

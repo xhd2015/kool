@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 func Handle(args []string) error {
@@ -39,7 +39,7 @@ func handlePrompt(args []string) error {
 	var verbose bool
 	var excludes []string
 	for i := 0; i < n; i++ {
-		flag, value := flags.ParseIndex(args, &i)
+		flag, value := lessflags.ParseIndex(args, &i)
 		if flag == "" {
 			remainArgs = append(remainArgs, args[i])
 			continue

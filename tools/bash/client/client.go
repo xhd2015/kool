@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/xhd2015/kool/tools/bash/server/model"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -46,7 +46,7 @@ func Handle(args []string) error {
 
 	var serverURL string
 	var singleton bool
-	args, err := flags.String("--server", &serverURL).
+	args, err := lessflags.String("--server", &serverURL).
 		Bool("--singleton", &singleton).
 		Help("-h,--help", help).
 		Parse(args)

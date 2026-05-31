@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -34,7 +34,7 @@ Examples:
 `
 
 func Handle(args []string) error {
-	args, err := flags.Help("-h,--help", help).StopOnFirstArg().Parse(args)
+	args, err := lessflags.Help("-h,--help", help).StopOnFirstArg().Parse(args)
 	if err != nil {
 		return err
 	}

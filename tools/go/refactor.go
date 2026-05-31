@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/xhd2015/kool/tools/go/move"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const refactorHelp = `
@@ -19,7 +19,7 @@ Run kool go refactor <command> --help for more information.
 `
 
 func HandleRefactor(args []string) error {
-	args, err := flags.
+	args, err := lessflags.
 		Help("-h,--help", refactorHelp).
 		StopOnFirstArg().
 		Parse(args)

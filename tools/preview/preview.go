@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/tools/preview/viewer"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -38,7 +38,7 @@ func Handle(args []string) error {
 	var plantumlServer string
 	var noWatch bool
 
-	args, err := flags.String("--plant-uml-server", &plantumlServer).
+	args, err := lessflags.String("--plant-uml-server", &plantumlServer).
 		Bool("--no-watch", &noWatch).
 		Help("-h,--help", help).
 		Parse(args)

@@ -7,7 +7,7 @@ import (
 
 	"github.com/xhd2015/kool/pkgs/github"
 	"github.com/xhd2015/kool/pkgs/release"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -29,7 +29,7 @@ func main() {
 
 func handle() error {
 	var dryRun bool
-	args, err := flags.
+	args, err := lessflags.
 		Bool("--dry-run", &dryRun).
 		Help("-h,--help", help).
 		Parse(os.Args[1:])

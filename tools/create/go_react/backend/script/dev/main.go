@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -33,7 +33,7 @@ func main() {
 }
 
 func run(args []string) int {
-	forwardArgs, err := flags.Help("-h,--help", help).Parse(args)
+	forwardArgs, err := lessflags.Help("-h,--help", help).Parse(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1

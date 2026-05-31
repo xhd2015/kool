@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/xhd2015/less-gen/flags"
+	"github.com/xhd2015/less-flags"
 )
 
 const help = `
@@ -49,7 +49,7 @@ func Handle(args []string) error {
 	var throttle time.Duration = 1 * time.Second
 	var include []string
 	var exclude []string
-	args, err := flags.String("-d,--dir", &dir).
+	args, err := lessflags.String("-d,--dir", &dir).
 		Duration("--throttle", &throttle).
 		StringSlice("--include", &include).
 		StringSlice("--exclude", &exclude).
