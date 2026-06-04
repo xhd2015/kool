@@ -6,6 +6,7 @@ import MermaidPreview from './MermaidPreview';
 import DOTPreview from './DOTPreview';
 import MarkdownPreview from './MarkdownPreview';
 import MarkdownPreviewV2 from './MarkdownPreviewV2';
+import GitDiffViewer from '../editor/GitDiffViewer';
 import { useV2 } from '../../utils/config';
 import './Preview.css';
 
@@ -121,6 +122,9 @@ const Preview = ({ selectedFile, fileNeedsReload, onReloadComplete }: PreviewPro
             return useV2 ?
                 <MarkdownPreviewV2 content={previewData.content} /> :
                 <MarkdownPreview content={previewData.content} />;
+
+        case 'diff':
+            return <GitDiffViewer diff={previewData.content} title={selectedFile} fullHeight={true} />;
 
         case 'text':
         default:

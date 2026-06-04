@@ -5,6 +5,18 @@
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 12px;
     background-color: #ffffff;
+    display: flex;
+    flex-direction: column;
+}
+
+.git-diff-viewer.full-height {
+    flex: 1;
+    height: 100%;
+}
+
+.git-diff-viewer.full-height .diff-content {
+    max-height: none;
+    flex: 1;
 }
 
 .git-diff-viewer h4 {
@@ -173,4 +185,9 @@ body.dark-theme .old-line-number {
 
 body.dark-theme .diff-empty {
     color: #999;
+}
+
+body.dark-theme .git-diff-viewer.full-height {
+    background-color: #1e1e1e;
+    border-color: #404040;
 }

@@ -3,6 +3,7 @@ import './GitDiffViewer.css';
 interface GitDiffViewerProps {
     diff: string;
     title: string;
+    fullHeight?: boolean;
 }
 
 interface DiffLine {
@@ -14,7 +15,7 @@ interface DiffLine {
     };
 }
 
-const GitDiffViewer = ({ diff, title }: GitDiffViewerProps) => {
+const GitDiffViewer = ({ diff, title, fullHeight }: GitDiffViewerProps) => {
     const parseDiff = (diffText: string): DiffLine[] => {
         const lines = diffText.split('\n');
         const parsedLines: DiffLine[] = [];
@@ -70,9 +71,11 @@ const GitDiffViewer = ({ diff, title }: GitDiffViewerProps) => {
 
     const diffLines = parseDiff(diff);
 
+    const viewerClassName = `git-diff-viewer${fullHeight ? ' full-height' : ''}`;
+
     if (!diff.trim()) {
         return (
-            <div className="git-diff-viewer">
+            <div className={viewerClassName}>
                 <h4>{title}</h4>
                 <div className="diff-empty">No changes detected</div>
             </div>
@@ -80,7 +83,7 @@ const GitDiffViewer = ({ diff, title }: GitDiffViewerProps) => {
     }
 
     return (
-        <div className="git-diff-viewer">
+        <div className={viewerClassName}>
             <h4>{title}</h4>
             <div className="diff-content">
                 {diffLines.map((line, index) => (

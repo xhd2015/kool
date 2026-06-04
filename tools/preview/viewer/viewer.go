@@ -181,6 +181,23 @@ func Serve(dir string, opts ServeOptions) error {
 
 const PLANT_UTML_PORT = 6743
 
+func detectFileType(ext string) string {
+	switch ext {
+	case ".uml", ".puml":
+		return "uml"
+	case ".mmd":
+		return "mermaid"
+	case ".dot":
+		return "dot"
+	case ".md":
+		return "markdown"
+	case ".diff", ".patch":
+		return "diff"
+	default:
+		return "text"
+	}
+}
+
 func ServeWithInitialFile(dir string, opts ServeOptions, initialFile string) error {
 	opts = normalizeServeOptions(opts)
 	// Convert to absolute path
@@ -338,83 +355,16 @@ func ServeWithInitialFile(dir string, opts ServeOptions, initialFile string) err
 
 		ext := strings.ToLower(filepath.Ext(absFilePath))
 
-		// Handle UML files
-		if ext == ".uml" || ext == ".puml" {
-			content, err := os.ReadFile(absFilePath)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			response := map[string]interface{}{
-				"type":    "uml",
-				"content": string(content),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Handle Mermaid files
-		if ext == ".mmd" {
-			content, err := os.ReadFile(absFilePath)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			response := map[string]interface{}{
-				"type":    "mermaid",
-				"content": string(content),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Handle DOT files
-		if ext == ".dot" {
-			content, err := os.ReadFile(absFilePath)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			response := map[string]interface{}{
-				"type":    "dot",
-				"content": string(content),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// Handle Markdown files
-		if ext == ".md" {
-			content, err := os.ReadFile(absFilePath)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			response := map[string]interface{}{
-				"type":    "markdown",
-				"content": string(content),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		// For other files, return as text (could be extended for other types)
 		content, err := os.ReadFile(absFilePath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		fileType := detectFileType(ext)
+
 		response := map[string]interface{}{
-			"type":    "text",
+			"type":    fileType,
 			"content": string(content),
 		}
 		w.Header().Set("Content-Type", "application/json")
