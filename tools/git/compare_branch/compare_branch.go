@@ -48,7 +48,7 @@ func Handle(args []string) error {
 			commitWord = "commits"
 		}
 		fmt.Printf("%s is newer(%s +%d %s -> %s)\n", refB, refA, count, commitWord, refB)
-		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only  %s\n", refA, refB)
+		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only %s\n", refA, refB)
 		return nil
 
 	case git.BranchRelationBIsAncestorOfA:
@@ -58,7 +58,7 @@ func Handle(args []string) error {
 			commitWord = "commits"
 		}
 		fmt.Printf("%s is newer(%s +%d %s -> %s)\n", refA, refB, count, commitWord, refA)
-		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only  %s\n", refB, refA)
+		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only %s\n", refB, refA)
 		return nil
 
 	case git.BranchRelationDiverged:
