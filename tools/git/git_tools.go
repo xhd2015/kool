@@ -18,6 +18,7 @@ import (
 	"github.com/xhd2015/kool/tools/git/staged"
 	"github.com/xhd2015/kool/tools/git/worktree"
 	"github.com/xhd2015/less-flags"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/git/scan_repo"
 )
 
 const help = `
@@ -34,6 +35,7 @@ Available commands:
   show-exclude                     show exclude files
   tmp-exclude,tmp-ignore           temporarily add patterns to .git/info/exclude
   init-hooks                       init git hooks
+  scan-repos                       discover git repositories under filesystem roots
   help                             show help message
 
 Options:
@@ -106,6 +108,8 @@ func Handle(args []string) error {
 		return line.Handle(args[1:])
 	case "compare-branch":
 		return compare_branch.Handle(args[1:])
+	case "scan-repos":
+		return scan_repo.RunCLI(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
