@@ -15,6 +15,7 @@ import (
 	"github.com/xhd2015/kool/tools/encoding"
 	for_each_dir "github.com/xhd2015/kool/tools/for-each-dir"
 	"github.com/xhd2015/kool/tools/git"
+	githubtools "github.com/xhd2015/kool/tools/github"
 	go_tools "github.com/xhd2015/kool/tools/go"
 	"github.com/xhd2015/kool/tools/go/with_go"
 	"github.com/xhd2015/kool/tools/html/html2markdown"
@@ -174,6 +175,8 @@ func handle(args []string) error {
 		return dlv.Handle(args)
 	case "git":
 		return git.Handle(args)
+	case "github":
+		return githubtools.Handle(args)
 	case "http":
 		return http.Handle(args)
 	case "with":
