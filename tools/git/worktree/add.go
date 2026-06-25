@@ -16,6 +16,8 @@ Available commands:
   add <path> [branch]              add a new worktree, with optional setting new branch
   reclaim <dir> [--dry-run]        reclaim a clean linked worktree merged into main
   reclaim --all [--dry-run]        reclaim all eligible linked worktrees
+  merge-back [--to <path>] [--dry-run] [--rm] [--confirm-from-stdin]
+                                   merge worktree branch into target checkout
   help                             show help message
 
 Options:
@@ -29,7 +31,7 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("requires subcommands: help, add, reclaim")
+		return fmt.Errorf("requires subcommands: help, add, reclaim, merge-back")
 	}
 	commd := args[0]
 	args = args[1:]
@@ -38,6 +40,8 @@ func Handle(args []string) error {
 		return add(args)
 	case "reclaim":
 		return reclaim(args)
+	case "merge-back":
+		return mergeBack(args)
 	case "help", "--help", "-h":
 		fmt.Print(strings.TrimPrefix(help, "\n"))
 		return nil
