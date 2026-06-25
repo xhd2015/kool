@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/gitops/git"
+	git_tag_next "github.com/xhd2015/kool/tools/git/git_tag_next"
 )
 
 func Handle(args []string) error {
@@ -23,13 +24,27 @@ func Handle(args []string) error {
 			return fmt.Errorf("unknown flag: %s", args[i])
 		}
 	}
-	if len(refs) < 2 {
-		return fmt.Errorf("usage: kool git compare-branch <refA> <refB> [-C <dir>]")
+	if len(refs) < 1 {
+		return fmt.Errorf("usage: kool git compare-branch <refA> [refB] [-C <dir>]")
 	}
 	if len(refs) > 2 {
 		return fmt.Errorf("unexpected arguments: %v", refs[2:])
 	}
-	refA, refB := refs[0], refs[1]
+	refA := refs[0]
+	refB := ""
+	if len(refs) == 2 {
+		refB = refs[1]
+	} else {
+		branch, err := git_tag_next.ShowCurrentBranch(dir)
+		if err != nil {
+			return err
+		}
+		if branch == "" {
+			refB = "HEAD"
+		} else {
+			refB = branch
+		}
+	}
 
 	result, err := git.CompareBranches(dir, refA, refB)
 	if err != nil {
@@ -48,7 +63,7 @@ func Handle(args []string) error {
 			commitWord = "commits"
 		}
 		fmt.Printf("%s is newer(%s +%d %s -> %s)\n", refB, refA, count, commitWord, refB)
-		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only %s\n", refA, refB)
+		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only  %s\n", refA, refB)
 		return nil
 
 	case git.BranchRelationBIsAncestorOfA:
@@ -58,7 +73,7 @@ func Handle(args []string) error {
 			commitWord = "commits"
 		}
 		fmt.Printf("%s is newer(%s +%d %s -> %s)\n", refA, refB, count, commitWord, refA)
-		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only %s\n", refB, refA)
+		fmt.Printf("to fast forward, on %s: \n   git merge --ff-only  %s\n", refB, refA)
 		return nil
 
 	case git.BranchRelationDiverged:

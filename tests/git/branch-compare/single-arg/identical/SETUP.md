@@ -1,15 +1,19 @@
 # Scenario
 
-**Feature**: invalid git references produce errors
+**Feature**: single-arg when refA equals current branch reports identical
 
 ```
-# ref does not resolve to a commit
-user -> kool git compare-branch <bad-ref> <good-ref> -> compare_branch.Handle -> error
+# on main; user compares main against implicit refB=main
+user (on main) -> kool git compare-branch main -> compare_branch.Handle
+
+# refB defaults to main
+compare_branch.Handle -> git branch --show-current -> refB=main
 ```
 
 ## Steps
-- Create a temporary git repository with an initial commit
-- Invalid refs are tested against this repository
+
+- Create a temporary git repository checked out on `main`
+- Set RefA to `main` and leave RefB empty
 
 ```go
 import (
@@ -20,7 +24,7 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
-	dir, err := os.MkdirTemp("", "kool-branch-compare-err-*")
+	dir, err := os.MkdirTemp("", "kool-branch-compare-single-identical-*")
 	if err != nil {
 		return err
 	}
@@ -48,6 +52,8 @@ func Setup(t *testing.T, req *Request) error {
 	runGit("branch", "-M", "main")
 
 	req.Dir = dir
+	req.RefA = "main"
+	req.RefB = ""
 	return nil
 }
 ```

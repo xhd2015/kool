@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: refB can fast-forward to refA (b-to-a direction)
+
+```
+# main (refA) is one commit ahead of a (refB)
+compare_branch.Handle(refA=main, refB=a) -> a fast-forwards to main
+```
+
 ## Steps
 - Create branch `a` from the initial commit
 - Add one commit on `main` (so main is ahead of a)

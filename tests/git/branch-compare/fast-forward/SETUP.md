@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: two-arg fast-forward relationship between branches
+
+```
+# one branch is strict ancestor of the other
+user -> kool git compare-branch <ancestor> <descendant> -> fast-forward report
+```
+
 ## Steps
 - Create a temporary git repository with an initial commit
 - The repository is used to test fast-forward relationships

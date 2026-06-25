@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: two-arg compare-branch reports identical commits
+
+```
+# both refs resolve to same commit
+user -> kool git compare-branch main v1 -> compare_branch.Handle -> identical report
+```
+
 ## Steps
 - Create a temporary git repository with an initial commit
 - The repository is used to test that two different refs resolving to the same commit are reported as identical

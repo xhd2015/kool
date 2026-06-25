@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: invalid refA fails before comparison
+
+```
+# nonexistent-branch cannot be resolved
+compare_branch.Handle(refA=nonexistent-branch, refB=main) -> error
+```
+
 ## Steps
 - Set RefA to a non-existent reference `nonexistent-branch`
 - Set RefB to `main` (a valid ref)

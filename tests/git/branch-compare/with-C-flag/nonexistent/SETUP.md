@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: -C pointing to missing directory fails
+
+```
+# directory does not exist
+compare_branch.Handle(dir=nonexistent) -> error
+```
+
 ## Steps
 - Set req.Dir to a non-existent directory path
 - Set RefA and RefB to arbitrary values

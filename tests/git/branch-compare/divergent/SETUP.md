@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: two-arg divergent branches with file differences
+
+```
+# both refs have unique commits and differing tree content
+user -> kool git compare-branch main a -> compare_branch.Handle -> divergent report
+```
+
 ## Steps
 - Create a temporary git repository with an initial commit (file: foo.txt = "hello")
 - The repository is used to test divergent branch relationships

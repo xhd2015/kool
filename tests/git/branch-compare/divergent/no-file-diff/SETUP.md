@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: divergent branches with zero file differences
+
+```
+# unique commits but identical resulting tree content
+user -> kool git compare-branch main a -> compare_branch.Handle -> divergent report (0 files)
+```
+
 ## Steps
 - Create a temporary git repository with an initial commit (file: foo.txt = "hello")
 - The repository is used to test divergent branches that happen to have no file differences

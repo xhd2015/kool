@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: non-git directory cannot be compared
+
+```
+# -C or cwd is not a git repository
+user -> kool git compare-branch main main -> compare_branch.Handle -> error
+```
+
 ## Steps
 - Create a temporary directory that is NOT a git repository
 - Set req.Dir to this non-git directory

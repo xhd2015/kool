@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: divergent branches with one file difference
+
+```
+# main and a each changed foo.txt differently
+compare_branch.Handle(refA=main, refB=a) -> divergent report with file count
+```
+
 ## Steps
 - Create branch `a` from main
 - On branch `a`: modify foo.txt to "hello from a" and commit

@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: -C points to a valid git repository
+
+```
+# repo in subdir; both refs resolve inside it
+compare_branch.Handle(refA=main, refB=main, dir=repoDir) -> identical report
+```
+
 ## Steps
 - Create a separate git repository in a subdirectory
 - Override req.Dir to point to that git repository

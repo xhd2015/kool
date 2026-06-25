@@ -1,3 +1,12 @@
+# Scenario
+
+**Feature**: divergent commits producing zero file diff
+
+```
+# main and a converged to same foo.txt content via different commits
+compare_branch.Handle(refA=main, refB=a) -> divergent report, 0 file difference
+```
+
 ## Steps
 - Create branch `a` from main
 - On branch `a`: modify foo.txt to "world" and commit
