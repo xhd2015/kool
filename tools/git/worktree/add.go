@@ -14,6 +14,8 @@ Usage: kool git worktree <cmd> [OPTIONS]
 
 Available commands:
   add <path> [branch]              add a new worktree, with optional setting new branch
+  reclaim <dir> [--dry-run]        reclaim a clean linked worktree merged into main
+  reclaim --all [--dry-run]        reclaim all eligible linked worktrees
   help                             show help message
 
 Options:
@@ -27,13 +29,15 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("requires subcommands: help, add")
+		return fmt.Errorf("requires subcommands: help, add, reclaim")
 	}
 	commd := args[0]
 	args = args[1:]
 	switch commd {
 	case "add":
 		return add(args)
+	case "reclaim":
+		return reclaim(args)
 	case "help", "--help", "-h":
 		fmt.Print(strings.TrimPrefix(help, "\n"))
 		return nil
