@@ -3,7 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
+
+	"github.com/xhd2015/kool/vscodegit"
 )
 
 const launchConfig = `{
@@ -166,6 +169,8 @@ func handleVscode(args []string) error {
 			return handleVscodeDebugGo(args[1:])
 		case "create-task":
 			return handleVscodeCreateTask(args[1:])
+		case "open-git-repo":
+			return handleVscodeOpenGitRepo(args[1:])
 		default:
 			return fmt.Errorf("unrecognized command: %s", args[0])
 		}
@@ -173,6 +178,20 @@ func handleVscode(args []string) error {
 	fmt.Printf(".vscode/launch.json\n%s\n", launchConfig)
 	fmt.Printf(".vscode/tasks.json\n%s\n", tasks)
 	return nil
+}
+
+func handleVscodeOpenGitRepo(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("requires <path>\nusage: kool vscode open-git-repo <path>")
+	}
+	if len(args) > 1 {
+		return fmt.Errorf("unrecognized extra argument: %s", strings.Join(args[1:], " "))
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	return vscodegit.OpenGitRepo(args[0], cwd)
 }
 
 func handleVscodeCreateTask(args []string) error {

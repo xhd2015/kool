@@ -9,6 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+src/**/*.js
+src/**/*.js.map
+vite.config.js
+vite.config.js.map
 dist-ssr
 *.local
 !dist/placeholder.txt

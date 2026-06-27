@@ -67,6 +67,10 @@ web_modules/
 
 *.tsbuildinfo
 
+# tsc emit artifacts (source is .ts/.tsx)
+**/*.js
+**/*.js.map
+
 # Optional npm cache directory
 
 .npm

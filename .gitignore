@@ -15,3 +15,23 @@ __debug-main.bin
 /tools/create/server_go_db_template/script/podman-compose/mysql_db
 
 /.upload-credentials.json
+
+# tsc emit artifacts in TypeScript scaffolds and tools (source is .ts/.tsx)
+tools/create/frontend_template/**/*.js
+tools/create/frontend_template/**/*.js.map
+tools/create/electron_app_template/src/**/*.js
+tools/create/electron_app_template/src/**/*.js.map
+tools/create/electron_app_template/electron/**/*.js
+tools/create/electron_app_template/electron/**/*.js.map
+tools/create/electron_app_template/shared/**/*.js
+tools/create/electron_app_template/shared/**/*.js.map
+tools/create/electron_app_template/vite.config.js
+tools/create/electron_app_template/vite.config.js.map
+tools/create/go_react/frontend/src/**/*.js
+tools/create/go_react/frontend/src/**/*.js.map
+tools/create/go_react/frontend/vite.config.js
+tools/create/go_react/frontend/vite.config.js.map
+tools/web/react/vite.config.js
+tools/web/react/vite.config.js.map
+tools/preview/viewer/react/vite.config.js
+tools/preview/viewer/react/vite.config.js.map
