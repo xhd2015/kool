@@ -1,29 +1,29 @@
 # Scenario
 
-**Feature**: kool opens local git repos in VS Code SCM via vscode:// URI
+**Feature**: kool opens directories in VS Code via IPC with URI fallback
 
 ```
-# CLI validates repo and builds deep link
-kool vscode open-git-repo <path> -> validateGitRepoPath -> buildGitOpenRepoURI
+# CLI validates dir, prechecks VS Code, tries IPC, falls back to URI
+kool vscode open <dir> -> ValidateDirPath -> EnsureCodeCLI -> EnsureExtensionListed
 
-# OS handler launches/focuses VS Code
-buildGitOpenRepoURI -> OS opener (open/xdg-open/cmd) -> VS Code
+# IPC-first open; OS opener only on failure
+EnsureExtensionListed -> IPC client (open op) -> VS Code extension
+IPC client (fail) -> OS opener (vscode://.../open?path=...) -> VS Code
 ```
 
 ## Preconditions
 - Go toolchain available.
-- Git available for fixture repos.
-- `github.com/xhd2015/kool/vscodegit` package provides testable functions (implementer adds).
+- `github.com/xhd2015/kool/vscodegit` package provides testable functions and hooks (implementer adds).
 - CLI integration tests require built `kool` binary in PATH or module root.
 
 ## Steps
 1. Each leaf sets `req.Phase` and path fields via `Setup`.
-2. `Run` dispatches to validate, URI build, exec mock, or CLI subprocess.
+2. `Run` dispatches to validate, URI build, precheck, IPC orchestration, or CLI subprocess.
 3. Each leaf asserts outcomes via `Assert`.
 
 ## Context
 - **Extension id**: `xhd2015.open-in-new-window`
-- **URI path**: `/git-open?path=<url-encoded-absolute-path>`
+- **URI path**: `/open?path=<url-encoded-absolute-path>`; append `&replace=true` when `--replace`
 - **IPC socket**: `~/.kool/xhd2015.open-in-new-window.sock` (overridable in tests)
 - **IPC fallback stderr**: `Note: extension not reachable via IPC; opening via vscode:// URI.`
 - **Relative paths**: resolved against cwd before validation
@@ -38,9 +38,13 @@ import (
 	"testing"
 )
 
-func expectedExtensionURI(absPath string) string {
+func expectedOpenURI(absPath string, replace bool) string {
 	encoded := strings.ReplaceAll(absPath, " ", "%20")
-	return fmt.Sprintf("vscode://xhd2015.open-in-new-window/git-open?path=%s", encoded)
+	uri := fmt.Sprintf("vscode://xhd2015.open-in-new-window/open?path=%s", encoded)
+	if replace {
+		uri += "&replace=true"
+	}
+	return uri
 }
 
 func Setup(t *testing.T, req *Request) error {
@@ -55,28 +59,6 @@ func Setup(t *testing.T, req *Request) error {
 
 func osMkdir(dir string) error {
 	return os.MkdirAll(dir, 0755)
-}
-
-func initGitRepo(t *testing.T, repoDir string) error {
-	t.Helper()
-	runGit := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = repoDir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v failed: %v\n%s", args, err, out)
-		}
-	}
-	runGit("init")
-	runGit("config", "user.email", "test@test.com")
-	runGit("config", "user.name", "test")
-	readme := fmt.Sprintf("%s/README.md", repoDir)
-	if err := os.WriteFile(readme, []byte("# test"), 0644); err != nil {
-		return err
-	}
-	runGit("add", ".")
-	runGit("commit", "-m", "initial")
-	return nil
 }
 
 func writeFakeCodeScript(t *testing.T, dir string, listExtensions []string) string {
@@ -102,10 +84,36 @@ esac
 	return script
 }
 
+func writeFakeCodeMissing(t *testing.T, dir string) string {
+	t.Helper()
+	script := filepath.Join(dir, "code")
+	body := `#!/bin/sh
+echo "code: command not found" >&2
+exit 127
+`
+	if err := os.WriteFile(script, []byte(body), 0755); err != nil {
+		t.Fatalf("write fake code: %v", err)
+	}
+	return script
+}
+
+func initValidDir(t *testing.T, baseDir string, name string) string {
+	t.Helper()
+	dir := filepath.Join(baseDir, name)
+	if err := osMkdir(dir); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	marker := filepath.Join(dir, ".keep")
+	if err := os.WriteFile(marker, []byte("ok"), 0644); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+	return dir
+}
+
 func installExtensionListedPrecheck(t *testing.T, req *Request) {
 	t.Helper()
 	binDir := filepath.Join(req.WorkingDir, "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	if err := osMkdir(binDir); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	req.CodeCommand = writeFakeCodeScript(t, binDir, []string{"xhd2015.open-in-new-window"})
@@ -115,22 +123,10 @@ func installExtensionListedPrecheck(t *testing.T, req *Request) {
 func installNoExtensionPrecheck(t *testing.T, req *Request) {
 	t.Helper()
 	binDir := filepath.Join(req.WorkingDir, "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
+	if err := osMkdir(binDir); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	req.CodeCommand = writeFakeCodeScript(t, binDir, []string{"other.extension"})
 	req.CodeInPath = true
-}
-
-func initValidGitRepo(t *testing.T, baseDir string, name string) string {
-	t.Helper()
-	repoDir := filepath.Join(baseDir, name)
-	if err := osMkdir(repoDir); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := initGitRepo(t, repoDir); err != nil {
-		t.Fatalf("init git: %v", err)
-	}
-	return repoDir
 }
 ```

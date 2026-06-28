@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/xhd2015/kool/pkgs/errs"
 	"github.com/xhd2015/kool/vscodegit"
 )
 
@@ -169,6 +170,8 @@ func handleVscode(args []string) error {
 			return handleVscodeDebugGo(args[1:])
 		case "create-task":
 			return handleVscodeCreateTask(args[1:])
+		case "open":
+			return handleVscodeOpen(args[1:])
 		case "open-git-repo":
 			return handleVscodeOpenGitRepo(args[1:])
 		default:
@@ -178,6 +181,37 @@ func handleVscode(args []string) error {
 	fmt.Printf(".vscode/launch.json\n%s\n", launchConfig)
 	fmt.Printf(".vscode/tasks.json\n%s\n", tasks)
 	return nil
+}
+
+func handleVscodeOpen(args []string) error {
+	replace := false
+	var pathArgs []string
+	for _, arg := range args {
+		if arg == "--replace" {
+			replace = true
+			continue
+		}
+		pathArgs = append(pathArgs, arg)
+	}
+	if len(pathArgs) == 0 {
+		return vscodeOpenCLIError(fmt.Errorf("open: requires <path>\nusage: kool vscode open [--replace] <path>"))
+	}
+	if len(pathArgs) > 1 {
+		return vscodeOpenCLIError(fmt.Errorf("unrecognized extra argument: %s", strings.Join(pathArgs[1:], " ")))
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if err := vscodegit.OpenDir(pathArgs[0], cwd, replace); err != nil {
+		return vscodeOpenCLIError(err)
+	}
+	return nil
+}
+
+func vscodeOpenCLIError(err error) error {
+	fmt.Fprintf(os.Stderr, "\n%s", err)
+	return errs.NewSilenceExitCode(1)
 }
 
 func handleVscodeOpenGitRepo(args []string) error {
@@ -191,7 +225,11 @@ func handleVscodeOpenGitRepo(args []string) error {
 	if err != nil {
 		return err
 	}
-	return vscodegit.OpenGitRepo(args[0], cwd)
+	if err := vscodegit.OpenGitRepo(args[0], cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "\n%s", err)
+		return errs.NewSilenceExitCode(1)
+	}
+	return nil
 }
 
 func handleVscodeCreateTask(args []string) error {

@@ -2,6 +2,7 @@ package vscodegit
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -9,6 +10,26 @@ import (
 	"runtime"
 	"strings"
 )
+
+const ipcFallbackHint = "Note: extension not reachable via IPC; opening via vscode:// URI."
+
+var stderrWriterOverride io.Writer
+
+// SetStderrWriterForTest redirects stderr hint output for tests.
+func SetStderrWriterForTest(w io.Writer) {
+	stderrWriterOverride = w
+}
+
+func stderrWriter() io.Writer {
+	if stderrWriterOverride != nil {
+		return stderrWriterOverride
+	}
+	return os.Stderr
+}
+
+func writeIPCFallbackHint() {
+	fmt.Fprint(stderrWriter(), ipcFallbackHint)
+}
 
 const extensionID = "xhd2015.open-in-new-window"
 
@@ -79,18 +100,84 @@ func ValidateGitRepoPath(path string, cwd string) (string, error) {
 	return absPath, nil
 }
 
+// ValidateDirPath resolves path against cwd, verifies it is an existing directory,
+// and returns the normalized absolute path.
+func ValidateDirPath(path string, cwd string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", fmt.Errorf("path is required")
+	}
+
+	joined := trimmed
+	if !filepath.IsAbs(trimmed) {
+		joined = filepath.Join(cwd, trimmed)
+	}
+
+	absPath, err := filepath.Abs(filepath.Clean(joined))
+	if err != nil {
+		return "", err
+	}
+	absPath = strings.TrimRight(absPath, "/\\")
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("exist: path does not exist: %s", absPath)
+		}
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("directory: not a directory: %s", absPath)
+	}
+
+	return absPath, nil
+}
+
+// BuildOpenURI constructs the vscode:// deep link for opening a directory.
+func BuildOpenURI(absPath string, replace bool) string {
+	encoded := strings.ReplaceAll(absPath, " ", "%20")
+	uri := fmt.Sprintf("vscode://%s/open?path=%s", extensionID, encoded)
+	if replace {
+		uri += "&replace=true"
+	}
+	return uri
+}
+
 // BuildGitOpenRepoURI constructs the vscode:// deep link for opening a git repo.
 func BuildGitOpenRepoURI(absPath string) string {
 	return fmt.Sprintf("vscode://%s/git-open?path=%s", extensionID, url.QueryEscape(absPath))
 }
 
-// OpenGitRepo validates the path, builds the URI, and opens it via the OS handler.
+// OpenDir validates the path, runs precheck, tries IPC, and falls back to URI.
+func OpenDir(path string, cwd string, replace bool) error {
+	normalized, err := ValidateDirPath(path, cwd)
+	if err != nil {
+		return err
+	}
+	if err := runPrecheck(); err != nil {
+		return err
+	}
+	if err := sendIPC("open", normalized, replace); err != nil {
+		writeIPCFallbackHint()
+		return openURI(BuildOpenURI(normalized, replace))
+	}
+	return nil
+}
+
+// OpenGitRepo validates the path, runs precheck, tries IPC, and falls back to URI.
 func OpenGitRepo(path string, cwd string) error {
 	normalized, err := ValidateGitRepoPath(path, cwd)
 	if err != nil {
 		return err
 	}
-	return openURI(BuildGitOpenRepoURI(normalized))
+	if err := runPrecheck(); err != nil {
+		return err
+	}
+	if err := sendIPC("git-open", normalized, false); err != nil {
+		writeIPCFallbackHint()
+		return openURI(BuildGitOpenRepoURI(normalized))
+	}
+	return nil
 }
 
 func openURI(uri string) error {

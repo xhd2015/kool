@@ -73,6 +73,7 @@ String commands:
 VSCode:
   vscode                             print example vscode configs
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
+  vscode open [--replace] <path>     open directory in VS Code (new window by default; --replace reuses current window)
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
 
 Project:  
