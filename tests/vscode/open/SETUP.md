@@ -26,6 +26,8 @@ IPC client (fail) -> OS opener (vscode://.../open?path=...) -> VS Code
 - **URI path**: `/open?path=<url-encoded-absolute-path>`; append `&replace=true` when `--replace`
 - **IPC socket**: `~/.kool/xhd2015.open-in-new-window.sock` (overridable in tests)
 - **IPC fallback stderr**: `Note: extension not reachable via IPC; opening via vscode:// URI.`
+- **CLI mock IPC**: subprocess tests set `KOOL_VSCODE_IPC_SOCKET` to a mock Unix socket
+  started in the leaf `Setup` (implementer reads this env in `ipcSocketPath()`).
 - **Relative paths**: resolved against cwd before validation
 
 ```go
@@ -118,6 +120,16 @@ func installExtensionListedPrecheck(t *testing.T, req *Request) {
 	}
 	req.CodeCommand = writeFakeCodeScript(t, binDir, []string{"xhd2015.open-in-new-window"})
 	req.CodeInPath = true
+}
+
+func installCLIMockIPC(t *testing.T, req *Request) {
+	t.Helper()
+	socketPath := filepath.Join(req.WorkingDir, "ipc-cli.sock")
+	if req.IPCSocketPath != "" {
+		socketPath = req.IPCSocketPath
+	}
+	req.IPCSocketPath = socketPath
+	startMockIPCServer(t, socketPath, req.IPCFailConnects)
 }
 
 func installNoExtensionPrecheck(t *testing.T, req *Request) {

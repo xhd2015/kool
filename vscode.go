@@ -184,17 +184,22 @@ func handleVscode(args []string) error {
 }
 
 func handleVscodeOpen(args []string) error {
-	replace := false
+	opts := vscodegit.OpenOptions{}
 	var pathArgs []string
 	for _, arg := range args {
-		if arg == "--replace" {
-			replace = true
-			continue
+		switch arg {
+		case "--replace":
+			opts.Replace = true
+		case "--ipc-only":
+			opts.IpcOnly = true
+		case "--json":
+			opts.Json = true
+		default:
+			pathArgs = append(pathArgs, arg)
 		}
-		pathArgs = append(pathArgs, arg)
 	}
 	if len(pathArgs) == 0 {
-		return vscodeOpenCLIError(fmt.Errorf("open: requires <path>\nusage: kool vscode open [--replace] <path>"))
+		return vscodeOpenCLIError(fmt.Errorf("open: requires <path>\nusage: kool vscode open [--replace] [--ipc-only] [--json] <path>"))
 	}
 	if len(pathArgs) > 1 {
 		return vscodeOpenCLIError(fmt.Errorf("unrecognized extra argument: %s", strings.Join(pathArgs[1:], " ")))
@@ -203,7 +208,7 @@ func handleVscodeOpen(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := vscodegit.OpenDir(pathArgs[0], cwd, replace); err != nil {
+	if err := vscodegit.OpenDirOptions(pathArgs[0], cwd, opts); err != nil {
 		return vscodeOpenCLIError(err)
 	}
 	return nil

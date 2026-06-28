@@ -1,6 +1,7 @@
 package vscodegit
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -14,10 +15,16 @@ import (
 const ipcFallbackHint = "Note: extension not reachable via IPC; opening via vscode:// URI."
 
 var stderrWriterOverride io.Writer
+var stdoutWriterOverride io.Writer
 
 // SetStderrWriterForTest redirects stderr hint output for tests.
 func SetStderrWriterForTest(w io.Writer) {
 	stderrWriterOverride = w
+}
+
+// SetStdoutWriterForTest redirects JSON stdout for tests.
+func SetStdoutWriterForTest(w io.Writer) {
+	stdoutWriterOverride = w
 }
 
 func stderrWriter() io.Writer {
@@ -27,8 +34,35 @@ func stderrWriter() io.Writer {
 	return os.Stderr
 }
 
-func writeIPCFallbackHint() {
+func stdoutWriter() io.Writer {
+	if stdoutWriterOverride != nil {
+		return stdoutWriterOverride
+	}
+	return os.Stdout
+}
+
+func writeIPCFallbackHint(jsonMode bool) {
+	if jsonMode {
+		return
+	}
 	fmt.Fprint(stderrWriter(), ipcFallbackHint)
+}
+
+type openJSONPayload struct {
+	IPCHandled bool   `json:"ipc_handled"`
+	Path       string `json:"path"`
+	Error      string `json:"error,omitempty"`
+	Fallback   string `json:"fallback,omitempty"`
+	OK         *bool  `json:"ok,omitempty"`
+}
+
+func writeOpenJSON(payload openJSONPayload) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(stdoutWriter(), string(data))
+	return err
 }
 
 const extensionID = "xhd2015.open-in-new-window"
@@ -148,8 +182,20 @@ func BuildGitOpenRepoURI(absPath string) string {
 	return fmt.Sprintf("vscode://%s/git-open?path=%s", extensionID, url.QueryEscape(absPath))
 }
 
+// OpenOptions configures directory open behavior.
+type OpenOptions struct {
+	Replace bool
+	IpcOnly bool
+	Json    bool
+}
+
 // OpenDir validates the path, runs precheck, tries IPC, and falls back to URI.
 func OpenDir(path string, cwd string, replace bool) error {
+	return OpenDirOptions(path, cwd, OpenOptions{Replace: replace})
+}
+
+// OpenDirOptions is the full open pipeline with IPC-only and JSON output options.
+func OpenDirOptions(path string, cwd string, opts OpenOptions) error {
 	normalized, err := ValidateDirPath(path, cwd)
 	if err != nil {
 		return err
@@ -157,9 +203,37 @@ func OpenDir(path string, cwd string, replace bool) error {
 	if err := runPrecheck(); err != nil {
 		return err
 	}
-	if err := sendIPC("open", normalized, replace); err != nil {
-		writeIPCFallbackHint()
-		return openURI(BuildOpenURI(normalized, replace))
+	if err := sendIPC("open", normalized, opts.Replace); err != nil {
+		if opts.IpcOnly {
+			if opts.Json {
+				_ = writeOpenJSON(openJSONPayload{
+					IPCHandled: false,
+					Path:       normalized,
+					Error:      err.Error(),
+				})
+			}
+			return fmt.Errorf("IPC open failed: %w", err)
+		}
+		if opts.Json {
+			if fallbackErr := openURI(BuildOpenURI(normalized, opts.Replace)); fallbackErr != nil {
+				return fallbackErr
+			}
+			ok := true
+			return writeOpenJSON(openJSONPayload{
+				IPCHandled: false,
+				Path:       normalized,
+				Fallback:   "uri",
+				OK:         &ok,
+			})
+		}
+		writeIPCFallbackHint(false)
+		return openURI(BuildOpenURI(normalized, opts.Replace))
+	}
+	if opts.Json {
+		return writeOpenJSON(openJSONPayload{
+			IPCHandled: true,
+			Path:       normalized,
+		})
 	}
 	return nil
 }
@@ -174,7 +248,7 @@ func OpenGitRepo(path string, cwd string) error {
 		return err
 	}
 	if err := sendIPC("git-open", normalized, false); err != nil {
-		writeIPCFallbackHint()
+		writeIPCFallbackHint(false)
 		return openURI(BuildGitOpenRepoURI(normalized))
 	}
 	return nil

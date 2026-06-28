@@ -4,7 +4,9 @@
 CLI + extension listed), opens via IPC to `xhd2015.open-in-new-window`, and falls
 back to `vscode://.../open?path=<encoded>` when IPC is unreachable. By default the
 extension opens in a new window (focusing an existing window when the dir is already
-open). `--replace` reuses the current window instead.
+open). `--replace` reuses the current window instead. `--ipc-only` skips URI/OS
+fallback (probe mode). `--json` emits one JSON object on stdout and suppresses human
+IPC fallback hints on stderr.
 
 ## Version
 
@@ -43,6 +45,12 @@ open). `--replace` reuses the current window instead.
   `replace` query param omitted by default, present when `--replace`.
 - **`--replace` flag** — boolean CLI flag on `open` only; propagates to IPC JSON and
   URI fallback; does not affect validation or precheck.
+- **`--ipc-only` flag** — after validate + precheck, IPC only; IPC failure returns
+  error with non-zero exit; no stderr URI-fallback hint and no OS opener.
+- **`--json` flag** — prints a single JSON object on stdout (`ipc_handled`, `path`,
+  optional `error`, `fallback`, `ok`); suppresses human IPC-unreachable stderr hint.
+- **CLI subprocess IPC override** — `KOOL_VSCODE_IPC_SOCKET` env points the CLI at a
+  test mock socket (same path as in-process `SetIPC_SOCKETPathForTest`).
 
 ## Decision Tree
 
@@ -55,8 +63,10 @@ open/
 ├── precheck/                   [environment invalid — blocks IPC/exec]
 │   ├── no-code-cli/            → error mentions code / PATH
 │   └── extension-not-listed/   → error mentions extension id + install hint
-├── cli/                        [--replace CLI integration]
-│   └── replace-flag/           → kool vscode open --replace <dir> succeeds
+├── cli/                        [CLI flags + subprocess]
+│   ├── replace-flag/           → kool vscode open --replace <dir> succeeds
+│   ├── ipc-only-json-success/  → --ipc-only --json, mock IPC → JSON success, exit 0
+│   └── ipc-only-json-failure/  → --ipc-only --json, IPC fail → JSON failure, exit 1
 ├── uri/                        [URI construction — no side effects]
 │   ├── absolute-path/          → correct vscode:// URI (default)
 │   ├── relative-path/          → cwd-resolved absolute in URI
@@ -68,7 +78,11 @@ open/
 │   ├── retry-then-success/     → 1st connect fails; 2nd succeeds
 │   ├── fail-then-fallback/     → stderr hint + open with vscode:// URI
 │   ├── default-new-window/     → IPC JSON omits replace field
-│   └── replace-flag/           → IPC JSON has replace:true
+│   ├── replace-flag/           → IPC JSON has replace:true
+│   ├── ipc-only-success/       → --ipc-only, IPC ok → no OS opener
+│   └── ipc-only-no-fallback/   → --ipc-only, IPC fail → error; no hint; no exec
+├── json/                       [--json machine-readable output]
+│   └── json-with-uri-fallback/ → --json, IPC fail + URI ok → JSON fallback:uri
 └── exec/                       [URI fallback delivery]
     └── fallback-invokes-open/  → mock exec; opener called with URI after IPC fail
 ```
@@ -94,6 +108,11 @@ open/
 | 15 | `ipc/default-new-window/` | IPC JSON omits `replace` field |
 | 16 | `ipc/replace-flag/` | IPC JSON includes `replace:true` |
 | 17 | `exec/fallback-invokes-open/` | Full orchestration falls back to OS opener |
+| 18 | `ipc/ipc-only-success/` | `--ipc-only` with IPC ok; OS opener not called |
+| 19 | `ipc/ipc-only-no-fallback/` | `--ipc-only` IPC fail; no URI hint or exec |
+| 20 | `json/json-with-uri-fallback/` | `--json` reports URI fallback when IPC fails |
+| 21 | `cli/ipc-only-json-success/` | `--ipc-only --json` probe success on stdout |
+| 22 | `cli/ipc-only-json-failure/` | `--ipc-only --json` probe failure on stdout |
 
 ## How to Run
 
@@ -121,10 +140,14 @@ import (
 	vscodegit "github.com/xhd2015/kool/vscodegit"
 )
 
+const koolVscodeIPCSocketEnv = "KOOL_VSCODE_IPC_SOCKET"
+
 type Request struct {
 	Phase           string
 	DirPath         string
 	Replace         bool
+	IpcOnly         bool
+	Json            bool
 	WorkingDir      string
 	GoOS            string
 	CodeCommand     string
@@ -132,6 +155,14 @@ type Request struct {
 	IPCSocketPath   string
 	IPCFailConnects int
 	IPCAlwaysFail   bool
+}
+
+type openJSONPayload struct {
+	IPCHandled bool   `json:"ipc_handled"`
+	Path       string `json:"path"`
+	Error      string `json:"error,omitempty"`
+	Fallback   string `json:"fallback,omitempty"`
+	OK         *bool  `json:"ok,omitempty"`
 }
 
 type Response struct {
@@ -152,6 +183,7 @@ type Response struct {
 	IPCReplaceSet  bool
 	IPCReplace     bool
 	StderrHint     bool
+	OpenJSON       *openJSONPayload
 }
 
 type ipcServerState struct {
@@ -180,13 +212,39 @@ func resolveKoolBinary() (string, error) {
 }
 
 func configurePrecheckForCLI(t *testing.T, req *Request, cmd *exec.Cmd) {
+	env := os.Environ()
 	if req.CodeCommand != "" {
 		dir := filepath.Dir(req.CodeCommand)
-		cmd.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		env = append(env, "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}
 	if !req.CodeInPath {
-		cmd.Env = append(cmd.Env, "PATH=/empty")
+		env = append(env, "PATH=/empty")
 	}
+	if req.IPCSocketPath != "" {
+		env = append(env, koolVscodeIPCSocketEnv+"="+req.IPCSocketPath)
+	}
+	cmd.Env = env
+}
+
+func parseOpenJSON(t *testing.T, stdout string) *openJSONPayload {
+	t.Helper()
+	line := strings.TrimSpace(stdout)
+	if line == "" {
+		t.Fatal("expected JSON on stdout, got empty")
+	}
+	var payload openJSONPayload
+	if err := json.Unmarshal([]byte(line), &payload); err != nil {
+		t.Fatalf("parse open JSON: %v\nstdout: %s", err, stdout)
+	}
+	return &payload
+}
+
+func attachOpenJSON(t *testing.T, resp *Response) {
+	t.Helper()
+	if strings.TrimSpace(resp.Stdout) == "" {
+		return
+	}
+	resp.OpenJSON = parseOpenJSON(t, resp.Stdout)
 }
 
 func installPrecheckHooks(t *testing.T, req *Request) func() {
@@ -265,6 +323,12 @@ func runCLI(t *testing.T, req *Request) (*Response, error) {
 	args := []string{"vscode", "open"}
 	if req.Replace {
 		args = append(args, "--replace")
+	}
+	if req.IpcOnly {
+		args = append(args, "--ipc-only")
+	}
+	if req.Json {
+		args = append(args, "--json")
 	}
 	if req.DirPath != "" {
 		args = append(args, req.DirPath)
@@ -387,12 +451,25 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 	vscodegit.SetStderrWriterForTest(&stderrBuf)
 	t.Cleanup(func() { vscodegit.SetStderrWriterForTest(nil) })
 
-	err := vscodegit.OpenDir(req.DirPath, cwd, req.Replace)
+	var stdoutBuf bytes.Buffer
+	emitJSON := req.Json || req.Phase == "json"
+	if emitJSON {
+		vscodegit.SetStdoutWriterForTest(&stdoutBuf)
+		t.Cleanup(func() { vscodegit.SetStdoutWriterForTest(nil) })
+	}
+
+	opts := vscodegit.OpenOptions{
+		Replace: req.Replace,
+		IpcOnly: req.IpcOnly,
+		Json:    emitJSON,
+	}
+	err := vscodegit.OpenDirOptions(req.DirPath, cwd, opts)
 	resp := &Response{
 		ExecCalled:  execCalled,
 		ExecCommand: execCommand,
 		ExecArgs:    execArgs,
 		Stderr:      stderrBuf.String(),
+		Stdout:      stdoutBuf.String(),
 	}
 	if err != nil {
 		resp.ValidateErr = err.Error()
@@ -422,20 +499,30 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 		server.mu.Unlock()
 	}
 	resp.StderrHint = strings.Contains(resp.Stderr, "extension not reachable via IPC")
+	if emitJSON {
+		attachOpenJSON(t, resp)
+	}
 	return resp, nil
 }
 
 func Run(t *testing.T, req *Request) (*Response, error) {
 	switch req.Phase {
 	case "cli":
-		return runCLI(t, req)
+		resp, err := runCLI(t, req)
+		if err != nil {
+			return nil, err
+		}
+		if req.Json {
+			attachOpenJSON(t, resp)
+		}
+		return resp, nil
 	case "validate":
 		return runValidate(t, req)
 	case "build-uri":
 		return runBuildURI(t, req)
 	case "precheck":
 		return runPrecheck(t, req)
-	case "ipc", "exec", "orchestrate":
+	case "ipc", "exec", "orchestrate", "json":
 		return runOrchestrate(t, req)
 	default:
 		return nil, fmt.Errorf("unknown phase %q", req.Phase)

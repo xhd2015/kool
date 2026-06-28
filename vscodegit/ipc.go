@@ -23,9 +23,14 @@ func SetIPC_SOCKETPathForTest(path string) {
 	ipcSocketPathOverride = path
 }
 
+const koolVscodeIPCSocketEnv = "KOOL_VSCODE_IPC_SOCKET"
+
 func ipcSocketPath() string {
 	if ipcSocketPathOverride != "" {
 		return ipcSocketPathOverride
+	}
+	if envPath := os.Getenv(koolVscodeIPCSocketEnv); envPath != "" {
+		return envPath
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
