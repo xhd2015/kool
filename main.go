@@ -21,6 +21,7 @@ import (
 	"github.com/xhd2015/kool/tools/html/html2markdown"
 	"github.com/xhd2015/kool/tools/html/html2text"
 	"github.com/xhd2015/kool/tools/http"
+	iterm2cmd "github.com/xhd2015/kool/tools/iterm2"
 	"github.com/xhd2015/kool/tools/js"
 	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/jsontool"
@@ -75,6 +76,7 @@ VSCode:
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   vscode open [--replace] <path>     open directory in VS Code (new window by default; --replace reuses current window)
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
+  iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
 
 Project:  
   create <template> <project-name>   create new project
@@ -157,6 +159,8 @@ func handle(args []string) error {
 		return xgo_cmd.Debug().Run("go", "install", "github.com/xhd2015/kool@latest")
 	case "vscode":
 		return handleVscode(args)
+	case "iterm2":
+		return iterm2cmd.Handle(args)
 	case "create":
 		return create.Handle(args)
 	case "scaffold":
