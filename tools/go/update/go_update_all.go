@@ -273,9 +273,20 @@ func executeModuleUpdates(dir string, updateInfos []ModuleUpdateInfo) error {
 }
 
 // calculateVersionPrefix calculates the version prefix for a given module path
-// For nested submodules, returns "path/to/submodule/"
-// For root modules, returns ""
+// For nested submodules, returns "path/to/submodule/v"
+// For root modules, returns "v"
 func calculateVersionPrefix(targetDir, modulePath string) (string, error) {
+	gitRoot, subPathList, err := tag.GetSubPath(targetDir)
+	if err != nil {
+		return "", err
+	}
+
+	// Repos like dot-pkgs have no go.mod at the git root; tags use the directory
+	// path relative to the repo root (e.g. go-pkgs/v0.0.2).
+	if _, err := os.Stat(filepath.Join(gitRoot, "go.mod")); os.IsNotExist(err) {
+		return tag.AddVersionPrefix(strings.Join(subPathList, "/")), nil
+	}
+
 	// Get the root module path (the main module in the repo)
 	rootModPath, err := resolve.GetRootModulePath(targetDir)
 	if err != nil {
