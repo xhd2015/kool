@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/xhd2015/kool/tools/go/resolve"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
 )
 
 func UpdateReplaced(dir string) error {

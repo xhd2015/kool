@@ -46,8 +46,8 @@ import (
 	"os/exec"
 	"testing"
 
-	go_update "github.com/xhd2015/kool/tools/go/update"
-	"github.com/xhd2015/kool/tools/go/resolve"
+	go_update "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/update"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
 )
 
 type Request struct {

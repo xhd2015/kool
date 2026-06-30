@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/xhd2015/kool/tools/git/tag"
-	"github.com/xhd2015/kool/tools/go/commands"
 	goconfig "github.com/xhd2015/kool/tools/go/config"
-	"github.com/xhd2015/kool/tools/go/resolve"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/commands"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
+	gotoolupdate "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/update"
 )
 
 // ModuleUpdateInfo represents information about a module that needs updating
@@ -89,27 +88,24 @@ func buildModuleUpdateInfo(resolved *resolve.LocalModuleInfo) (*ModuleUpdateInfo
 	modulePath := resolved.ModuleInfo.Module.Path
 	absPath := resolved.LocalPath
 
-	// Calculate version prefix for submodules
-	versionPrefix, err := calculateVersionPrefix(absPath, modulePath)
+	versionPrefix, err := gotoolupdate.CalculateVersionPrefix(absPath, modulePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate version prefix for %s: %w", modulePath, err)
 	}
 
-	// Get latest tag from the local module (not restricted to HEAD)
-	latestTag, err := tag.GetLatestVersionTag(absPath, versionPrefix)
+	latestTag, err := gotoolupdate.GetLatestVersionTag(absPath, versionPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("no suitable tag found for %s: %w", modulePath, err)
 	}
 
-	// Extract clean versions for comparison
-	cleanLatestVersion := tag.StripVersionPrefix(versionPrefix, latestTag)
+	cleanLatestVersion := gotoolupdate.StripVersionPrefix(versionPrefix, latestTag)
 	if !isValidVersionTag(cleanLatestVersion) {
 		fmt.Fprintf(os.Stderr, "  Latest version %s is not a valid semantic version, skipping\n", cleanLatestVersion)
 		return nil, nil
 	}
 
 	currentVersion := resolved.CurrentVersion
-	cleanCurrentVersion := tag.StripVersionPrefix(versionPrefix, currentVersion)
+	cleanCurrentVersion := gotoolupdate.StripVersionPrefix(versionPrefix, currentVersion)
 	if currentVersion != "" && !isValidVersionTag(cleanCurrentVersion) {
 		fmt.Fprintf(os.Stderr, "  Current version %s is not a valid semantic version, skipping\n", cleanCurrentVersion)
 		return nil, nil
@@ -173,22 +169,19 @@ func collectReplacementUpdateInfos(currentModInfo *resolve.ModuleInfo) ([]Module
 			continue
 		}
 
-		// Calculate version prefix for nested submodules
-		versionPrefix, err := calculateVersionPrefix(targetDir, targetModPath)
+		versionPrefix, err := gotoolupdate.CalculateVersionPrefix(targetDir, targetModPath)
 		if err != nil {
 			fmt.Printf("  Failed to calculate version prefix for %s: %v, skipping\n", targetModPath, err)
 			continue
 		}
 
-		// Get latest tag from the local module (not restricted to HEAD)
-		latestTag, err := tag.GetLatestVersionTag(targetDir, versionPrefix)
+		latestTag, err := gotoolupdate.GetLatestVersionTag(targetDir, versionPrefix)
 		if err != nil {
 			fmt.Printf("  No suitable tag found for %s: %v, skipping\n", targetModPath, err)
 			continue
 		}
 
-		// Validate the latest version for replacements (strict validation)
-		cleanLatestVersion := tag.StripVersionPrefix(versionPrefix, latestTag)
+		cleanLatestVersion := gotoolupdate.StripVersionPrefix(versionPrefix, latestTag)
 		if !isValidVersionTag(cleanLatestVersion) {
 			return nil, fmt.Errorf("replacement %s has invalid version %s: not a valid semantic version", targetModPath, cleanLatestVersion)
 		}
@@ -270,49 +263,4 @@ func executeModuleUpdates(dir string, updateInfos []ModuleUpdateInfo) error {
 	}
 
 	return nil
-}
-
-// calculateVersionPrefix calculates the version prefix for a given module path
-// For nested submodules, returns "path/to/submodule/v"
-// For root modules, returns "v"
-func calculateVersionPrefix(targetDir, modulePath string) (string, error) {
-	gitRoot, subPathList, err := tag.GetSubPath(targetDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Repos like dot-pkgs have no go.mod at the git root; tags use the directory
-	// path relative to the repo root (e.g. go-pkgs/v0.0.2).
-	if _, err := os.Stat(filepath.Join(gitRoot, "go.mod")); os.IsNotExist(err) {
-		return tag.AddVersionPrefix(strings.Join(subPathList, "/")), nil
-	}
-
-	// Get the root module path (the main module in the repo)
-	rootModPath, err := resolve.GetRootModulePath(targetDir)
-	if err != nil {
-		return "", err
-	}
-
-	// Use cutSubmoduleSuffix for robust path extraction
-	subModulePath, ok := cutSubmoduleSuffix(rootModPath, modulePath)
-	if !ok {
-		return "", fmt.Errorf("module path %s is not a submodule of root module path %s", modulePath, rootModPath)
-	}
-
-	return tag.AddVersionPrefix(subModulePath), nil
-}
-
-// cutSubmoduleSuffix safely extracts the submodule path from a full module path
-// Returns the submodule path and whether the operation was successful
-func cutSubmoduleSuffix(parentModulePath, childModulePath string) (string, bool) {
-	if !strings.HasPrefix(childModulePath, parentModulePath) {
-		return "", false
-	}
-	if len(childModulePath) == len(parentModulePath) {
-		return "", true
-	}
-	if childModulePath[len(parentModulePath)] != '/' {
-		return "", false
-	}
-	return childModulePath[len(parentModulePath)+1:], true
 }

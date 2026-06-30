@@ -8,7 +8,7 @@
 import (
 	"testing"
 
-	"github.com/xhd2015/kool/tools/go/resolve"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
 )
 
 func Assert(t *testing.T, req *Request, resp *Response, err error) {
