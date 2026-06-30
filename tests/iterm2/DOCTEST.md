@@ -1,9 +1,8 @@
 # kool iterm2 CLI
 
-`kool iterm2 <dir> [--send <command>]...` opens a directory in iTerm2 on macOS using
-the shared `shell/iterm2` library. Validates the path, checks platform and install,
-builds smart-open AppleScript, and runs `osascript`. Repeatable `--send` flags run
-follow-up commands after `cd`.
+`kool iterm2 <dir> [-r] [--send <command>]...` opens a directory in iTerm2 on macOS using
+the shared `shell/iterm2` library. Default smart-open scans session paths; `-r` reuses
+the current session. Repeatable `--send` runs follow-up commands after `cd`.
 
 ## Version
 
@@ -13,7 +12,7 @@ follow-up commands after `cd`.
 
 ### Participants
 
-- **kool CLI** — `tools/iterm2` handler; parses `<dir>` and `--send` flags.
+- **kool CLI** — `tools/iterm2` handler; parses `<dir>`, `-r`/`--reuse`, and `--send` flags.
 - **`shell/iterm2`** — `OpenConfig` with AppleScript build and osascript execution.
 - **Fake osascript** — test `osascript` on PATH writes script to
   `KOOL_ITERM2_SCRIPT_OUT` and honors `KOOL_ITERM2_OSASCRIPT_EXIT`.
@@ -42,7 +41,8 @@ iterm2/
 ├── cli/                        [successful subprocess + script capture]
 │   ├── cd-only/
 │   ├── single-send/
-│   └── multiple-send/
+│   ├── multiple-send/
+│   └── reuse-flag/
 └── error/
     ├── not-installed/
     ├── osascript-failure/
@@ -61,6 +61,7 @@ iterm2/
 | `cli/cd-only/` | Script has cd, no follow-up lines |
 | `cli/single-send/` | `--send grok` in script |
 | `cli/multiple-send/` | `--send grok --send codex` ordered |
+| `cli/reuse-flag/` | `-r` → current session script, no new tab |
 | `error/not-installed/` | `KOOL_ITERM2_INSTALLED=0` → exit 1 |
 | `error/osascript-failure/` | Fake osascript exit 1 → exit 1 |
 | `error/unsupported-platform/` | `SetGOOSForTest(linux)` on handler |
@@ -96,6 +97,7 @@ const (
 type Request struct {
 	Phase          string
 	DirPath        string
+	Reuse          bool
 	Send           []string
 	Help           bool
 	ExtraPositional []string
@@ -149,14 +151,21 @@ func configureCLIEnv(t *testing.T, req *Request, cmd *exec.Cmd, scriptOut string
 	env := os.Environ()
 	binDir := filepath.Join(req.WorkingDir, "bin")
 	env = append(env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	if req.InstalledEnv != "" {
-		env = append(env, koolIterm2InstalledEnv+"="+req.InstalledEnv)
+	installed := req.InstalledEnv
+	if installed == "" {
+		installed = "1"
 	}
+	env = append(env, koolIterm2InstalledEnv+"="+installed)
 	if scriptOut != "" {
 		env = append(env, koolIterm2ScriptOutEnv+"="+scriptOut)
 	}
 	if req.OsascriptExit != 0 {
 		env = append(env, fmt.Sprintf("%s=%d", koolIterm2OsascriptExitEnv, req.OsascriptExit))
+	}
+	if req.GoOS != "" {
+		env = append(env, "KOOL_ITERM2_GOOS="+req.GoOS)
+	} else {
+		env = append(env, "KOOL_ITERM2_GOOS=darwin")
 	}
 	cmd.Env = env
 }
@@ -169,6 +178,9 @@ func runCLI(t *testing.T, req *Request) (*Response, error) {
 	args := []string{"iterm2"}
 	if req.Help {
 		args = append(args, "--help")
+	}
+	if req.Reuse {
+		args = append(args, "-r")
 	}
 	for _, s := range req.Send {
 		args = append(args, "--send", s)
@@ -215,6 +227,9 @@ func runHandler(t *testing.T, req *Request) (*Response, error) {
 	args := []string{}
 	if req.Help {
 		args = append(args, "--help")
+	}
+	if req.Reuse {
+		args = append(args, "-r")
 	}
 	for _, s := range req.Send {
 		args = append(args, "--send", s)

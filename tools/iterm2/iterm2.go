@@ -12,19 +12,21 @@ import (
 	lessflags "github.com/xhd2015/less-flags"
 )
 
-const help = `iterm2 <dir> [--send <command>]...
+const help = `iterm2 <dir> [-r] [--send <command>]...
 
-Open a directory in iTerm2 on macOS (smart window/tab reuse).
+Open a directory in iTerm2 on macOS.
 
 Arguments:
 dir                              directory to open (required)
 
 Options:
+-r, --reuse                      cd in current session (no smart-open new tab)
 --send <command>                 shell command to run after cd (repeatable)
 -h, --help                       show this help message
 
 Examples:
 kool iterm2 .
+kool iterm2 /path/to/project -r
 kool iterm2 /path/to/project --send grok
 kool iterm2 . --send grok --send codex
 `
@@ -57,7 +59,9 @@ func RunForTest(args []string, stdout, stderr io.Writer, workingDir string) int 
 
 func run(args []string, stdout, stderr io.Writer) error {
 	var sends []string
+	var reuse bool
 	remain, err := lessflags.StringSlice("--send", &sends).
+		Bool("-r,--reuse", &reuse).
 		HelpFunc("-h,--help", func() {}).
 		HelpNoExit().
 		Parse(args)
@@ -81,6 +85,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 	dir := remain[0]
 	cfg := &lib.Config{FollowUpCommands: sends}
+	if reuse {
+		cfg.Mode = lib.ModeReuseCurrent
+	}
 	if err := lib.OpenConfig(dir, cfg); err != nil {
 		if errors.Is(err, lib.ErrUnsupportedPlatform) {
 			fmt.Fprint(stderr, "Open iTerm2 is only supported on macOS.")

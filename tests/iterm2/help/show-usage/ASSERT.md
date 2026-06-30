@@ -1,6 +1,6 @@
 ## Expected
 
-- Exit 0; stdout contains usage for iterm2 and --send.
+- Exit 0; stdout contains usage for iterm2, --send, and -r.
 
 ## Exit Code
 
@@ -24,6 +24,7 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 <contains>
 iterm2
 --send
+-r
 </contains>`)
 }
 ```
