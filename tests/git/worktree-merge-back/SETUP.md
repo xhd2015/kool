@@ -162,6 +162,16 @@ func worktreeListed(t *testing.T, mainRepo, wtPath string) bool {
 	return strings.Contains(string(out), wtPath)
 }
 
+func revParseHEAD(t *testing.T, dir string) string {
+	t.Helper()
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse HEAD in %s: %v", dir, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func rebaseInProgress(t *testing.T, wtPath string) bool {
 	t.Helper()
 	_, err := os.Stat(filepath.Join(wtPath, ".git", "rebase-merge"))

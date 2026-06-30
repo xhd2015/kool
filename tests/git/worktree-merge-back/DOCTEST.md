@@ -23,12 +23,18 @@ outcome
 │   ├── already-included/
 │   │   ├── noop/leaf                   # included, no --rm → success, worktree remains
 │   │   └── with-rm/leaf                # included + --rm → worktree removed + branch deleted
+│   ├── detached-head/
+│   │   └── ahead/
+│   │       ├── leaf                    # detached HEAD ahead of main → merge, not already-included
+│   │       └── dry-run/leaf            # dry-run lists merge plan, not already-included
 │   ├── ahead/
 │   │   ├── non-tty/leaf                # no TTY → error, no mutations
 │   │   ├── confirm-decline/leaf        # confirm-from-stdin + 'n' → abort exit 0
 │   │   ├── confirm-default/leaf        # confirm-from-stdin + Enter → ff merge, worktree remains
 │   │   ├── merge-and-rm/leaf           # confirm + --rm → merged + removed
-│   │   └── dry-run/leaf                # --dry-run prints planned commands, no changes
+│   │   └── dry-run/
+│   │       ├── leaf                    # --dry-run prints planned commands, no changes
+│   │       └── merge-uses-branch/leaf  # dry-run uses branch name, not commit hash
 │   └── diverged/
 │       ├── non-tty/leaf                # no TTY → error
 │       ├── rebase-fails/leaf           # confirm → rebase conflict → error
@@ -49,17 +55,20 @@ outcome
 | 4 | validation/foreign-target/leaf | `--to` worktree from foreign main repo is rejected |
 | 5 | to-main/already-included/noop/leaf | Already-included branch is no-op; worktree kept |
 | 6 | to-main/already-included/with-rm/leaf | Already-included + `--rm` removes worktree and branch |
-| 7 | to-main/ahead/non-tty/leaf | Ahead branch without TTY confirmation is rejected |
-| 8 | to-main/ahead/confirm-decline/leaf | User declines merge; no git mutations |
-| 9 | to-main/ahead/confirm-default/leaf | User confirms; target ff-merged; source worktree remains |
-| 10 | to-main/ahead/merge-and-rm/leaf | User confirms with `--rm`; merged and worktree removed |
-| 11 | to-main/ahead/dry-run/leaf | Dry-run lists planned commands; no mutations |
-| 12 | to-main/diverged/non-tty/leaf | Diverged branch without TTY confirmation is rejected |
-| 13 | to-main/diverged/rebase-fails/leaf | Rebase conflict aborts; source unchanged |
-| 14 | to-main/diverged/rebase-succeeds/leaf | Rebase + ff merge succeeds into main |
-| 15 | to-main/diverged/rebase-succeeds-rm/leaf | Rebase + merge + `--rm` removes worktree |
-| 16 | to-worktree/ahead/leaf | Ahead branch merged into sibling worktree HEAD |
-| 17 | to-worktree/dry-run/leaf | Dry-run with `--to` sibling lists commands only |
+| 7 | to-main/detached-head/ahead/leaf | Detached HEAD ahead of main merges; not falsely already-included |
+| 8 | to-main/detached-head/ahead/dry-run/leaf | Detached HEAD dry-run lists merge; not falsely already-included |
+| 9 | to-main/ahead/non-tty/leaf | Ahead branch without TTY confirmation is rejected |
+| 10 | to-main/ahead/confirm-decline/leaf | User declines merge; no git mutations |
+| 11 | to-main/ahead/confirm-default/leaf | User confirms; target ff-merged; source worktree remains |
+| 12 | to-main/ahead/merge-and-rm/leaf | User confirms with `--rm`; merged and worktree removed |
+| 13 | to-main/ahead/dry-run/leaf | Dry-run lists planned commands; no mutations |
+| 14 | to-main/ahead/dry-run/merge-uses-branch/leaf | Attached branch dry-run uses branch name in merge |
+| 15 | to-main/diverged/non-tty/leaf | Diverged branch without TTY confirmation is rejected |
+| 16 | to-main/diverged/rebase-fails/leaf | Rebase conflict aborts; source unchanged |
+| 17 | to-main/diverged/rebase-succeeds/leaf | Rebase + ff merge succeeds into main |
+| 18 | to-main/diverged/rebase-succeeds-rm/leaf | Rebase + merge + `--rm` removes worktree |
+| 19 | to-worktree/ahead/leaf | Ahead branch merged into sibling worktree HEAD |
+| 20 | to-worktree/dry-run/leaf | Dry-run with `--to` sibling lists commands only |
 
 ## How to Run
 
