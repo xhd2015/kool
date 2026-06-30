@@ -20,7 +20,7 @@ Arguments:
 dir                              directory to open (required)
 
 Options:
--r, --reuse                      cd in current session (no smart-open new tab)
+-r, --reuse                      focus session at dir if open; else new window + cd
 --send <command>                 shell command to run after cd (repeatable)
 -h, --help                       show this help message
 

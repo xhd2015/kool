@@ -1,8 +1,10 @@
 # kool iterm2 CLI
 
 `kool iterm2 <dir> [-r] [--send <command>]...` opens a directory in iTerm2 on macOS using
-the shared `shell/iterm2` library. Default smart-open scans session paths; `-r` reuses
-the current session. Repeatable `--send` runs follow-up commands after `cd`.
+the shared `shell/iterm2` library. Default smart-open scans session paths and opens a new
+tab when a match exists. `-r` uses the same scan: on match it focuses the tab/session at
+`targetDir` (no `cd`, no `--send`); on miss it opens a new window with `cd` and follow-ups.
+Repeatable `--send` applies only on the miss path.
 
 ## Version
 
@@ -22,7 +24,8 @@ the current session. Repeatable `--send` runs follow-up commands after `cd`.
 
 - **Validation** — missing `<dir>`, extra positionals, missing path, or non-directory
   → stderr + exit 1 before osascript.
-- **Success** — exit 0; captured script contains `cd` and optional follow-ups in order.
+- **Success (default)** — exit 0; captured script scans `path`, reuses via new tab or new window, `cd` + optional follow-ups.
+- **Success (`-r`)** — exit 0; same scan; match branch focuses tab/session only; miss branch new window + `cd` + follow-ups.
 - **Install / osascript errors** — stderr message + exit 1.
 - **`--help`** — usage on stdout, exit 0.
 - **Non-darwin** — exit 1 with macOS-only message (handler test with `SetGOOSForTest`).
@@ -43,6 +46,10 @@ iterm2/
 │   ├── single-send/
 │   ├── multiple-send/
 │   └── reuse-flag/
+│       ├── no-session-at-dir/
+│       ├── session-at-dir/
+│       ├── no-session-with-send/
+│       └── session-at-dir-with-send/
 └── error/
     ├── not-installed/
     ├── osascript-failure/
@@ -61,7 +68,10 @@ iterm2/
 | `cli/cd-only/` | Script has cd, no follow-up lines |
 | `cli/single-send/` | `--send grok` in script |
 | `cli/multiple-send/` | `--send grok --send codex` ordered |
-| `cli/reuse-flag/` | `-r` → current session script, no new tab |
+| `cli/reuse-flag/no-session-at-dir/` | `-r` script scans paths; miss branch new window + cd |
+| `cli/reuse-flag/session-at-dir/` | `-r` match branch focus tab/session only (no cd/tab create) |
+| `cli/reuse-flag/no-session-with-send/` | `-r --send grok` → grok only in miss branch |
+| `cli/reuse-flag/session-at-dir-with-send/` | `-r --send grok` → match branch suppresses grok |
 | `error/not-installed/` | `KOOL_ITERM2_INSTALLED=0` → exit 1 |
 | `error/osascript-failure/` | Fake osascript exit 1 → exit 1 |
 | `error/unsupported-platform/` | `SetGOOSForTest(linux)` on handler |
