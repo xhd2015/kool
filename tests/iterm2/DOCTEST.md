@@ -43,13 +43,18 @@ iterm2/
 │   └── show-usage/
 ├── cli/                        [successful subprocess + script capture]
 │   ├── cd-only/
+│   ├── match-branch-cd-scoped-to-window/
+│   ├── smart-open-scans-user-variable/
 │   ├── single-send/
 │   ├── multiple-send/
 │   └── reuse-flag/
 │       ├── no-session-at-dir/
 │       ├── session-at-dir/
 │       ├── no-session-with-send/
-│       └── session-at-dir-with-send/
+│       ├── session-at-dir-with-send/
+│       ├── miss-branch-registers-session/
+│       ├── scan-matches-user-variable/
+│       └── match-branch-selects-window/
 └── error/
     ├── not-installed/
     ├── osascript-failure/
@@ -66,12 +71,17 @@ iterm2/
 | `validation/extra-args/` | Extra positional args rejected |
 | `help/show-usage/` | `--help` prints usage, exit 0 |
 | `cli/cd-only/` | Script has cd, no follow-up lines |
+| `cli/match-branch-cd-scoped-to-window/` | Default mode: cd scoped to matchingWindow's new tab |
+| `cli/smart-open-scans-user-variable/` | Default mode: scan matches `path` or `user.koolTargetDir` |
 | `cli/single-send/` | `--send grok` in script |
 | `cli/multiple-send/` | `--send grok --send codex` ordered |
 | `cli/reuse-flag/no-session-at-dir/` | `-r` script scans paths; miss branch new window + cd |
 | `cli/reuse-flag/session-at-dir/` | `-r` match branch focus tab/session only (no cd/tab create) |
 | `cli/reuse-flag/no-session-with-send/` | `-r --send grok` → grok only in miss branch |
 | `cli/reuse-flag/session-at-dir-with-send/` | `-r --send grok` → match branch suppresses grok |
+| `cli/reuse-flag/miss-branch-registers-session/` | `-r` miss branch sets `user.koolTargetDir` for back-to-back reuse |
+| `cli/reuse-flag/scan-matches-user-variable/` | `-r` scan matches `path` or `user.koolTargetDir` |
+| `cli/reuse-flag/match-branch-selects-window/` | `-r` match branch selects matchingWindow to front |
 | `error/not-installed/` | `KOOL_ITERM2_INSTALLED=0` → exit 1 |
 | `error/osascript-failure/` | Fake osascript exit 1 → exit 1 |
 | `error/unsupported-platform/` | `SetGOOSForTest(linux)` on handler |
