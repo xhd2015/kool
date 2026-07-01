@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	scanpkg "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/mod/scan"
 	"github.com/xhd2015/kool/tools/git/tag"
 	"github.com/xhd2015/less-flags"
-	"golang.org/x/mod/modfile"
 )
 
 const help = `
@@ -26,6 +25,7 @@ Commands:
 
 Options:
   --dir <dir>        root directory, default is current directory
+  --list             stream "<dir> <module-path>" lines in walk order (no tags)
   --no-tags          hide latest tag annotations
   -h,--help          show help message
 `
@@ -60,7 +60,8 @@ func Handle(args []string) error {
 func handle(w io.Writer, args []string) error {
 	var dir string
 	var noTags bool
-	args, err := parseLeadingModulesFlags(args, &dir, &noTags)
+	var list bool
+	args, err := parseLeadingModulesFlags(args, &dir, &noTags, &list)
 	if err != nil {
 		return err
 	}
@@ -71,10 +72,16 @@ func handle(w io.Writer, args []string) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "ls-files":
+			if list {
+				return fmt.Errorf("--list is not supported with ls-files")
+			}
 			return handleLsFiles(w, dir, args[1:])
 		case "update-local-deps":
 			if noTags {
 				return fmt.Errorf("--no-tags is not supported with update-local-deps")
+			}
+			if list {
+				return fmt.Errorf("--list is not supported with update-local-deps")
 			}
 			return handleUpdateLocalDeps(w, dir, args[1:])
 		case "help", "--help", "-h":
@@ -83,10 +90,17 @@ func handle(w io.Writer, args []string) error {
 		}
 	}
 
+	if list && noTags {
+		return fmt.Errorf("--list is not supported with --no-tags")
+	}
+	if list {
+		return handleList(w, dir)
+	}
+
 	return handleDefault(w, dir, noTags, args)
 }
 
-func parseLeadingModulesFlags(args []string, dir *string, noTags *bool) ([]string, error) {
+func parseLeadingModulesFlags(args []string, dir *string, noTags *bool, list *bool) ([]string, error) {
 	for len(args) > 0 {
 		arg := args[0]
 		switch {
@@ -104,6 +118,9 @@ func parseLeadingModulesFlags(args []string, dir *string, noTags *bool) ([]strin
 		case arg == "--no-tags":
 			*noTags = true
 			args = args[1:]
+		case arg == "--list":
+			*list = true
+			args = args[1:]
 		default:
 			return args, nil
 		}
@@ -111,9 +128,22 @@ func parseLeadingModulesFlags(args []string, dir *string, noTags *bool) ([]strin
 	return args, nil
 }
 
+// handleList streams "<dir> <module-path>" lines to w in walk order (unsorted),
+// one per Go module found under dir, delegating the walk to scan.ScanStream.
+// Each line is flushed before the next module is emitted. dir is "." for the
+// root module and the plain slash-relative path for sub-directories (no "./").
+func handleList(w io.Writer, dir string) error {
+	return scanpkg.ScanStream(dir, scanpkg.Options{}, func(m scanpkg.Module) error {
+		_, err := fmt.Fprintln(w, m.Dir+" "+m.Path)
+		return err
+	})
+}
+
 func handleDefault(w io.Writer, dir string, noTags bool, args []string) error {
+	var list bool
 	args, err := lessflags.
 		String("--dir", &dir).
+		Bool("--list", &list).
 		Bool("--no-tags", &noTags).
 		Help("-h,--help", help).
 		Parse(args)
@@ -125,6 +155,12 @@ func handleDefault(w io.Writer, dir string, noTags bool, args []string) error {
 	}
 	if dir == "" {
 		dir = "."
+	}
+	if list && noTags {
+		return fmt.Errorf("--list is not supported with --no-tags")
+	}
+	if list {
+		return handleList(w, dir)
 	}
 
 	modules, err := FindWithOptions(dir, FindOptions{NoTags: noTags})
@@ -223,116 +259,76 @@ func FindWithOptions(root string, opts FindOptions) ([]Module, error) {
 		return nil, err
 	}
 
-	ignoreChecker := newGitIgnoreChecker(absRoot)
-
-	var modules []Module
-	err = filepath.WalkDir(absRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			return nil
-		}
-
-		if path != absRoot {
-			switch d.Name() {
-			case ".git", "vendor":
-				return filepath.SkipDir
-			}
-
-			ignored, err := ignoreChecker.IsIgnored(path)
-			if err != nil {
-				return err
-			}
-			if ignored {
-				return filepath.SkipDir
-			}
-		}
-
-		hasGoMod, err := hasGoMod(path)
-		if err != nil {
-			return err
-		}
-		if hasGoMod {
-			rel, err := filepath.Rel(absRoot, path)
-			if err != nil {
-				return err
-			}
-			module, err := readModule(path, filepath.ToSlash(rel), opts)
-			if err != nil {
-				return err
-			}
-			modules = append(modules, module)
-		}
-
-		return nil
-	})
+	scanned, err := scanpkg.Scan(root, scanpkg.Options{})
 	if err != nil {
 		return nil, err
 	}
 
-	sort.Slice(modules, func(i, j int) bool {
-		return modules[i].Dir < modules[j].Dir
-	})
+	modules := make([]Module, 0, len(scanned))
+	for _, sm := range scanned {
+		module, err := convertScanModule(absRoot, sm, opts)
+		if err != nil {
+			return nil, err
+		}
+		modules = append(modules, module)
+	}
+
+	// Scan already returns modules sorted by Dir; preserve that order.
 	fillDependencies(modules)
 	return modules, nil
 }
 
-func hasGoMod(dir string) (bool, error) {
-	info, err := os.Stat(filepath.Join(dir, "go.mod"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return !info.IsDir(), nil
-}
-
-func readModule(dir string, rel string, opts FindOptions) (Module, error) {
-	goModPath := filepath.Join(dir, "go.mod")
-	data, err := os.ReadFile(goModPath)
-	if err != nil {
-		return Module{}, err
-	}
-
+// convertScanModule turns a scan.Module (core walk + go.mod read) into kool's
+// richer Module, adding the latest-tag lookup and the requirePaths used by
+// dependency filling. The walk + skip rules + go.mod parsing live in the scan
+// package; kool only layers on its own annotations.
+func convertScanModule(absRoot string, sm scanpkg.Module, opts FindOptions) (Module, error) {
 	module := Module{
-		Dir:  rel,
-		Path: modfile.ModulePath(data),
+		Dir:      sm.Dir,
+		Path:     sm.Path,
+		Requires: convertRequires(sm.Requires),
+		Replaces: convertReplaces(sm.Replaces),
 	}
-	if !opts.NoTags {
-		module.LatestTag, module.LatestTagKnown = findLatestModuleTag(dir)
-	}
-
-	modFile, err := modfile.Parse(goModPath, data, nil)
-	if err != nil {
-		modFile, err = modfile.ParseLax(goModPath, data, nil)
-		if err != nil {
-			return module, nil
-		}
-	}
-	if modFile.Module != nil && modFile.Module.Mod.Path != "" {
-		module.Path = modFile.Module.Mod.Path
-	}
-
-	requirePaths := make([]string, 0, len(modFile.Require))
-	for _, req := range modFile.Require {
-		requirePaths = append(requirePaths, req.Mod.Path)
-		module.Requires = append(module.Requires, ModuleRequire{
-			Path:    req.Mod.Path,
-			Version: req.Mod.Version,
-		})
+	requirePaths := make([]string, 0, len(sm.Requires))
+	for _, req := range sm.Requires {
+		requirePaths = append(requirePaths, req.Path)
 	}
 	module.requirePaths = requirePaths
-	for _, repl := range modFile.Replace {
-		module.Replaces = append(module.Replaces, ModuleReplace{
-			OldPath:    repl.Old.Path,
-			NewPath:    repl.New.Path,
-			NewVersion: repl.New.Version,
+
+	if !opts.NoTags {
+		dir := absRoot
+		if sm.Dir != "." && sm.Dir != "" {
+			dir = filepath.Join(absRoot, filepath.FromSlash(sm.Dir))
+		}
+		module.LatestTag, module.LatestTagKnown = findLatestModuleTag(dir)
+	}
+	return module, nil
+}
+
+func convertRequires(reqs []scanpkg.ModuleRequire) []ModuleRequire {
+	if len(reqs) == 0 {
+		return nil
+	}
+	out := make([]ModuleRequire, 0, len(reqs))
+	for _, r := range reqs {
+		out = append(out, ModuleRequire{Path: r.Path, Version: r.Version})
+	}
+	return out
+}
+
+func convertReplaces(reps []scanpkg.ModuleReplace) []ModuleReplace {
+	if len(reps) == 0 {
+		return nil
+	}
+	out := make([]ModuleReplace, 0, len(reps))
+	for _, r := range reps {
+		out = append(out, ModuleReplace{
+			OldPath:    r.OldPath,
+			NewPath:    r.NewPath,
+			NewVersion: r.NewVersion,
 		})
 	}
-
-	return module, nil
+	return out
 }
 
 func findLatestModuleTag(dir string) (string, bool) {
@@ -373,93 +369,6 @@ func fillDependencies(modules []Module) {
 		}
 		sort.Strings(modules[i].Depends)
 	}
-}
-
-type gitIgnoreChecker struct {
-	root        string
-	ignoredDirs map[string]struct{}
-	fallback    bool
-}
-
-func newGitIgnoreChecker(root string) gitIgnoreChecker {
-	if _, err := exec.LookPath("git"); err != nil {
-		return gitIgnoreChecker{}
-	}
-
-	cmd := exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree")
-	output, err := cmd.Output()
-	if err != nil {
-		return gitIgnoreChecker{}
-	}
-	if strings.TrimSpace(string(output)) != "true" {
-		return gitIgnoreChecker{}
-	}
-
-	cmd = exec.Command("git", "-C", root, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z", "--", ".")
-	output, err = cmd.Output()
-	if err != nil {
-		return gitIgnoreChecker{}
-	}
-
-	ignoredDirs := make(map[string]struct{})
-	for _, entry := range strings.Split(string(output), "\x00") {
-		entry = filepath.ToSlash(entry)
-		if !strings.HasSuffix(entry, "/") {
-			continue
-		}
-		entry = strings.TrimSuffix(entry, "/")
-		entry = strings.TrimPrefix(entry, "./")
-		entry = filepath.ToSlash(filepath.Clean(entry))
-		if entry == "." || entry == "" {
-			continue
-		}
-		ignoredDirs[entry] = struct{}{}
-	}
-
-	return gitIgnoreChecker{
-		root:        root,
-		ignoredDirs: ignoredDirs,
-		fallback:    true,
-	}
-}
-
-func (c gitIgnoreChecker) IsIgnored(path string) (bool, error) {
-	if !c.fallback {
-		return false, nil
-	}
-
-	rel, err := filepath.Rel(c.root, path)
-	if err != nil {
-		return false, err
-	}
-	if rel == "." {
-		return false, nil
-	}
-	rel = filepath.ToSlash(filepath.Clean(rel))
-
-	for current := rel; current != "." && current != ""; {
-		if _, ok := c.ignoredDirs[current]; ok {
-			return true, nil
-		}
-		next := filepath.ToSlash(filepath.Dir(current))
-		if next == current {
-			break
-		}
-		current = next
-	}
-	return c.checkIgnore(rel)
-}
-
-func (c gitIgnoreChecker) checkIgnore(rel string) (bool, error) {
-	cmd := exec.Command("git", "-C", c.root, "check-ignore", "-q", "--", rel+"/")
-	err := cmd.Run()
-	if err == nil {
-		return true, nil
-	}
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		return false, nil
-	}
-	return false, err
 }
 
 type treeNode struct {
