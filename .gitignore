@@ -6,6 +6,7 @@ dlv.log
 __debug-main.bin
 
 .agents
+.commandcode
 
 /kool-*
 /kool
@@ -35,3 +36,4 @@ tools/web/react/vite.config.js
 tools/web/react/vite.config.js.map
 tools/preview/viewer/react/vite.config.js
 tools/preview/viewer/react/vite.config.js.map
+/external
