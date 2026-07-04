@@ -22,16 +22,16 @@ func Handle(args []string) error {
 		return fmt.Errorf("bun is not installed, install it from https://bun.sh/docs/installation")
 	}
 
-	// check if PROJECT_NAME-react/node_modules exists
-	if _, err := os.Stat("PROJECT_NAME-react/node_modules"); err != nil {
+	// check if __PROJECT_NAME__-react/node_modules exists
+	if _, err := os.Stat("__PROJECT_NAME__-react/node_modules"); err != nil {
 		// run bun install
-		err := cmd.Debug().Dir("PROJECT_NAME-react").Run("bun", "install")
+		err := cmd.Debug().Dir("__PROJECT_NAME__-react").Run("bun", "install")
 		if err != nil {
 			return err
 		}
 	}
 
-	err := cmd.Debug().Dir("PROJECT_NAME-react").Run("bun", "run", "build")
+	err := cmd.Debug().Dir("__PROJECT_NAME__-react").Run("bun", "run", "build")
 	if err != nil {
 		return err
 	}

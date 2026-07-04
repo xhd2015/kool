@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"MODULE_NAME/run"
+	"__MODULE_NAME__/run"
 )
 
 func main() {

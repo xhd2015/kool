@@ -62,7 +62,7 @@ func EnsureFrontendDevServer(ctx context.Context, routePrefix string) (int, chan
 		cmdArgs = append(cmdArgs, "--base", strings.TrimRight(base, "/")+"/")
 	}
 	cmd := exec.Command("bun", cmdArgs...)
-	cmd.Dir = "PROJECT_NAME-react/"
+	cmd.Dir = "__PROJECT_NAME__-react/"
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -220,7 +220,7 @@ type StaticOptions struct {
 func Static(mux *http.ServeMux, opts StaticOptions) error {
 	routePrefix := NormalizeRoutePrefix(opts.RoutePrefix)
 	// Serve static files from the embedded React build
-	reactFileSystem, err := fs.Sub(distFS, "PROJECT_NAME-react/dist")
+	reactFileSystem, err := fs.Sub(distFS, "__PROJECT_NAME__-react/dist")
 	if err != nil {
 		return fmt.Errorf("failed to create react file system: %v", err)
 	}
@@ -243,7 +243,7 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 
 	mux.Handle("/assets/", http.StripPrefix("/assets/", &mimeTypeHandler{http.FileServer(http.FS(assetsFileSystem))}))
 	// Serve React static files like vite.svg from root
-	mux.Handle("/PROJECT_NAME.svg", &mimeTypeHandler{http.FileServer(http.FS(reactFileSystem))})
+	mux.Handle("/__PROJECT_NAME__.svg", &mimeTypeHandler{http.FileServer(http.FS(reactFileSystem))})
 
 	// Serve the main HTML page
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

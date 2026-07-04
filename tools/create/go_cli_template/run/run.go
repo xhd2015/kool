@@ -8,7 +8,7 @@ import (
 )
 
 const help = `
-Usage: MODULE_NAME [OPTIONS]
+Usage: __MODULE_NAME__ [OPTIONS]
 
 Options:
   -h,--help            show help message

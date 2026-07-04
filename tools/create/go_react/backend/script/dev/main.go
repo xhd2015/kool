@@ -14,17 +14,17 @@ import (
 )
 
 const help = `
-Usage: dev [PROJECT_NAME options]
+Usage: dev [__PROJECT_NAME__ options]
 
-Start PROJECT_NAME in dev mode.
+Start __PROJECT_NAME__ in dev mode.
 This wrapper runs:
 
-  go run ./ --dev [PROJECT_NAME options...]
+  go run ./ --dev [__PROJECT_NAME__ options...]
 
 Examples:
   go run ./script/dev
   go run ./script/dev --port 9000
-  go run ./script/dev --route-prefix PROJECT_NAME
+  go run ./script/dev --route-prefix __PROJECT_NAME__
   go run ./script/dev -- --help
 `
 

@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"MODULE_NAME/server"
+	"__MODULE_NAME__/server"
 
 	"github.com/xhd2015/kool/pkgs/web"
 	"github.com/xhd2015/less-flags"
 )
 
 const help = `
-Usage: PROJECT_NAME [options]
+Usage: __PROJECT_NAME__ [options]
 
 Options:
   --dev                    run in dev mode (proxies to the vite dev server)

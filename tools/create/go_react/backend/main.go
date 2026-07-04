@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 
-	"MODULE_NAME/run"
-	"MODULE_NAME/server"
+	"__MODULE_NAME__/run"
+	"__MODULE_NAME__/server"
 )
 
-//go:embed PROJECT_NAME-react/dist
+//go:embed __PROJECT_NAME__-react/dist
 var distFS embed.FS
 
-//go:embed PROJECT_NAME-react/template.html
+//go:embed __PROJECT_NAME__-react/template.html
 var templateHTML string
 
 func main() {

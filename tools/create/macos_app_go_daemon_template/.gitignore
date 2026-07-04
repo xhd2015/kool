@@ -1,0 +1,21 @@
+# Go daemon build output
+.build/
+
+# macOS menu-bar app (Swift PM + bundle)
+__PROJECT_NAME__-swift/.build/
+__PROJECT_NAME__-swift/.swiftpm/
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+
+# App bundle and archive
+__PROJECT_NAME__.app/
+__PROJECT_NAME__-debug.app/
+__PROJECT_NAME__.dmg
+__PROJECT_NAME__.zip
+*.dmg
+.dmg-staging/

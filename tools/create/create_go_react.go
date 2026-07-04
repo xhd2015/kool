@@ -204,9 +204,7 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 		}
 		content := string(contentBytes)
 
-		// Replace placeholders
-		content = strings.ReplaceAll(content, "PROJECT_NAME", projectName)
-		content = strings.ReplaceAll(content, "MODULE_NAME", moduleName)
+		content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
 
 		return os.WriteFile(targetFilePath, []byte(content), 0644)
 	})
@@ -218,8 +216,7 @@ func copyTemplateFile(templateFS embed.FS, src, target, projectName, moduleName 
 		return err
 	}
 	content := string(contentBytes)
-	content = strings.ReplaceAll(content, "PROJECT_NAME", projectName)
-	content = strings.ReplaceAll(content, "MODULE_NAME", moduleName)
+	content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
 	return os.WriteFile(target, []byte(content), 0644)
 }
 

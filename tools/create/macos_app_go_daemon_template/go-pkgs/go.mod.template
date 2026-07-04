@@ -1,0 +1,5 @@
+module __MODULE_NAME__
+
+go 1.23.0
+
+require github.com/xhd2015/less-flags v1.0.0

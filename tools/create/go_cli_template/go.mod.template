@@ -1,4 +1,4 @@
-module MODULE_NAME
+module __MODULE_NAME__
 
 go 1.23.0
 

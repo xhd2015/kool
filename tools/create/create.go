@@ -33,6 +33,7 @@ Usage: kool create <TEMPLATE> <project-name>
 TEMPLATE: 
   react         create a new react project
   go-cli        create a new go cli project
+  macos-app-go-daemon  create a macOS menu bar app with a Go HTTP daemon
   go-react      create a new go-react project (go backend + react frontend)
   frontend      create a new frontend project (react frontend)
   server        create a new server project (go backend)
@@ -42,6 +43,7 @@ Examples:
   kool create frontend my-project
   kool create server my-project
   kool create go-cli my-project
+  kool create macos-app-go-daemon my-project
   kool create go-react my-project
   kool create react my-project
   kool create electron my-project
@@ -49,7 +51,7 @@ Examples:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-cli, go-react, frontend, server, electron")
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-cli, macos-app-go-daemon, go-react, frontend, server, electron")
 	}
 
 	template := args[0]
@@ -68,6 +70,9 @@ func Handle(args []string) error {
 	}
 	if template == "go-cli" {
 		return HandleCreateGoCLI(args[1:])
+	}
+	if template == "macos-app-go-daemon" {
+		return HandleCreateMacOSAppGoDaemon(args[1:])
 	}
 	if template != "frontend" && template != "server" && template != "electron" {
 		return fmt.Errorf("unsupported template: %s", template)
