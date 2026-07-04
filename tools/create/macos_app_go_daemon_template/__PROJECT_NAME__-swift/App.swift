@@ -108,6 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@available(macOS 15.0, *)
 @main
 struct MenuBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -118,9 +119,16 @@ struct MenuBarApp: App {
     }
 
     var body: some Scene {
+        Window("Settings", id: "settings") {
+            SettingsView()
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+
         MenuBarExtra {
             MenuBarDropdownContent(
                 autoStart: $autoStart,
+                showSettings: showSettingsWindow,
                 restartDaemon: { appDelegate.restartDaemon() },
                 daemonInfo: { appDelegate.daemonInfo() }
             )
@@ -130,11 +138,35 @@ struct MenuBarApp: App {
                 .accessibilityIdentifier("menu-bar-extra")
         }
     }
+
+    private func showSettingsWindow(openWindow: OpenWindowAction) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "settings")
+        if let window = NSApp.windows.first(where: { $0.title == "Settings" }) {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+        Task { @MainActor in
+            for _ in 0..<15 {
+                openWindow(id: "settings")
+                if let window = NSApp.windows.first(where: { $0.title == "Settings" }) {
+                    window.makeKeyAndOrderFront(nil)
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+    }
 }
 
+@available(macOS 15.0, *)
 private struct MenuBarDropdownContent: View {
     @Binding var autoStart: Bool
+    @AppStorage("defaultBrowser") private var defaultBrowser = BrowserPreference.default.rawValue
     @ObservedObject private var daemonReadiness = DaemonReadiness.shared
+    @Environment(\.openWindow) private var openWindow
+    let showSettings: (OpenWindowAction) -> Void
     let restartDaemon: () -> Void
     let daemonInfo: () -> (port: Int, pid: Int32)
 
@@ -165,7 +197,23 @@ private struct MenuBarDropdownContent: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
 
+            Button(OpenInBrowserLabelFormatter.format(browser: defaultBrowser)) {
+                let info = daemonInfo()
+                guard info.port >= 0, let url = URL(string: "http://127.0.0.1:\(info.port)") else {
+                    return
+                }
+                BrowserOpener.open(
+                    url: url,
+                    browser: BrowserPreference.fromStored(defaultBrowser)
+                )
+            }
+            .disabled(info.pid < 0)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+
             Divider()
+
+            SettingsMenuButton(showSettings: showSettings)
 
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
@@ -181,5 +229,20 @@ private struct MenuBarDropdownContent: View {
                 try? await Task.sleep(nanoseconds: 50_000_000)
             }
         }
+    }
+}
+
+@available(macOS 15.0, *)
+private struct SettingsMenuButton: View {
+    @Environment(\.openWindow) private var openWindow
+    let showSettings: (OpenWindowAction) -> Void
+
+    var body: some View {
+        Button("Settings…") {
+            showSettings(openWindow)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .accessibilityIdentifier("settings-menu-button")
     }
 }

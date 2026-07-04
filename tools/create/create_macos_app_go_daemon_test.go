@@ -26,6 +26,10 @@ func TestCreateMacOSAppGoDaemonIntoEmptyDir(t *testing.T) {
 		".gitignore",
 		"README.md",
 		filepath.Join("test-app-swift", "App.swift"),
+		filepath.Join("test-app-swift", "SettingsView.swift"),
+		filepath.Join("test-app-swift", "BrowserPreference.swift"),
+		filepath.Join("test-app-swift", "BrowserOpener.swift"),
+		filepath.Join("test-app-swift", "OpenInBrowserLabelFormatter.swift"),
 		filepath.Join("go-pkgs", "go.mod"),
 		filepath.Join("go-pkgs", "go.sum"),
 		filepath.Join("go-pkgs", "server", "daemon.go"),
@@ -69,9 +73,21 @@ func TestCreateMacOSAppGoDaemonIntoEmptyDir(t *testing.T) {
 		t.Fatalf("chosen port %d should not be in use in test", port)
 	}
 
-	appSwift := mustReadCreateTest(t, filepath.Join(dir, "test-app-swift", "DaemonConfig.swift"))
-	if !strings.Contains(appSwift, "static let productionPort = "+strconv.Itoa(port)) {
-		t.Fatalf("DaemonConfig.swift missing productionPort %d:\n%s", port, appSwift)
+	appSwift := mustReadCreateTest(t, filepath.Join(dir, "test-app-swift", "App.swift"))
+	for _, want := range []string{
+		`Window("Settings", id: "settings")`,
+		"settings-menu-button",
+		"OpenInBrowserLabelFormatter.format(browser: defaultBrowser)",
+		"BrowserOpener.open",
+	} {
+		if !strings.Contains(appSwift, want) {
+			t.Fatalf("App.swift missing %q:\n%s", want, appSwift)
+		}
+	}
+
+	daemonConfigSwift := mustReadCreateTest(t, filepath.Join(dir, "test-app-swift", "DaemonConfig.swift"))
+	if !strings.Contains(daemonConfigSwift, "static let productionPort = "+strconv.Itoa(port)) {
+		t.Fatalf("DaemonConfig.swift missing productionPort %d:\n%s", port, daemonConfigSwift)
 	}
 
 	cmd := exec.Command("go", "build", "./...")
