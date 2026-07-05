@@ -23,9 +23,9 @@ func TestPreCommitAutoInstallFrontendDeps(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(frontendDir, "package.json"), `{"scripts":{"build":"echo ok"}}`)
 
-	runCmd(t, frontendDir, "bun", "install")
+	runCmd(t, frontendDir, "pnpm", "install")
 	if _, err := os.Stat(filepath.Join(frontendDir, "node_modules")); os.IsNotExist(err) {
-		t.Fatal("bun install did not create node_modules")
+		t.Fatal("pnpm install did not create node_modules")
 	}
 
 	if err := os.RemoveAll(filepath.Join(frontendDir, "node_modules")); err != nil {

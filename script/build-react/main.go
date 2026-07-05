@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/xhd2015/dot-pkgs/go-pkgs/npm"
 )
 
 type frontend struct {
@@ -38,7 +40,7 @@ const help = `Usage:
 
 Flags:
   --frontend string     frontend to build: all, preview, or web (default "all")
-  --manager string      package manager: auto, bun, or npm (default "auto")
+  --manager string      package manager: auto, pnpm, bun, npm, or yarn (default "auto")
   --skip-install        skip dependency installation
 
 Examples:
@@ -70,16 +72,13 @@ func handle(args []string) error {
 		return err
 	}
 
-	manager, err := selectPackageManager(opts.manager)
-	if err != nil {
-		return err
+	fmt.Printf("Using repository root: %s\n", rootDir)
+	if opts.manager != "auto" {
+		fmt.Printf("Using package manager: %s\n", opts.manager)
 	}
 
-	fmt.Printf("Using repository root: %s\n", rootDir)
-	fmt.Printf("Using package manager: %s\n", manager)
-
 	for _, item := range selected {
-		if err := buildFrontend(rootDir, item, manager, opts.skipInstall); err != nil {
+		if err := buildFrontend(rootDir, item, opts.manager, opts.skipInstall); err != nil {
 			return err
 		}
 	}
@@ -93,7 +92,7 @@ func parseOptions(args []string) (options, error) {
 	fs := flag.NewFlagSet("build-react", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&opts.frontend, "frontend", "all", "frontend to build: all, preview, or web")
-	fs.StringVar(&opts.manager, "manager", "auto", "package manager: auto, bun, or npm")
+	fs.StringVar(&opts.manager, "manager", "auto", "package manager: auto, pnpm, bun, npm, or yarn")
 	fs.BoolVar(&opts.skipInstall, "skip-install", false, "skip dependency installation")
 	fs.Usage = func() {
 		fmt.Fprint(os.Stderr, help)
@@ -122,44 +121,32 @@ func selectFrontends(name string) ([]frontend, error) {
 	return nil, fmt.Errorf("unknown frontend %q: expected all, preview, or web", name)
 }
 
-func selectPackageManager(name string) (string, error) {
-	switch name {
-	case "", "auto":
-		if _, err := exec.LookPath("bun"); err == nil {
-			return "bun", nil
-		}
-		if _, err := exec.LookPath("npm"); err == nil {
-			return "npm", nil
-		}
-		return "", errors.New("cannot find bun or npm in PATH")
-	case "bun", "npm":
-		if _, err := exec.LookPath(name); err != nil {
-			return "", fmt.Errorf("cannot find %s in PATH", name)
-		}
-		return name, nil
-	default:
-		return "", fmt.Errorf("unknown package manager %q: expected auto, bun, or npm", name)
-	}
-}
-
-func buildFrontend(rootDir string, item frontend, manager string, skipInstall bool) error {
+func buildFrontend(rootDir string, item frontend, managerPref string, skipInstall bool) error {
 	frontendDir := filepath.Join(rootDir, item.dir)
 	if !fileExists(filepath.Join(frontendDir, "package.json")) {
 		return fmt.Errorf("%s frontend package.json not found at %s", item.name, frontendDir)
 	}
 
+	manager, err := npm.Resolve(frontendDir, managerPref)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("\n==> Building %s frontend (%s)\n", item.name, item.dir)
+	if managerPref == "auto" {
+		fmt.Printf("Using package manager: %s\n", manager)
+	}
 
 	if !skipInstall {
-		args := installArgs(frontendDir, manager)
+		args := npm.InstallArgs(manager, npm.InstallOptions{})
 		fmt.Printf("Installing dependencies: %s %s\n", manager, strings.Join(args, " "))
-		if err := run(frontendDir, manager, args...); err != nil {
+		if err := run(frontendDir, string(manager), args...); err != nil {
 			return fmt.Errorf("%s dependency install failed: %w", item.name, err)
 		}
 	}
 
 	fmt.Printf("Running build: %s run build\n", manager)
-	if err := run(frontendDir, manager, "run", "build"); err != nil {
+	if err := run(frontendDir, string(manager), "run", "build"); err != nil {
 		return fmt.Errorf("%s build failed: %w", item.name, err)
 	}
 
@@ -173,17 +160,6 @@ func buildFrontend(rootDir string, item frontend, manager string, skipInstall bo
 
 	fmt.Printf("%s frontend ready: %s\n", item.name, distDir)
 	return nil
-}
-
-func installArgs(dir string, manager string) []string {
-	switch manager {
-	case "bun":
-		return []string{"install"}
-	case "npm":
-		return []string{"install", "--no-package-lock"}
-	default:
-		panic("unsupported package manager: " + manager)
-	}
 }
 
 func run(dir string, name string, args ...string) error {

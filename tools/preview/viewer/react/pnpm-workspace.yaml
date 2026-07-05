@@ -1,4 +1,4 @@
 allowBuilds:
-  esbuild: set this to true or false
-  phantomjs-prebuilt: set this to true or false
-  puppeteer: set this to true or false
+  esbuild: true
+  phantomjs-prebuilt: true
+  puppeteer: true
