@@ -130,8 +130,9 @@ func IncrementTag(tag string) (string, error) {
 		}
 	}
 
-	// Check leading zeros
-	for ; i < n-1; i++ {
+	// Skip leading zeros in the trailing numeric segment, but keep at least one digit
+	// so a lone trailing "0" (e.g. v0.2.0) can increment to "1".
+	for ; i < n-2; i++ {
 		if tag[i+1] != '0' {
 			break
 		}
@@ -143,7 +144,7 @@ func IncrementTag(tag string) (string, error) {
 
 	numStr := tag[i+1:]
 	num, err := strconv.Atoi(numStr)
-	if err != nil || num <= 0 {
+	if err != nil || num < 0 {
 		return "", fmt.Errorf("invalid tag: %s", tag)
 	}
 
