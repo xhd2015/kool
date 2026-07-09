@@ -14,6 +14,7 @@ import (
 	"github.com/xhd2015/kool/tools/dlv"
 	"github.com/xhd2015/kool/tools/encoding"
 	for_each_dir "github.com/xhd2015/kool/tools/for-each-dir"
+	for_every "github.com/xhd2015/kool/tools/for-every"
 	"github.com/xhd2015/kool/tools/git"
 	githubtools "github.com/xhd2015/kool/tools/github"
 	go_tools "github.com/xhd2015/kool/tools/go"
@@ -60,6 +61,7 @@ Utility commands:
   preview <file>                     preview a file, currently supports .uml and .puml
   service                            manage background services (macOS/Linux)
   timeout <duration> <command> [args...]  run command with timeout (e.g., timeout 5s sleep 10)
+  for-every [opts] <duration> <cmd>...  run command every interval (also for-every-<duration>)
   help                               show help message
 
 String commands:
@@ -246,11 +248,17 @@ func handle(args []string) error {
 		return js.Handle(args)
 	case "timeout":
 		return timeout.Handle(args)
+	case "for-every":
+		return for_every.Handle(args)
 	case "for-each-dir":
 		return for_each_dir.Handle(args)
 	case "?":
 		return handleQuestion(args)
 	default:
+		if strings.HasPrefix(cmd, "for-every-") {
+			dur := strings.TrimPrefix(cmd, "for-every-")
+			return for_every.HandleWithDuration(dur, args)
+		}
 		if strings.HasPrefix(cmd, "with-") {
 			withCmd := strings.TrimPrefix(cmd, "with-")
 			if withCmd == "" {

@@ -6,11 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/xhd2015/kool/pkgs/duration"
 	"github.com/xhd2015/less-flags"
 )
 
@@ -47,30 +47,13 @@ func Handle(args []string) error {
 	command := args[1]
 	cmdArgs := args[2:]
 
-	// Parse duration
-	duration, err := parseDuration(durationStr)
+	// Parse duration (shared with for-every)
+	dur, err := duration.Parse(durationStr)
 	if err != nil {
 		return fmt.Errorf("invalid duration '%s': %v", durationStr, err)
 	}
 
-	if duration <= 0 {
-		return fmt.Errorf("duration must be greater than 0")
-	}
-
-	return runWithTimeout(duration, command, cmdArgs)
-}
-
-// parseDuration parses a duration string, treating bare numbers as seconds.
-func parseDuration(s string) (time.Duration, error) {
-	dur, durErr := time.ParseDuration(s)
-	if durErr == nil {
-		return dur, nil
-	}
-	d, err := strconv.ParseInt(s, 10, 64)
-	if err == nil {
-		return time.Duration(d) * time.Second, nil
-	}
-	return 0, durErr
+	return runWithTimeout(dur, command, cmdArgs)
 }
 
 func runWithTimeout(timeout time.Duration, command string, args []string) error {
