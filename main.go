@@ -77,6 +77,7 @@ VSCode:
   vscode open [--replace] <path>     open directory in VS Code (new window by default; --replace reuses current window)
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
+  iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
 
 Project:  
   create <template> <project-name>   create new project

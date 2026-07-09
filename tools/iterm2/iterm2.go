@@ -13,24 +13,35 @@ import (
 )
 
 const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
+iterm2 set-title [--window] <title>
+iterm2 get-title [--window]
 
-Open a directory in iTerm2 on macOS.
+Open a directory in iTerm2 on macOS, or get/set the current session or window title
+when running inside iTerm2 (ITERM_SESSION_ID set).
 
-Arguments:
-dir                              directory to open (required)
+Open directory:
+  dir                              directory to open (required)
+  -r, --reuse, --reuse-window      focus session at dir if open; else new window + cd
+  -n, --new-window                 always open in a new window (cannot use with -r)
+  --send <command>                 shell command to run after cd (repeatable)
+
+Title commands (require ITERM_SESSION_ID):
+  set-title [--window] <title>     set session/tab name, or window name with --window
+  get-title [--window]             print session/tab name, or window name with --window
 
 Options:
--r, --reuse, --reuse-window      focus session at dir if open; else new window + cd
--n, --new-window                 always open in a new window (cannot use with -r)
---send <command>                 shell command to run after cd (repeatable)
--h, --help                       show this help message
+  -h, --help                       show this help message
 
 Examples:
-kool iterm2 .
-kool iterm2 /path/to/project -r
-kool iterm2 /path/to/project -n
-kool iterm2 /path/to/project --send grok
-kool iterm2 . --send grok --send codex
+  kool iterm2 .
+  kool iterm2 /path/to/project -r
+  kool iterm2 /path/to/project -n
+  kool iterm2 /path/to/project --send grok
+  kool iterm2 . --send grok --send codex
+  kool iterm2 set-title my-title
+  kool iterm2 set-title --window "Project Window"
+  kool iterm2 get-title
+  kool iterm2 get-title --window
 `
 
 // SetGOOSForTest overrides platform detection for handler tests.
@@ -60,6 +71,16 @@ func RunForTest(args []string, stdout, stderr io.Writer, workingDir string) int 
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
+	// Reserved first-arg routing for title subcommands (before open-dir).
+	if len(args) > 0 {
+		switch args[0] {
+		case "set-title":
+			return runSetTitle(args[1:], stdout, stderr)
+		case "get-title":
+			return runGetTitle(args[1:], stdout, stderr)
+		}
+	}
+
 	var sends []string
 	var reuse bool
 	var newWindow bool
@@ -107,5 +128,97 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stderr, err.Error())
 		return errs.NewSilenceExitCode(1)
 	}
+	return nil
+}
+
+func runSetTitle(args []string, stdout, stderr io.Writer) error {
+	var window bool
+	remain, err := lessflags.Bool("--window", &window).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
+	if err != nil {
+		if err == lessflags.ErrHelp {
+			fmt.Fprint(stdout, strings.TrimSpace(help))
+			return nil
+		}
+		fmt.Fprint(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	if len(remain) == 0 {
+		fmt.Fprint(stderr, "set-title: missing title argument\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) > 1 {
+		fmt.Fprintf(stderr, "set-title: unexpected arguments: %s\n", strings.Join(remain[1:], " "))
+		return errs.NewSilenceExitCode(1)
+	}
+
+	title := remain[0]
+	if title == "" {
+		fmt.Fprint(stderr, "set-title: title must not be empty\n")
+		return errs.NewSilenceExitCode(1)
+	}
+
+	target := lib.TitleTargetSession
+	if window {
+		target = lib.TitleTargetWindow
+	}
+
+	old, newTitle, err := lib.SetTitle(title, target)
+	if err != nil {
+		if errors.Is(err, lib.ErrNotInSession) {
+			fmt.Fprint(stderr, "warning: nothing to set; needs to be run inside iTerm2\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		if errors.Is(err, lib.ErrEmptyTitle) {
+			fmt.Fprint(stderr, "set-title: title must not be empty\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		fmt.Fprint(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	fmt.Fprintf(stdout, "title changed: %s -> %s\n", old, newTitle)
+	return nil
+}
+
+func runGetTitle(args []string, stdout, stderr io.Writer) error {
+	var window bool
+	remain, err := lessflags.Bool("--window", &window).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
+	if err != nil {
+		if err == lessflags.ErrHelp {
+			fmt.Fprint(stdout, strings.TrimSpace(help))
+			return nil
+		}
+		fmt.Fprint(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	if len(remain) > 0 {
+		fmt.Fprintf(stderr, "get-title: unexpected arguments: %s\n", strings.Join(remain, " "))
+		return errs.NewSilenceExitCode(1)
+	}
+
+	target := lib.TitleTargetSession
+	if window {
+		target = lib.TitleTargetWindow
+	}
+
+	title, err := lib.GetTitle(target)
+	if err != nil {
+		if errors.Is(err, lib.ErrNotInSession) {
+			fmt.Fprint(stderr, "warning: nothing to get; needs to be run inside iTerm2\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		fmt.Fprint(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	fmt.Fprintln(stdout, title)
 	return nil
 }

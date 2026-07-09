@@ -48,7 +48,7 @@ func mergeBack(args []string) error {
 		DryRun:     dryRun,
 		Remove:     remove,
 		Confirm: func(plan wt.MergeBackPlan) (bool, error) {
-			return wt.PromptConfirmPlan(plan, confirmFromStdin)
+			return wt.PromptConfirmPlan(plan, confirmFromStdin, false)
 		},
 	})
 	if err != nil {
