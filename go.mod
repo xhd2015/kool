@@ -11,12 +11,12 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/iancoleman/strcase v0.3.0
 	github.com/k3a/html2text v1.2.1
-	github.com/xhd2015/dot-pkgs/go-pkgs v0.0.58
+	github.com/xhd2015/dot-pkgs/go-pkgs v0.0.59
 	github.com/xhd2015/gitops v0.0.24
 	github.com/xhd2015/less-flags v1.0.0
 	github.com/xhd2015/less-gen v0.0.19
 	github.com/xhd2015/lls v0.0.9
-	github.com/xhd2015/xgo v1.1.10
+	github.com/xhd2015/xgo v1.2.0
 	golang.org/x/term v0.43.0
 	golang.org/x/tools v0.45.0
 	gopkg.in/yaml.v3 v3.0.1

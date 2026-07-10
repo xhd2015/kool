@@ -26,6 +26,7 @@ import (
 	"github.com/xhd2015/kool/tools/js"
 	"github.com/xhd2015/kool/tools/json2yaml"
 	"github.com/xhd2015/kool/tools/jsontool"
+	"github.com/xhd2015/kool/tools/macos"
 	"github.com/xhd2015/kool/tools/port"
 	"github.com/xhd2015/kool/tools/preview"
 	"github.com/xhd2015/kool/tools/react"
@@ -80,6 +81,7 @@ VSCode:
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
+  macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 
 Project:  
   create <template> <project-name>   create new project
@@ -164,6 +166,8 @@ func handle(args []string) error {
 		return handleVscode(args)
 	case "iterm2":
 		return iterm2cmd.Handle(args)
+	case "macos":
+		return macos.Handle(args)
 	case "create":
 		return create.Handle(args)
 	case "scaffold":
