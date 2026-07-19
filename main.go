@@ -81,6 +81,7 @@ VSCode:
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
+  iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 
 Project:  

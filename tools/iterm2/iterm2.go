@@ -15,9 +15,10 @@ import (
 const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
 iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
+iterm2 tab-set list|show|run|status|stop ...
 
-Open a directory in iTerm2 on macOS, or get/set the current session or window title
-when running inside iTerm2 (ITERM_SESSION_ID set).
+Open a directory in iTerm2 on macOS, get/set the current session or window title
+when running inside iTerm2 (ITERM_SESSION_ID set), or manage named tab-set layouts.
 
 Open directory:
   dir                              directory to open (required)
@@ -28,6 +29,14 @@ Open directory:
 Title commands (require ITERM_SESSION_ID):
   set-title [--window] <title>     set session/tab name, or window name with --window
   get-title [--window]             print session/tab name, or window name with --window
+
+Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
+  tab-set list                     list configured tab sets
+  tab-set show <name>              show tabs/commands for a set
+  tab-set run <name> [flags]       run or resync a tab set (--dry-run, -n, --no-new-window)
+  tab-set status <name>            report running/idle/missing tabs
+  tab-set stop <name>              close marked windows/tabs for a set
+  tab-set -h|--help                tab-set usage
 
 Options:
   -h, --help                       show this help message
@@ -42,6 +51,8 @@ Examples:
   kool iterm2 set-title --window "Project Window"
   kool iterm2 get-title
   kool iterm2 get-title --window
+  kool iterm2 tab-set list
+  kool iterm2 tab-set run bots --dry-run
 `
 
 // SetGOOSForTest overrides platform detection for handler tests.
@@ -71,13 +82,15 @@ func RunForTest(args []string, stdout, stderr io.Writer, workingDir string) int 
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
-	// Reserved first-arg routing for title subcommands (before open-dir).
+	// Reserved first-arg routing for title / tab-set (before open-dir).
 	if len(args) > 0 {
 		switch args[0] {
 		case "set-title":
 			return runSetTitle(args[1:], stdout, stderr)
 		case "get-title":
 			return runGetTitle(args[1:], stdout, stderr)
+		case "tab-set":
+			return runTabSet(args[1:], stdout, stderr)
 		}
 	}
 

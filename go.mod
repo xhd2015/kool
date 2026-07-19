@@ -1,6 +1,6 @@
 module github.com/xhd2015/kool
 
-go 1.25.0
+go 1.25.10
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3
@@ -11,9 +11,9 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/iancoleman/strcase v0.3.0
 	github.com/k3a/html2text v1.2.1
-	github.com/xhd2015/dot-pkgs/go-pkgs v0.0.62
+	github.com/xhd2015/dot-pkgs/go-pkgs v0.0.88
 	github.com/xhd2015/gitops v0.0.24
-	github.com/xhd2015/less-flags v1.0.0
+	github.com/xhd2015/less-flags v1.0.2
 	github.com/xhd2015/less-gen v0.0.19
 	github.com/xhd2015/lls v0.0.9
 	github.com/xhd2015/xgo v1.2.0

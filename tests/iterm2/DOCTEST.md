@@ -6,6 +6,10 @@ tab when a match exists. `-r` uses the same scan: on match it focuses the tab/se
 `targetDir` (no `cd`, no `--send`); on miss it opens a new window with `cd` and follow-ups.
 Repeatable `--send` applies only on the miss path.
 
+**Tab-set CLI** (`kool iterm2 tab-set …`) lives in the nested root
+`./tests/iterm2/tab-set` (own `DOCTEST.md` / `Request` / `Run`) so open-dir leaves
+stay independent.
+
 ## Version
 
 0.0.2
