@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.25.10
+    env:
+      GOFLAGS: -buildvcs=false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Go test
+        run: go test -v ./...
+
+      - name: Install doctest
+        run: |
+          if ! command -v doctest >/dev/null 2>&1; then
+            go install github.com/xhd2015/doctest/cmd/doctest@latest
+          fi
+      - name: Doctest
+        run: doctest test -v --label-all ./...
