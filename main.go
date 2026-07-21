@@ -9,6 +9,7 @@ import (
 
 	"github.com/xhd2015/kool/tools/ai"
 	"github.com/xhd2015/kool/tools/bash"
+	"github.com/xhd2015/kool/tools/cloudflare"
 	"github.com/xhd2015/kool/tools/create"
 	"github.com/xhd2015/kool/tools/debug"
 	"github.com/xhd2015/kool/tools/dlv"
@@ -33,6 +34,8 @@ import (
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/scaffold"
 	"github.com/xhd2015/kool/tools/service"
+	"github.com/xhd2015/kool/tools/sandbox"
+	sshcmd "github.com/xhd2015/kool/tools/ssh"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/kool/tools/timeout"
 	"github.com/xhd2015/kool/tools/uuid"
@@ -54,6 +57,8 @@ Commands category:
   vscode
   http
   ai
+  ssh
+  cloudflare
 
 Utility commands:
   kill-port <port>                   kill process on the given port
@@ -63,6 +68,7 @@ Utility commands:
   service                            manage background services (macOS/Linux)
   timeout <duration> <command> [args...]  run command with timeout (e.g., timeout 5s sleep 10)
   for-every [opts] <duration> <cmd>...  run command every interval (also for-every-<duration>)
+  cloudflare serve --domain HOST --url URL  expose local origin via Cloudflare tunnel
   help                               show help message
 
 String commands:
@@ -230,6 +236,12 @@ func handle(args []string) error {
 		return encoding.HandleEncode(args)
 	case "bash":
 		return bash.Handle(args)
+	case "cloudflare":
+		return cloudflare.Handle(args)
+	case "ssh":
+		return sshcmd.Handle(args)
+	case "sandbox":
+		return sandbox.Handle(args)
 	case "service", "services":
 		return service.Handle(args)
 		// jsons
