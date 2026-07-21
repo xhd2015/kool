@@ -15,6 +15,12 @@ run bots --save -> Error; no write
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunSaveTree()
+	markRunTree()
+	markTabSetRunSaveTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.Save = true

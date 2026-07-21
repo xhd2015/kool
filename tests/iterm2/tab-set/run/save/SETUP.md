@@ -27,7 +27,17 @@ Caller run <name> --tab … --save [--force]
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.Save = true
 	return nil
 }
+
+// markTabSetRunSaveTree keeps hierarchical child packages importing this package live.
+func markTabSetRunSaveTree() {}
+
+// markRunSaveTree keeps hierarchical child packages importing this package live.
+func markRunSaveTree() {}
 ```

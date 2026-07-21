@@ -15,7 +15,15 @@ KOOL_ITERM2_TAB_SET_DIR -> tab-set list -> set names on stdout
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markTabSetTree()
+	markRootTree()
 	req.Subcommand = "list"
 	return nil
 }
+
+// markTabSetListTree keeps hierarchical child packages importing this package live.
+func markTabSetListTree() {}
+
+// markListTree keeps hierarchical child packages importing this package live.
+func markListTree() {}
 ```

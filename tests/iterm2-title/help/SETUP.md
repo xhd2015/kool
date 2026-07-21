@@ -16,7 +16,11 @@ kool iterm2 --help
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Help = true
 	return nil
 }
+
+// markHelpTree keeps hierarchical child packages importing this package live.
+func markHelpTree() {}
 ```

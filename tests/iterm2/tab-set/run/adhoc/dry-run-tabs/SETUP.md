@@ -16,6 +16,12 @@ run scratch --tab "echo alpha" --tab "echo beta" --dry-run
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunAdhocTree()
+	markRunTree()
+	markTabSetRunAdhocTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "scratch"
 	req.DryRun = true
 	req.Tabs = []string{"echo alpha", "echo beta"}

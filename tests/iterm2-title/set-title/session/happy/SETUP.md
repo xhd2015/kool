@@ -18,6 +18,10 @@ kool iterm2 set-title new-session-title
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markSetTitleSessionTree()
+	markRootTree()
+	markSessionTree()
+	markSetTitleTree()
 	req.Title = "new-session-title"
 	req.TitleSet = true
 	req.OsascriptStdout = "old-session-title"

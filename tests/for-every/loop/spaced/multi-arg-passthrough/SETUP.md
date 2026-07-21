@@ -15,6 +15,9 @@ kool for-every --max-runs 1 10ms echo alpha beta gamma
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopSpacedTree()
+	markLoopTree()
+	markRootTree()
 	req.Duration = "10ms"
 	req.MaxRuns = intPtr(1)
 	req.Command = "echo"

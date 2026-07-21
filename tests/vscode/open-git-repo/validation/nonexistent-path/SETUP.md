@@ -12,6 +12,8 @@ validateGitRepoPath(nonexistent) -> error
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.Phase = "cli"
 	req.RepoPath = "/tmp/kool-open-git-repo-does-not-exist-xyz"
 	return nil

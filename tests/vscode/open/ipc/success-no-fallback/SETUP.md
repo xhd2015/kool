@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markIpcTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "ipc-target")
 	req.DirPath = dir
 	req.IPCFailConnects = 0

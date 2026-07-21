@@ -12,6 +12,8 @@ kool vscode open-git-repo -> stderr usage error
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.Phase = "cli"
 	req.RepoPath = ""
 	return nil

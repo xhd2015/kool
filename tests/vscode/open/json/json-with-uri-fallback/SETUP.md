@@ -19,6 +19,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markJsonTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "json-uri-fallback")
 	req.DirPath = dir
 	req.Json = true

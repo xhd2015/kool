@@ -19,6 +19,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.Phase = "cli"
 	dirPath := filepath.Join(req.WorkingDir, "plain-dir")
 	if err := os.MkdirAll(dirPath, 0755); err != nil {

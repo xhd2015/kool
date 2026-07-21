@@ -106,9 +106,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
+	"github.com/xhd2015/doctest/session"
 	iterm2cmd "github.com/xhd2015/kool/tools/iterm2"
 )
 
@@ -139,8 +139,8 @@ type Response struct {
 	HandlerErr   string
 }
 
-func resolveKoolBinary() (string, error) {
-	moduleRoot := filepath.Join(DOCTEST_ROOT, "..", "..")
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	moduleRoot := filepath.Clean(filepath.Join(d.DOCTEST_ROOT, "..", ".."))
 	candidates := []string{
 		filepath.Join(moduleRoot, "kool"),
 		filepath.Join(moduleRoot, "bin", "kool"),
@@ -194,8 +194,8 @@ func configureCLIEnv(t *testing.T, req *Request, cmd *exec.Cmd, scriptOut string
 	cmd.Env = env
 }
 
-func runCLI(t *testing.T, req *Request) (*Response, error) {
-	koolBin, err := resolveKoolBinary()
+func runCLI(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	koolBin, err := resolveKoolBinary(d)
 	if err != nil {
 		return nil, err
 	}
@@ -272,10 +272,10 @@ func runHandler(t *testing.T, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	switch req.Phase {
 	case "cli":
-		return runCLI(t, req)
+		return runCLI(t, d, req)
 	case "handler":
 		return runHandler(t, req)
 	default:

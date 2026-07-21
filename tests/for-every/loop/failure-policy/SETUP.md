@@ -18,8 +18,13 @@
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopTree()
+	markRootTree()
 	req.Glued = false
 	req.Duration = "10ms"
 	return nil
 }
+
+// markLoopFailurePolicyTree keeps hierarchical child packages importing this package live.
+func markLoopFailurePolicyTree() {}
 ```

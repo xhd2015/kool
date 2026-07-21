@@ -14,6 +14,12 @@ run scratch --tab "echo x" --save -n -> Error (save-only; window flags unused)
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunSaveTree()
+	markRunTree()
+	markTabSetRunSaveTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "scratch"
 	req.Save = true
 	req.NewWindow = true

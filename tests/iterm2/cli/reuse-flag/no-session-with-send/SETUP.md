@@ -10,6 +10,9 @@ kool iterm2 -r <dir> --send grok -> else branch: cd + write text "grok"
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = []string{"grok"}
 	return nil
 }

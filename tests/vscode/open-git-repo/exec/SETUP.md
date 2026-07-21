@@ -12,8 +12,12 @@ OpenGitRepo -> buildGitOpenRepoURI -> OS opener(exec mock)
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "exec"
 	req.GoOS = "darwin"
 	return nil
 }
+
+// markExecTree keeps hierarchical child packages importing this package live.
+func markExecTree() {}
 ```

@@ -133,4 +133,7 @@ func initValidGitRepo(t *testing.T, baseDir string, name string) string {
 	}
 	return repoDir
 }
+
+// markRootTree keeps hierarchical child packages importing this package live.
+func markRootTree() {}
 ```

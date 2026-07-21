@@ -10,6 +10,8 @@ kool iterm2 <dir>/ -> scan finds session via path OR user.koolTargetDir -> reuse
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliTree()
+	markRootTree()
 	req.Reuse = false
 	req.DirPath = initValidDir(t, req.WorkingDir, "smart-scan-target")
 	return nil

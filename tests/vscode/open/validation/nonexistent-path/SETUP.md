@@ -12,6 +12,8 @@ ValidateDirPath(nonexistent) -> error
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.DirPath = "/tmp/kool-vscode-open-does-not-exist-xyz"
 	return nil
 }

@@ -200,6 +200,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xhd2015/doctest/session"
 	iterm2cmd "github.com/xhd2015/kool/tools/iterm2"
 )
 
@@ -249,28 +250,21 @@ type Response struct {
 	ExitCode int
 }
 
-// resolveKoolBinary finds a built kool for Phase=cli. Avoids free DOCTEST_ROOT
-// (session inject is scoped to Run/Setup/Assert; package-level helpers cannot
-// close over it under current doctest assembly).
-func resolveKoolBinary() (string, error) {
+// resolveKoolBinary finds a built kool for Phase=cli via d.DOCTEST_ROOT.
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	// tab-set tree is under tests/iterm2/tab-set → module root is ../../../
+	moduleRoot := filepath.Clean(filepath.Join(d.DOCTEST_ROOT, "..", "..", ".."))
+	candidates := []string{
+		filepath.Join(moduleRoot, "kool"),
+		filepath.Join(moduleRoot, "bin", "kool"),
+	}
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
 	if path, err := exec.LookPath("kool"); err == nil {
 		return path, nil
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for dir := wd; ; dir = filepath.Dir(dir) {
-		for _, rel := range []string{"kool", filepath.Join("bin", "kool")} {
-			candidate := filepath.Join(dir, rel)
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				return candidate, nil
-			}
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
 	}
 	return "", fmt.Errorf("kool binary not found; build with: go build -o kool .")
 }
@@ -369,7 +363,7 @@ func applyTabSetEnv(t *testing.T, req *Request) {
 //	kool iterm2 tab-set <subcommand> …
 //	env KOOL_ITERM2_TAB_SET_DIR
 //	RunForTest([]string{"tab-set", …}, stdout, stderr, workingDir) int
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	if req.Phase == "" {
 		req.Phase = "handler"
 	}
@@ -386,7 +380,7 @@ func Run(t *testing.T, req *Request) (*Response, error) {
 			ExitCode: code,
 		}, nil
 	case "cli":
-		koolBin, err := resolveKoolBinary()
+		koolBin, err := resolveKoolBinary(d)
 		if err != nil {
 			return nil, err
 		}

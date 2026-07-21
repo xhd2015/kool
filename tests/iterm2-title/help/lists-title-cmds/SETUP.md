@@ -15,6 +15,8 @@ kool iterm2 --help
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markHelpTree()
+	markRootTree()
 	req.Help = true
 	req.InSession = false
 	return nil

@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markIpcTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "fallback-target")
 	req.DirPath = dir
 	req.IPCAlwaysFail = true

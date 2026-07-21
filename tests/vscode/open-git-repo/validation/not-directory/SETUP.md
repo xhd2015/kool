@@ -19,6 +19,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.Phase = "cli"
 	filePath := filepath.Join(req.WorkingDir, "not-a-dir.txt")
 	if err := os.WriteFile(filePath, []byte("hello"), 0644); err != nil {

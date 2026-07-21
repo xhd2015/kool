@@ -17,6 +17,9 @@ kool iterm2 get-title
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markGetTitleSessionTree()
+	markGetTitleTree()
+	markRootTree()
 	req.OsascriptStdout = "Tab Alpha"
 	return nil
 }

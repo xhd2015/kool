@@ -14,6 +14,9 @@ kool iterm2 -r <dir> -> scan: path == targetDir OR user.koolTargetDir == targetD
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = nil
 	return nil
 }

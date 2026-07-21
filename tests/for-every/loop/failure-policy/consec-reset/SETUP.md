@@ -16,6 +16,9 @@ kool for-every --max-failure 2 --max-runs 5 10ms sh -c '…counter…'
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopFailurePolicyTree()
+	markLoopTree()
+	markRootTree()
 	req.MaxFailure = intPtr(2)
 	req.AllowFailure = false
 	req.MaxRuns = intPtr(5)

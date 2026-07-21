@@ -15,6 +15,10 @@ run bots -n --no-new-window -> Error, exit 1
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.NewWindow = true

@@ -18,6 +18,12 @@ run mysave --tab "[id=x] echo x" --tab "[id=y] echo y" --window-name win-save --
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunSaveTree()
+	markRunTree()
+	markTabSetRunSaveTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "mysave"
 	req.Save = true
 	req.Force = true

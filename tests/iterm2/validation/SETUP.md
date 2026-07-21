@@ -10,7 +10,11 @@ kool iterm2 (bad argv) -> validation error -> stderr, exit 1
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "cli"
 	return nil
 }
+
+// markValidationTree keeps hierarchical child packages importing this package live.
+func markValidationTree() {}
 ```

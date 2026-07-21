@@ -14,6 +14,10 @@ tab-set --help -> exit 0; stdout has tab-set, list, run, config path
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markHelpTree()
+	markTabSetHelpTree()
+	markTabSetTree()
+	markRootTree()
 	req.Help = true
 	return nil
 }

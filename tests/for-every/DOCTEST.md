@@ -105,10 +105,10 @@ doctest vet ./tests/for-every
 doctest test ./tests/for-every
 ```
 
-`Run` session-builds `kool` from the module root (see root `SETUP.md`) so leaves
-exercise the workspace binary. Loop leaves always pass `--max-runs` and/or
-`--max-failure` / `--allow-failure`; `Run` also applies a process wall-clock
-timeout so a missing stop flag cannot hang the suite forever.
+`Run` builds `kool` once per process from the module root (see root `SETUP.md`)
+so leaves exercise the workspace binary. Loop leaves always pass `--max-runs`
+and/or `--max-failure` / `--allow-failure`; `Run` also applies a process
+wall-clock timeout so a missing stop flag cannot hang the suite forever.
 
 ```go
 import (
@@ -119,9 +119,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"syscall"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/xhd2015/doctest/session"
 )
 
 // Request drives a single kool for-every / for-every-<duration> invocation.
@@ -160,58 +162,36 @@ type Response struct {
 	ExitCode int
 }
 
-func moduleRoot() string {
-	return filepath.Clean(filepath.Join(DOCTEST_ROOT, "..", ".."))
-}
+// Process-local kool binary (one-process suite; in-memory mutex, not session flock).
+var (
+	koolBinMu   sync.Mutex
+	koolBinPath string
+	koolBinErr  error
+)
 
-func sessionCacheDir() string {
-	return filepath.Join(os.TempDir(), "kool-for-every-doctest-"+DOCTEST_SESSION_ID)
-}
-
-func withFileLock(t *testing.T, lockPath string, fn func() error) error {
+// ensureKoolBinary builds kool once per process into MkdirTemp (not t.TempDir).
+func ensureKoolBinary(t *testing.T, d *session.Doctest) (string, error) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0755); err != nil {
-		return err
+	koolBinMu.Lock()
+	defer koolBinMu.Unlock()
+	if koolBinPath != "" || koolBinErr != nil {
+		return koolBinPath, koolBinErr
 	}
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	dir, err := os.MkdirTemp("", "kool-for-every-doctest-bin-")
 	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		return err
-	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-	return fn()
-}
-
-// ensureKoolBinary builds kool once per doctest session into the session cache.
-func ensureKoolBinary(t *testing.T) (string, error) {
-	t.Helper()
-	cacheDir := sessionCacheDir()
-	lock := filepath.Join(cacheDir, "build.lock")
-	ready := filepath.Join(cacheDir, "binaries.ready")
-	bin := filepath.Join(cacheDir, "kool")
-	err := withFileLock(t, lock, func() error {
-		if st, err := os.Stat(ready); err == nil && !st.IsDir() {
-			if st2, err2 := os.Stat(bin); err2 == nil && !st2.IsDir() {
-				return nil
-			}
-		}
-		if err := os.MkdirAll(cacheDir, 0755); err != nil {
-			return err
-		}
-		cmd := exec.Command("go", "build", "-o", bin, ".")
-		cmd.Dir = moduleRoot()
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("go build kool: %w\n%s", err, out)
-		}
-		return os.WriteFile(ready, []byte("ok\n"), 0644)
-	})
-	if err != nil {
+		koolBinErr = err
 		return "", err
 	}
+	bin := filepath.Join(dir, "kool")
+	moduleRoot := filepath.Clean(filepath.Join(d.DOCTEST_ROOT, "..", ".."))
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd.Dir = moduleRoot
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		koolBinErr = fmt.Errorf("go build kool: %w\n%s", err, out)
+		return "", koolBinErr
+	}
+	koolBinPath = bin
 	return bin, nil
 }
 
@@ -250,9 +230,9 @@ func buildArgs(req *Request) []string {
 }
 
 // Run executes kool for-every…, captures stdout/stderr/exit, and never hangs forever.
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	t.Helper()
-	koolBin, err := ensureKoolBinary(t)
+	koolBin, err := ensureKoolBinary(t, d)
 	if err != nil {
 		return nil, err
 	}

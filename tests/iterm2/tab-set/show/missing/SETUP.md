@@ -14,6 +14,10 @@ show no-such-set -> Error, exit ≠ 0
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markShowTree()
+	markTabSetShowTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "no-such-set"
 	return nil
 }

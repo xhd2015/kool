@@ -14,6 +14,10 @@ bots.json in config dir -> list -> stdout contains bots and tab count hint
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markListTree()
+	markTabSetListTree()
+	markTabSetTree()
+	markRootTree()
 	writeBotsConfig(t, req.ConfigDir)
 	return nil
 }

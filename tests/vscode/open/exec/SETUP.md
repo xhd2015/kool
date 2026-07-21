@@ -12,10 +12,14 @@ OpenDir -> precheck ok -> IPC fail -> OS opener(exec mock)
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "orchestrate"
 	req.GoOS = "darwin"
 	req.IPCAlwaysFail = true
 	installExtensionListedPrecheck(t, req)
 	return nil
 }
+
+// markExecTree keeps hierarchical child packages importing this package live.
+func markExecTree() {}
 ```

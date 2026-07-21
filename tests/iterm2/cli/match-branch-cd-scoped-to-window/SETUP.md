@@ -10,6 +10,8 @@ kool iterm2 <dir> -> match branch: create tab in matchingWindow -> cd in THAT ta
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliTree()
+	markRootTree()
 	req.Reuse = false
 	req.DirPath = initValidDir(t, req.WorkingDir, "smart-match-target")
 	return nil

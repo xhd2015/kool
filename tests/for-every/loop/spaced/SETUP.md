@@ -15,7 +15,12 @@ kool for-every [OPTIONS] <duration> <command> [args...]
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopTree()
+	markRootTree()
 	req.Glued = false
 	return nil
 }
+
+// markLoopSpacedTree keeps hierarchical child packages importing this package live.
+func markLoopSpacedTree() {}
 ```

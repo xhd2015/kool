@@ -6,6 +6,8 @@
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliTree()
+	markRootTree()
 	req.DirPath = initValidDir(t, req.WorkingDir, "send-one")
 	req.Send = []string{"grok"}
 	return nil

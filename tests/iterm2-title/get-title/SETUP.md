@@ -16,7 +16,11 @@ kool iterm2 get-title [--window] + ITERM_SESSION_ID
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Command = "get-title"
 	return nil
 }
+
+// markGetTitleTree keeps hierarchical child packages importing this package live.
+func markGetTitleTree() {}
 ```

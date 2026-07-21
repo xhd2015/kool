@@ -23,6 +23,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markCliTree()
+	markRootTree()
 	req.Reuse = true
 	req.DirPath = initValidDir(t, req.WorkingDir, "reuse-target")
 	return nil
@@ -82,4 +84,7 @@ func elseBranchMustContain(t *testing.T, script, needle string) {
 		t.Fatalf("else branch missing %q: branch=%q", needle, branch)
 	}
 }
+
+// markCliReuseFlagTree keeps hierarchical child packages importing this package live.
+func markCliReuseFlagTree() {}
 ```

@@ -16,6 +16,12 @@ run scratch --tab "[not-valid-props] echo hi" --dry-run
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunAdhocTree()
+	markRunTree()
+	markTabSetRunAdhocTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "scratch"
 	req.DryRun = true
 	// Leading '[' but body is not key=value props → parse error per locked rule.

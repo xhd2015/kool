@@ -17,6 +17,10 @@ kool iterm2 set-title fresh-name
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markSetTitleSessionTree()
+	markRootTree()
+	markSessionTree()
+	markSetTitleTree()
 	req.Title = "fresh-name"
 	req.TitleSet = true
 	req.OsascriptStdout = ""

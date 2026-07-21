@@ -141,4 +141,7 @@ func installNoExtensionPrecheck(t *testing.T, req *Request) {
 	req.CodeCommand = writeFakeCodeScript(t, binDir, []string{"other.extension"})
 	req.CodeInPath = true
 }
+
+// markRootTree keeps hierarchical child packages importing this package live.
+func markRootTree() {}
 ```

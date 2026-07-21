@@ -102,6 +102,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/xhd2015/doctest/session"
 )
 
 const (
@@ -152,8 +154,8 @@ type Response struct {
 	ScriptWritten  bool
 }
 
-func resolveKoolBinary() (string, error) {
-	moduleRoot := filepath.Join(DOCTEST_ROOT, "..", "..")
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	moduleRoot := filepath.Clean(filepath.Join(d.DOCTEST_ROOT, "..", ".."))
 	candidates := []string{
 		filepath.Join(moduleRoot, "kool"),
 		filepath.Join(moduleRoot, "bin", "kool"),
@@ -281,8 +283,8 @@ func buildArgs(req *Request) []string {
 	return args
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
-	koolBin, err := resolveKoolBinary()
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	koolBin, err := resolveKoolBinary(d)
 	if err != nil {
 		return nil, err
 	}

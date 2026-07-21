@@ -6,6 +6,8 @@
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.DirPath = ""
 	return nil
 }

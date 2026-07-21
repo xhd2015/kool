@@ -16,6 +16,12 @@ run newsset --tab "echo only" --save --dry-run
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunSaveTree()
+	markRunTree()
+	markTabSetRunSaveTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "newsset"
 	req.Save = true
 	req.DryRun = true

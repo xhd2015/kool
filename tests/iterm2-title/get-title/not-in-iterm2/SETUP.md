@@ -17,6 +17,8 @@ kool iterm2 get-title
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markGetTitleTree()
+	markRootTree()
 	req.InSession = false
 	return nil
 }

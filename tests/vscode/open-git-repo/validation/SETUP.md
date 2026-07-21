@@ -12,7 +12,11 @@ kool vscode open-git-repo <path> -> validateGitRepoPath -> (error, no open)
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "cli"
 	return nil
 }
+
+// markValidationTree keeps hierarchical child packages importing this package live.
+func markValidationTree() {}
 ```

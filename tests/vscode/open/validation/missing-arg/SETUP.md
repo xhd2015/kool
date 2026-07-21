@@ -12,6 +12,8 @@ kool vscode open -> stderr usage error
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markRootTree()
 	req.DirPath = ""
 	return nil
 }

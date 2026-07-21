@@ -18,6 +18,10 @@ kool iterm2 set-title 'say "hi"\path'
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markSetTitleSessionTree()
+	markRootTree()
+	markSessionTree()
+	markSetTitleTree()
 	req.Title = `say "hi"\path`
 	req.TitleSet = true
 	req.OsascriptStdout = "prev"

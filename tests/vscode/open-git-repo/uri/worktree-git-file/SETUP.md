@@ -19,6 +19,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markUriTree()
+	markRootTree()
 	mainRepo := filepath.Join(req.WorkingDir, "main")
 	worktree := filepath.Join(req.WorkingDir, "worktree")
 	if err := osMkdir(mainRepo); err != nil {

@@ -16,9 +16,14 @@ user -> kool for-every[-<dur>] [OPTIONS] <dur?>
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
+	markValidationTree()
 	req.Duration = "10ms"
 	req.Command = ""
 	req.MaxRuns = intPtr(1)
 	return nil
 }
+
+// markValidationMissingCommandTree keeps hierarchical child packages importing this package live.
+func markValidationMissingCommandTree() {}
 ```

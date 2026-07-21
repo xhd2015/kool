@@ -15,6 +15,9 @@ kool for-every 0s --max-runs 1 true
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationInvalidDurationTree()
+	markRootTree()
+	markValidationTree()
 	req.Duration = "0s"
 	return nil
 }

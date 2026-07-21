@@ -16,6 +16,9 @@ kool iterm2 get-title --window
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markGetTitleWindowTree()
+	markGetTitleTree()
+	markRootTree()
 	req.OsascriptStdout = "Project Window"
 	return nil
 }

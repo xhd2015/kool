@@ -17,6 +17,8 @@ kool iterm2 set-title ok-title
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
+	markSetTitleTree()
 	req.InSession = true
 	req.Title = "ok-title"
 	req.TitleSet = true
