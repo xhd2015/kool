@@ -14,6 +14,10 @@ two tabs with id "a" -> show dupid -> Error
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markTabSetValidationTree()
+	markTabSetTree()
+	markRootTree()
 	writeConfigFile(t, req.ConfigDir, "dupid", `{
   "version": 1,
   "tabs": [

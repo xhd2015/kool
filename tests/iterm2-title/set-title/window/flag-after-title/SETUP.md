@@ -16,6 +16,9 @@ kool iterm2 set-title new-window-title --window
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markSetTitleWindowTree()
+	markRootTree()
+	markSetTitleTree()
 	req.WindowAfterTitle = true
 	req.Title = "new-window-title"
 	req.OsascriptStdout = "old-window-title"

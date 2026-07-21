@@ -12,7 +12,11 @@ ValidateGitRepoPath -> EnsureCodeCLI -> EnsureExtensionListed -> IPC
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "cli"
 	return nil
 }
+
+// markPrecheckTree keeps hierarchical child packages importing this package live.
+func markPrecheckTree() {}
 ```

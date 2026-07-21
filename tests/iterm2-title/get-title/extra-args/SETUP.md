@@ -17,6 +17,8 @@ kool iterm2 get-title foo
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markGetTitleTree()
+	markRootTree()
 	req.InSession = true
 	req.ExtraArgs = []string{"foo"}
 	return nil

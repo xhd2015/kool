@@ -10,6 +10,9 @@ kool iterm2 -r <dir> -> scan finds path == targetDir -> focus session/tab (no cd
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = nil
 	return nil
 }

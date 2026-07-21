@@ -10,6 +10,9 @@ kool iterm2 -r <dir> -> match branch: select matchingWindow -> select tab/sessio
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = nil
 	return nil
 }

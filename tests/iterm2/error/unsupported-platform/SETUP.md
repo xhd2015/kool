@@ -6,6 +6,8 @@
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markErrorTree()
+	markRootTree()
 	req.Phase = "handler"
 	req.GoOS = "linux"
 	req.DirPath = initValidDir(t, req.WorkingDir, "proj")

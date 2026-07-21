@@ -19,6 +19,7 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Help = false
 	// Validation must fail fast; keep a tight wall clock.
 	if req.ProcessTimeout > 5*time.Second || req.ProcessTimeout <= 0 {
@@ -26,4 +27,7 @@ func Setup(t *testing.T, req *Request) error {
 	}
 	return nil
 }
+
+// markValidationTree keeps hierarchical child packages able to reference this package.
+func markValidationTree() {}
 ```

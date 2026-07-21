@@ -15,6 +15,8 @@ kool for-every --max-runs 0 10ms true
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
+	markValidationTree()
 	req.Glued = false
 	req.Duration = "10ms"
 	req.MaxRuns = intPtr(0)

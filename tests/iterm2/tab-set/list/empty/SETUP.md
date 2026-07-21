@@ -18,6 +18,10 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markListTree()
+	markTabSetListTree()
+	markTabSetTree()
+	markRootTree()
 	// Ensure config dir exists and is empty of *.json.
 	entries, err := os.ReadDir(req.ConfigDir)
 	if err != nil {

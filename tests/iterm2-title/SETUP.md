@@ -54,4 +54,7 @@ func Setup(t *testing.T, req *Request) error {
 	}
 	return nil
 }
+
+// markRootTree keeps hierarchical child packages importing this package live.
+func markRootTree() {}
 ```

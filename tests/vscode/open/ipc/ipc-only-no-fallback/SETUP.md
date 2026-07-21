@@ -19,6 +19,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markIpcTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "ipc-only-fail")
 	req.DirPath = dir
 	req.IpcOnly = true

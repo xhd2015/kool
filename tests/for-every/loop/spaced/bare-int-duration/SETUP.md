@@ -15,6 +15,9 @@ kool for-every --max-runs 1 1 true
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopSpacedTree()
+	markLoopTree()
+	markRootTree()
 	req.Duration = "1"
 	req.MaxRuns = intPtr(1)
 	req.Command = "true"

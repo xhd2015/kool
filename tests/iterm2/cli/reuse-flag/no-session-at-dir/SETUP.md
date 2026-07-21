@@ -10,6 +10,9 @@ kool iterm2 -r <dir> -> ModeReuseCurrent script -> else branch: create window + 
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = nil
 	return nil
 }

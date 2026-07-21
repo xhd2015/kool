@@ -58,4 +58,7 @@ func initValidDir(t *testing.T, base, name string) string {
 	}
 	return dir
 }
+
+// markRootTree keeps hierarchical child packages importing this package live.
+func markRootTree() {}
 ```

@@ -14,6 +14,10 @@ show bots -> local-bots, tab ids a/b, commands echo a / echo b
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markShowTree()
+	markTabSetShowTree()
+	markTabSetTree()
+	markRootTree()
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	return nil

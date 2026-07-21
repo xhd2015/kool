@@ -20,6 +20,7 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Help = false
 	if req.Duration == "" {
 		req.Duration = "10ms"
@@ -30,4 +31,7 @@ func Setup(t *testing.T, req *Request) error {
 	}
 	return nil
 }
+
+// markLoopTree keeps hierarchical child packages importing this package live.
+func markLoopTree() {}
 ```

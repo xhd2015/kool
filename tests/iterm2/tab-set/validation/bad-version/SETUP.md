@@ -14,6 +14,10 @@
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationTree()
+	markTabSetValidationTree()
+	markTabSetTree()
+	markRootTree()
 	writeConfigFile(t, req.ConfigDir, "badver", `{
   "version": 2,
   "tabs": [{"id": "a", "name": "a", "command": "echo a"}]

@@ -13,9 +13,13 @@ OpenGitRepo -> IPC client {"op":"git-open","path":"/abs/repo"} -> VS Code extens
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "ipc"
 	req.GoOS = "darwin"
 	installExtensionListedPrecheck(t, req)
 	return nil
 }
+
+// markIpcTree keeps hierarchical child packages importing this package live.
+func markIpcTree() {}
 ```

@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markPrecheckTree()
+	markRootTree()
 	repoDir := initValidGitRepo(t, req.WorkingDir, "repo")
 	req.RepoPath = repoDir
 	installNoExtensionPrecheck(t, req)

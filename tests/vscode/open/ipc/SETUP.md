@@ -14,9 +14,13 @@ OpenDir -> IPC client {"op":"open","path":"/abs/dir"} -> VS Code extension
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "ipc"
 	req.GoOS = "darwin"
 	installExtensionListedPrecheck(t, req)
 	return nil
 }
+
+// markIpcTree keeps hierarchical child packages importing this package live.
+func markIpcTree() {}
 ```

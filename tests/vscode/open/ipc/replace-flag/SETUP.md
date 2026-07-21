@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markIpcTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "ipc-replace-target")
 	req.DirPath = dir
 	req.Replace = true

@@ -15,6 +15,9 @@ kool for-every notaduration --max-runs 1 true
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationInvalidDurationTree()
+	markRootTree()
+	markValidationTree()
 	req.Duration = "notaduration"
 	return nil
 }

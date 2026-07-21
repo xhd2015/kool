@@ -17,6 +17,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markUriTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "uri-replace-target")
 	req.DirPath = dir
 	req.Replace = true

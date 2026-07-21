@@ -17,6 +17,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markPrecheckTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "target")
 	req.DirPath = dir
 	req.CodeInPath = false

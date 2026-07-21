@@ -14,7 +14,11 @@ ValidateDirPath -> BuildOpenURI -> vscode://.../open?path=...
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "build-uri"
 	return nil
 }
+
+// markUriTree keeps hierarchical child packages importing this package live.
+func markUriTree() {}
 ```

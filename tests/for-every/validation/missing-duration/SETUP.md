@@ -15,6 +15,8 @@ kool for-every
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
+	markValidationTree()
 	req.Glued = false
 	req.Duration = ""
 	req.Command = ""

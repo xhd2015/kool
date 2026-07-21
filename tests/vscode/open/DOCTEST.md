@@ -137,6 +137,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xhd2015/doctest/session"
 	vscodegit "github.com/xhd2015/kool/vscodegit"
 )
 
@@ -194,8 +195,8 @@ type ipcServerState struct {
 	alwaysReject bool
 }
 
-func resolveKoolBinary() (string, error) {
-	moduleRoot := filepath.Join(DOCTEST_ROOT, "..", "..", "..")
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	moduleRoot := filepath.Clean(filepath.Join(d.DOCTEST_ROOT, "..", "..", ".."))
 	candidates := []string{
 		filepath.Join(moduleRoot, "kool"),
 		filepath.Join(moduleRoot, "bin", "kool"),
@@ -315,8 +316,8 @@ func startMockIPCServer(t *testing.T, socketPath string, failFirst int) *ipcServ
 	return state
 }
 
-func runCLI(t *testing.T, req *Request) (*Response, error) {
-	koolBin, err := resolveKoolBinary()
+func runCLI(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	koolBin, err := resolveKoolBinary(d)
 	if err != nil {
 		return nil, err
 	}
@@ -505,10 +506,10 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	switch req.Phase {
 	case "cli":
-		resp, err := runCLI(t, req)
+		resp, err := runCLI(t, d, req)
 		if err != nil {
 			return nil, err
 		}

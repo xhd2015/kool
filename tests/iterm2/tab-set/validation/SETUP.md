@@ -14,10 +14,18 @@ invalid <name>.json -> show|run|list-load path -> Error exit ≠ 0
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markTabSetTree()
+	markRootTree()
 	// Default exercise path: show <name> after writing bad file.
 	if req.Subcommand == "" {
 		req.Subcommand = "show"
 	}
 	return nil
 }
+
+// markTabSetValidationTree keeps hierarchical child packages importing this package live.
+func markTabSetValidationTree() {}
+
+// markValidationTree keeps hierarchical child packages importing this package live.
+func markValidationTree() {}
 ```

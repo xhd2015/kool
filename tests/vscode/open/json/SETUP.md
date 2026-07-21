@@ -14,10 +14,14 @@ OpenDirOptions(Json) -> stdout {"ipc_handled":...,"fallback":"uri"?}
 
 ```go
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "json"
 	req.GoOS = "darwin"
 	req.Json = true
 	installExtensionListedPrecheck(t, req)
 	return nil
 }
+
+// markJsonTree keeps hierarchical child packages importing this package live.
+func markJsonTree() {}
 ```

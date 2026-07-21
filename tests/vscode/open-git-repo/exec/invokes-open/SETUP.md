@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markExecTree()
+	markRootTree()
 	req.Phase = "exec"
 	req.GoOS = "darwin"
 	repoDir := filepath.Join(req.WorkingDir, "repo")

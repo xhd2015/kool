@@ -16,6 +16,8 @@ kool for-every --help
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markHelpTree()
+	markRootTree()
 	// Help=true inherited; ensure we do not accidentally set a command.
 	req.Command = ""
 	req.Duration = ""

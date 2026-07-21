@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markUriTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "slash-dir")
 	req.DirPath = dir + string(filepath.Separator)
 	return nil

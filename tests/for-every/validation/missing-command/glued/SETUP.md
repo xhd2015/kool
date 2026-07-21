@@ -15,6 +15,9 @@ kool for-every-10ms --max-runs 1
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markValidationMissingCommandTree()
+	markRootTree()
+	markValidationTree()
 	req.Glued = true
 	return nil
 }

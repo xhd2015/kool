@@ -14,6 +14,10 @@ run bots --dry-run -> exit 0; plan mentions tabs/commands; no iTerm failure
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.DryRun = true

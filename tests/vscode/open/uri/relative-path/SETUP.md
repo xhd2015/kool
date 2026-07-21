@@ -17,6 +17,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markUriTree()
+	markRootTree()
 	initValidDir(t, req.WorkingDir, "subdir")
 	req.DirPath = "subdir"
 	return nil

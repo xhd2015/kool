@@ -60,6 +60,7 @@ const botsJSON = `{
 `
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}
@@ -101,4 +102,10 @@ func configPath(configDir, name string) string {
 func combinedOut(resp *Response) string {
 	return resp.Stdout + resp.Stderr
 }
+
+// markTabSetTree keeps hierarchical child packages importing this package live.
+func markTabSetTree() {}
+
+// markRootTree keeps hierarchical child packages importing this package live.
+func markRootTree() {}
 ```

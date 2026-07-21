@@ -15,6 +15,9 @@ kool for-every-10ms --max-runs 2 echo hello-glued
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markLoopGluedTree()
+	markLoopTree()
+	markRootTree()
 	req.Duration = "10ms"
 	req.MaxRuns = intPtr(2)
 	req.Command = "echo"

@@ -14,6 +14,10 @@ tab-set --help -> mentions --tab, --save, --force (and preferably --window-name)
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markHelpTree()
+	markTabSetHelpTree()
+	markTabSetTree()
+	markRootTree()
 	req.Help = true
 	return nil
 }

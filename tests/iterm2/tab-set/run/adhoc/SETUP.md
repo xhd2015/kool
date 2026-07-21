@@ -24,8 +24,18 @@ Caller --tab "echo a" --tab "echo b" --dry-run
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	// Ad-hoc branch: never --save (save leaves live under run/save/).
 	req.Save = false
 	return nil
 }
+
+// markTabSetRunAdhocTree keeps hierarchical child packages importing this package live.
+func markTabSetRunAdhocTree() {}
+
+// markRunAdhocTree keeps hierarchical child packages importing this package live.
+func markRunAdhocTree() {}
 ```

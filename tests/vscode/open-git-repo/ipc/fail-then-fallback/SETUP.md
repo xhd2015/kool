@@ -18,6 +18,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markIpcTree()
+	markRootTree()
 	repoDir := initValidGitRepo(t, req.WorkingDir, "fallback-repo")
 	req.RepoPath = repoDir
 	req.IPCAlwaysFail = true

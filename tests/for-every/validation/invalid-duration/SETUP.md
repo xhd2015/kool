@@ -16,9 +16,14 @@ user -> kool for-every <bad-duration> …
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
+	markValidationTree()
 	req.Glued = false
 	req.Command = "true"
 	req.MaxRuns = intPtr(1)
 	return nil
 }
+
+// markValidationInvalidDurationTree keeps hierarchical child packages importing this package live.
+func markValidationInvalidDurationTree() {}
 ```

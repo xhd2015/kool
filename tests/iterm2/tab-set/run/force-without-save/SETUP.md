@@ -15,6 +15,10 @@ run scratch --tab "echo x" --force --dry-run
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markRunTree()
+	markTabSetRunTree()
+	markTabSetTree()
+	markRootTree()
 	req.SetName = "scratch"
 	req.Force = true
 	req.Save = false

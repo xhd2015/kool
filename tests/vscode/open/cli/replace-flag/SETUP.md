@@ -17,6 +17,8 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markCliTree()
+	markRootTree()
 	dir := initValidDir(t, req.WorkingDir, "replace-cli-target")
 	req.DirPath = dir
 	req.Replace = true

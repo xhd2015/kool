@@ -15,6 +15,9 @@ kool iterm2 -r <dir> (no prior session) -> else branch: new window + cd + regist
 import "testing"
 
 func Setup(t *testing.T, req *Request) error {
+	markCliReuseFlagTree()
+	markCliTree()
+	markRootTree()
 	req.Send = nil
 	return nil
 }

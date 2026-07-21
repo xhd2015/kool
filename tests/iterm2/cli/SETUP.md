@@ -13,6 +13,7 @@ import (
 )
 
 func Setup(t *testing.T, req *Request) error {
+	markRootTree()
 	req.Phase = "cli"
 	req.InstalledEnv = "1"
 	return nil
@@ -34,4 +35,7 @@ func smartScriptMatchBranch(script string) string {
 	}
 	return rest[:elseIdx]
 }
+
+// markCliTree keeps hierarchical child packages importing this package live.
+func markCliTree() {}
 ```
