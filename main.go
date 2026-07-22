@@ -85,6 +85,7 @@ VSCode:
   vscode debug-go <prog> [args...]   print vscode config for debugging go program with args
   vscode open [--replace] <path>     open directory in VS Code (new window by default; --replace reuses current window)
   vscode open-git-repo <path>        open local git repo in VS Code SCM view
+  vscode tasks list|find|show|run    list/find/show tasks; run --dry-run prints plan
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts

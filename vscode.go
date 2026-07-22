@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xhd2015/kool/pkgs/errs"
+	vscodetasks "github.com/xhd2015/kool/tools/vscode/tasks"
 	"github.com/xhd2015/kool/vscodegit"
 )
 
@@ -174,6 +175,8 @@ func handleVscode(args []string) error {
 			return handleVscodeOpen(args[1:])
 		case "open-git-repo":
 			return handleVscodeOpenGitRepo(args[1:])
+		case "tasks":
+			return vscodetasks.Handle(args[1:])
 		default:
 			return fmt.Errorf("unrecognized command: %s", args[0])
 		}
