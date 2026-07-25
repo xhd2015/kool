@@ -89,6 +89,8 @@ VSCode:
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
+  iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
+  iterm2 session <id> status         live status for one session (id = iTerm unique ID)
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 
 Project:  

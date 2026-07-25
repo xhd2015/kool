@@ -16,9 +16,12 @@ const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
 iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
 iterm2 tab-set list|show|run|status|stop ...
+iterm2 sessions snapshot|save|restore [options]
+iterm2 session <session-id> status [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
-when running inside iTerm2 (ITERM_SESSION_ID set), or manage named tab-set layouts.
+when running inside iTerm2 (ITERM_SESSION_ID set), manage named tab-set layouts,
+or snapshot / save / restore live windows/tabs/sessions.
 
 Open directory:
   dir                              directory to open (required)
@@ -38,6 +41,14 @@ Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set stop <name>              close marked windows/tabs for a set
   tab-set -h|--help                tab-set usage
 
+Sessions snapshot / save / restore / status:
+  sessions snapshot [options]      dump all windows/tabs/sessions (cli|json|md|html)
+  sessions save [--dry-run] [--file PATH]
+                                   checkpoint critical grok/codex/mark tabs
+  sessions restore [--dry-run] [--file PATH]
+                                   recreate windows and resume from checkpoint
+  session <id> status [options]    live status for one session (id = iTerm unique ID)
+
 Options:
   -h, --help                       show this help message
 
@@ -53,6 +64,12 @@ Examples:
   kool iterm2 get-title --window
   kool iterm2 tab-set list
   kool iterm2 tab-set run bots --dry-run
+  kool iterm2 sessions snapshot
+  kool iterm2 sessions snapshot --json -o iterm.json
+  kool iterm2 sessions save --dry-run
+  kool iterm2 sessions save
+  kool iterm2 sessions restore
+  kool iterm2 session D922B298 status
 `
 
 // SetGOOSForTest overrides platform detection for handler tests.
@@ -82,7 +99,7 @@ func RunForTest(args []string, stdout, stderr io.Writer, workingDir string) int 
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
-	// Reserved first-arg routing for title / tab-set (before open-dir).
+	// Reserved first-arg routing for title / tab-set / sessions (before open-dir).
 	if len(args) > 0 {
 		switch args[0] {
 		case "set-title":
@@ -91,6 +108,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return runGetTitle(args[1:], stdout, stderr)
 		case "tab-set":
 			return runTabSet(args[1:], stdout, stderr)
+		case "sessions":
+			return runSessions(args[1:], stdout, stderr)
+		case "session":
+			return runSession(args[1:], stdout, stderr)
 		}
 	}
 
@@ -105,7 +126,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		Parse(args)
 	if err != nil {
 		if err == lessflags.ErrHelp {
-			fmt.Fprint(stdout, strings.TrimSpace(help))
+			fmt.Fprint(stdout, strings.TrimSpace(help)+"\n")
 			return nil
 		}
 		fmt.Fprint(stderr, err.Error())
@@ -152,7 +173,7 @@ func runSetTitle(args []string, stdout, stderr io.Writer) error {
 		Parse(args)
 	if err != nil {
 		if err == lessflags.ErrHelp {
-			fmt.Fprint(stdout, strings.TrimSpace(help))
+			fmt.Fprint(stdout, strings.TrimSpace(help)+"\n")
 			return nil
 		}
 		fmt.Fprint(stderr, err.Error())
@@ -205,7 +226,7 @@ func runGetTitle(args []string, stdout, stderr io.Writer) error {
 		Parse(args)
 	if err != nil {
 		if err == lessflags.ErrHelp {
-			fmt.Fprint(stdout, strings.TrimSpace(help))
+			fmt.Fprint(stdout, strings.TrimSpace(help)+"\n")
 			return nil
 		}
 		fmt.Fprint(stderr, err.Error())
