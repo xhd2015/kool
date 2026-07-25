@@ -3,6 +3,7 @@ package iterm2
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -577,5 +578,144 @@ func TestBuildSessionsRestoreScript_TwoTabs(t *testing.T) {
 	}
 	if strings.Count(sc, "write text") < 4 {
 		t.Fatalf("expected cd+cmd ×2 write texts:\n%s", sc)
+	}
+	// Title set is best-effort: try/on error so restore continues.
+	if !strings.Contains(sc, "set titleWarnings to \"\"") {
+		t.Fatalf("missing titleWarnings init:\n%s", sc)
+	}
+	if !strings.Contains(sc, "try") || !strings.Contains(sc, "on error errMsg") || !strings.Contains(sc, "end try") {
+		t.Fatalf("set name must be wrapped in try/on error:\n%s", sc)
+	}
+	if !strings.Contains(sc, `set name of newWindow to desiredTitle`) {
+		t.Fatalf("missing set name via desiredTitle:\n%s", sc)
+	}
+	if !strings.Contains(sc, "return titleWarnings") {
+		t.Fatalf("missing return titleWarnings:\n%s", sc)
+	}
+	if !strings.Contains(sc, `set desiredTitle to "Win"`) {
+		t.Fatalf("missing desiredTitle for named window:\n%s", sc)
+	}
+}
+
+func TestBuildSessionsRestoreScript_EmptyNameSkipsSetName(t *testing.T) {
+	doc := &SaveDocument{
+		Windows: []SaveWindow{{
+			Name: "",
+			Tabs: []SaveTab{{Cwd: "/a", ResumeCmd: "grok --resume x"}},
+		}},
+	}
+	sc := BuildSessionsRestoreScript(doc)
+	if strings.Contains(sc, "set name of newWindow") || strings.Contains(sc, "desiredTitle") {
+		t.Fatalf("empty Name must not emit set name:\n%s", sc)
+	}
+	// Still initializes and returns titleWarnings for a uniform contract.
+	if !strings.Contains(sc, "return titleWarnings") {
+		t.Fatalf("missing return titleWarnings:\n%s", sc)
+	}
+}
+
+func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "save.json")
+	doc := &SaveDocument{
+		Version:    sessionsSaveVersion,
+		SavedAt:    "2026-07-25T12:00:00+0800",
+		RestoredAt: nil,
+		Host:       "testhost",
+		Source:     sessionsSaveSource,
+		Summary:    SaveSummary{Windows: 1, Tabs: 1, Sessions: 1, ByKind: map[string]int{"grok": 1}},
+		Windows: []SaveWindow{{
+			SourceIndex: 1,
+			Name:        `Bounding walk.jsonl Size… - grok`,
+			Tabs: []SaveTab{{
+				Cwd: "/proj", Kind: "grok", SessionID: "g1",
+				ResumeCmd: "grok --resume g1",
+			}},
+		}},
+	}
+	if err := WriteSaveDocument(path, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	prevPath := sessionsSavePathForTest
+	sessionsSavePathForTest = path
+	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+
+	warnLine := `could not set window title "Bounding walk.jsonl Size… - grok": Can't set name of window`
+	prevAS := sessionsRunRestoreAS
+	sessionsRunRestoreAS = func(script string) (string, error) {
+		if !strings.Contains(script, "on error errMsg") {
+			t.Fatalf("script missing soft-fail title:\n%s", script)
+		}
+		return warnLine + "\n", nil
+	}
+	t.Cleanup(func() { sessionsRunRestoreAS = prevAS })
+
+	var stdout, stderr bytes.Buffer
+	if err := runSessions([]string{"restore"}, &stdout, &stderr); err != nil {
+		t.Fatalf("title failure must not fail restore: %v stderr=%s", err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "warning:") {
+		t.Fatalf("expected warning on stderr:\n%s", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "could not set window title") {
+		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Restored") {
+		t.Fatalf("stdout:\n%s", stdout.String())
+	}
+	got, err := ReadSaveDocument(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.IsConsumed() {
+		t.Fatal("expected restored_at stamped after title-only failure")
+	}
+}
+
+func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "save.json")
+	doc := &SaveDocument{
+		Version:    sessionsSaveVersion,
+		SavedAt:    "2026-07-25T12:00:00+0800",
+		RestoredAt: nil,
+		Host:       "testhost",
+		Source:     sessionsSaveSource,
+		Summary:    SaveSummary{Windows: 1, Tabs: 1, Sessions: 1, ByKind: map[string]int{"grok": 1}},
+		Windows: []SaveWindow{{
+			SourceIndex: 1,
+			Name:        "Win",
+			Tabs: []SaveTab{{
+				Cwd: "/proj", Kind: "grok", SessionID: "g1",
+				ResumeCmd: "grok --resume g1",
+			}},
+		}},
+	}
+	if err := WriteSaveDocument(path, doc); err != nil {
+		t.Fatal(err)
+	}
+
+	prevPath := sessionsSavePathForTest
+	sessionsSavePathForTest = path
+	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+
+	prevAS := sessionsRunRestoreAS
+	sessionsRunRestoreAS = func(script string) (string, error) {
+		return "", fmt.Errorf("iTerm not running")
+	}
+	t.Cleanup(func() { sessionsRunRestoreAS = prevAS })
+
+	var stdout, stderr bytes.Buffer
+	err := runSessions([]string{"restore"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected hard error")
+	}
+	if !strings.Contains(stderr.String(), "AppleScript failed") {
+		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+	got, _ := ReadSaveDocument(path)
+	if got.IsConsumed() {
+		t.Fatal("must not stamp restored_at on hard AS failure")
 	}
 }

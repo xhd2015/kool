@@ -685,9 +685,18 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 	}
 
 	script := BuildSessionsRestoreScript(doc)
-	if _, err := sessionsRunRestoreAS(script); err != nil {
+	asOut, err := sessionsRunRestoreAS(script)
+	if err != nil {
 		WriteError(stderr, fmt.Sprintf("sessions restore: AppleScript failed: %v", err))
 		return errs.NewSilenceExitCode(1)
+	}
+	// Title failures are best-effort: AS continues restore and returns one warning line per title.
+	for _, line := range strings.Split(asOut, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		WriteWarning(stderr, line)
 	}
 
 	now := sessionsNowFn()

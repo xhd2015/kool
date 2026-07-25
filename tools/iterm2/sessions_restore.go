@@ -14,6 +14,10 @@ import (
 //	<resume_cmd>
 //
 // as two separate write text lines (empty cwd skips the cd line).
+//
+// Window title setting is best-effort: each set name is wrapped in try/on error
+// so a refused title does not abort remaining windows. Failures are returned
+// as one line per title on stdout (empty stdout means all titles OK).
 func BuildSessionsRestoreScript(doc *SaveDocument) string {
 	if doc == nil || len(doc.Windows) == 0 {
 		return `tell application "iTerm2"
@@ -24,6 +28,7 @@ end tell`
 	lines := []string{
 		`tell application "iTerm2"`,
 		`  activate`,
+		`  set titleWarnings to ""`,
 	}
 
 	for _, win := range doc.Windows {
@@ -61,12 +66,22 @@ end tell`
 			}
 		}
 		if win.Name != "" {
+			escapedName := lib.EscapeCommandForAppleScript(win.Name)
+			// Soft-fail: refused titles must not abort remaining windows/tabs.
 			lines = append(lines,
-				fmt.Sprintf(`  set name of newWindow to "%s"`, lib.EscapeCommandForAppleScript(win.Name)),
+				fmt.Sprintf(`  set desiredTitle to "%s"`, escapedName),
+				`  try`,
+				`    set name of newWindow to desiredTitle`,
+				`  on error errMsg`,
+				`    set titleWarnings to titleWarnings & "could not set window title \"" & desiredTitle & "\": " & errMsg & linefeed`,
+				`  end try`,
 			)
 		}
 	}
 
-	lines = append(lines, `end tell`)
+	lines = append(lines,
+		`  return titleWarnings`,
+		`end tell`,
+	)
 	return strings.Join(lines, "\n")
 }
