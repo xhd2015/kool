@@ -24,7 +24,36 @@ type BuildReleaseResult struct {
 	Files []string
 }
 
-func BuildRelease(binaryName string, preBuild func() error, specs []*Spec) (*BuildReleaseResult, error) {
+// Option configures BuildRelease.
+type Option func(*buildConfig)
+
+type buildConfig struct {
+	packagePath string // go build package path; default "./"
+}
+
+// WithPackagePath sets the package path passed to go build (e.g. "./cmd/doctest").
+// Empty path is ignored (keeps the default "./").
+func WithPackagePath(path string) Option {
+	return func(c *buildConfig) {
+		if path != "" {
+			c.packagePath = path
+		}
+	}
+}
+
+func applyOptions(opts []Option) *buildConfig {
+	cfg := &buildConfig{packagePath: "./"}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(cfg)
+		}
+	}
+	return cfg
+}
+
+func BuildRelease(binaryName string, preBuild func() error, specs []*Spec, opts ...Option) (*BuildReleaseResult, error) {
+	cfg := applyOptions(opts)
+
 	out, err := cmd.Output("git", "status", "--porcelain")
 	if err != nil {
 		return nil, err
@@ -59,7 +88,7 @@ func BuildRelease(binaryName string, preBuild func() error, specs []*Spec) (*Bui
 		err := cmd.Debug().Env([]string{
 			"GOOS=" + spec.OS,
 			"GOARCH=" + spec.Arch,
-		}).Run("go", "build", "-o", filename, "./")
+		}).Run("go", "build", "-o", filename, cfg.packagePath)
 		if err != nil {
 			return nil, err
 		}
