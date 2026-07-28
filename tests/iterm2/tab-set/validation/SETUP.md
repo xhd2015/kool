@@ -11,9 +11,15 @@ invalid <name>.json -> show|run|list-load path -> Error exit ≠ 0
 1. Leaves write invalid fixtures and invoke show (or run --dry-run) to force load.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	// Default exercise path: show <name> after writing bad file.
 	if req.Subcommand == "" {
 		req.Subcommand = "show"

@@ -13,9 +13,15 @@ run scratch --tab "[not-valid-props] echo hi" --dry-run
 2. DryRun optional (parse should fail before run).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.SetName = "scratch"
 	req.DryRun = true
 	// Leading '[' but body is not key=value props → parse error per locked rule.

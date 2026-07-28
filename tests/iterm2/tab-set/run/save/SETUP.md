@@ -24,9 +24,15 @@ Caller run <name> --tab … --save [--force]
 3. Create leaves start from empty ConfigDir; overwrite leaves pre-write JSON.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.Save = true
 	return nil
 }

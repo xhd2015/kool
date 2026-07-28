@@ -21,9 +21,15 @@ Caller --tab "echo a" --tab "echo b" --dry-run
    (ad-hoc must work with empty ConfigDir).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	// Ad-hoc branch: never --save (save leaves live under run/save/).
 	req.Save = false
 	return nil

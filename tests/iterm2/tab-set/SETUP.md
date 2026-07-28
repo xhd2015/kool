@@ -9,13 +9,17 @@ KOOL_ITERM2_TAB_SET_DIR=<tmp>
   -> load <name>.json -> stdout / validation errors
 
 # run --dry-run (config mode)
-config tabs -> plan printed; RunTabSet Exec not required
+config tabs -> plan printed (no_submit tabs marked); RunTabSet Exec not required
 
 # run --tab … --dry-run (ad-hoc; no config read)
-Caller --tab specs -> tab parser -> plan; config file not required
+Caller --tab specs (props: id,name,cwd,no_submit) -> tab parser -> plan
 
 # run --tab … --save [--force|--dry-run]
-Caller tabs -> save planner -> JSON write or plan; never RunTabSet
+Caller tabs -> save planner -> JSON write (incl. no_submit) or plan; never RunTabSet
+
+# update <name> [--tab-id …] [--rm|--command|--no-submit|…]
+# Caller patches config JSON only; never RunTabSet
+config file -> update mutator -> validate -> write (or dry-run plan)
 ```
 
 ## Preconditions
@@ -23,14 +27,15 @@ Caller tabs -> save planner -> JSON write or plan; never RunTabSet
 - Package `github.com/xhd2015/kool/tools/iterm2` exports `RunForTest` (exists).
 - Config dir: env `KOOL_ITERM2_TAB_SET_DIR` (default `~/.config/iterm2/tab-set`).
 - Version-1 JSON schema with validation (version, tabs, ids, commands).
-- Ad-hoc/save flags (`--tab`, `--save`, `--force`, `--window-name`) are Classic
-  TDD targets for this cycle — product may not wire them yet (new leaves RED).
+- Optional per-tab `no_submit` bool.
+- `update` subcommand (Classic TDD this cycle — new leaves RED until implementer).
 
 ## Steps
 
 1. Root Setup creates temp `WorkingDir` and empty `ConfigDir`.
 2. Leaves write JSON fixtures under `ConfigDir` (config mode) and/or set
-   `Tabs` / `Save` / `Force` / `WindowName` (ad-hoc/save mode).
+   `Tabs` / `Save` / `Force` / `WindowName` (ad-hoc/save) or update flags
+   (`TabID`, `Rm`, `Command`, `UpdateNoSubmit`, …).
 3. Run invokes in-process `RunForTest` with `KOOL_ITERM2_TAB_SET_DIR` set.
 
 ## Context
@@ -38,15 +43,17 @@ Caller tabs -> save planner -> JSON write or plan; never RunTabSet
 - Nested doctest root — does not inherit open-dir `Request` from `../DOCTEST.md`.
 - Prefer Phase=`handler` (in-process); no live iTerm for these leaves.
 - Fixture helper writes `bots.json` matching the locked schema.
-- `configPath(configDir, name)` helper for save-leaf file checks.
-- Handler RunForTest is non-TTY (bytes.Buffer) — non-TTY overwrite path is
-  the CI-friendly assert for confirm rules.
+- `configPath(configDir, name)` helper for save/update leaf file checks.
+- Handler RunForTest is non-TTY (bytes.Buffer) — non-TTY overwrite/rm path is
+  the CI-friendly assert for confirm rules (`--force` required for success).
 
 ```go
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/xhd2015/doctest/session"
 )
 
 const botsJSON = `{
@@ -59,7 +66,8 @@ const botsJSON = `{
 }
 `
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}

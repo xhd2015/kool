@@ -13,9 +13,15 @@ run newsset --tab "echo only" --save --dry-run
 2. Save + DryRun + one tab; no Force needed.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.SetName = "newsset"
 	req.Save = true
 	req.DryRun = true

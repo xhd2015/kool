@@ -11,9 +11,15 @@ run bots --dry-run -> exit 0; plan mentions tabs/commands; no iTerm failure
 1. Write bots.json; DryRun=true; SetName=bots.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.DryRun = true

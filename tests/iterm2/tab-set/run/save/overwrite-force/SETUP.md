@@ -19,9 +19,15 @@ existing bots.json + run bots --tab … --save --force
    WindowName new-win (window_name modified).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.Save = true

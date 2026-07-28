@@ -11,9 +11,15 @@ show bots -> local-bots, tab ids a/b, commands echo a / echo b
 1. Write bots.json; SetName=bots.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	return nil

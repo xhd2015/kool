@@ -12,9 +12,15 @@ KOOL_ITERM2_TAB_SET_DIR -> tab-set list -> set names on stdout
 2. Leaves prepare empty dir or fixtures.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.Subcommand = "list"
 	return nil
 }

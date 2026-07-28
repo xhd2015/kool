@@ -12,9 +12,15 @@ run scratch --tab "echo one" --tab "echo two" --dry-run
 1. Two bare command tabs; DryRun; no props block.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.SetName = "scratch"
 	req.DryRun = true
 	req.Tabs = []string{"echo one", "echo two"}

@@ -11,9 +11,15 @@
 1. Write emptytabs.json with empty tabs.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeConfigFile(t, req.ConfigDir, "emptytabs", `{
   "version": 1,
   "tabs": []

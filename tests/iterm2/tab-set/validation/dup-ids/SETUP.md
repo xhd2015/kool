@@ -11,9 +11,15 @@ two tabs with id "a" -> show dupid -> Error
 1. Write dupid.json with duplicate ids.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeConfigFile(t, req.ConfigDir, "dupid", `{
   "version": 1,
   "tabs": [

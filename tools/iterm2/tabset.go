@@ -24,6 +24,7 @@ Usage:
   kool iterm2 tab-set list
   kool iterm2 tab-set show <name>
   kool iterm2 tab-set run <name> [run-options]
+  kool iterm2 tab-set update <name> [update-options]
   kool iterm2 tab-set status <name>
   kool iterm2 tab-set stop <name>
   kool iterm2 tab-set -h|--help
@@ -36,6 +37,7 @@ Commands:
   list                     list configured tab sets
   show <name>              print window name and tabs for a set
   run <name>               open or resync the tab set in iTerm2
+  update <name>            mutate named config JSON only (never runs iTerm)
   status <name>            report idle/running/missing tabs
   stop <name>              close windows/tabs for the set
 
@@ -49,9 +51,25 @@ Run options:
   --window-name <name>     optional window name for ad-hoc / save
   -h, --help               show this help
 
+Update options:
+  --tab-id <id>            target tab (required for tab field ops / --rm / --create)
+  --rm                     remove the tab (confirm / --force; non-TTY requires --force)
+  --command <str>          patch command
+  --name <str>             patch tab display name
+  --cwd <path>             patch cwd
+  --clear-cwd              clear cwd
+  --no-submit              set no_submit: true
+  --submit                 clear no_submit (omit/false)
+  --create                 create tab if missing (requires --command; id must not exist)
+  --window-name <name>     patch set-level window_name (allowed without --tab-id)
+  --dry-run                print plan; do not write
+  --force                  with --rm, skip y/N confirm
+  -h, --help               show update help
+
 Ad-hoc --tab spec:
-  [id=…,name=…,cwd=…] command
+  [id=…,name=…,cwd=…,no_submit=true|false] command
   Props optional; spaces around [ ] keys = and , are allowed.
+  no_submit (true/false/1/0/yes/no): stage command without Enter when true.
   Default id: tab-1..tab-N (1-based --tab order); name defaults to id.
   --save requires ≥1 --tab. --force only valid with --save.
   To run after save: kool iterm2 tab-set run <name>
@@ -63,8 +81,48 @@ Examples:
   kool iterm2 tab-set run bots -n
   kool iterm2 tab-set run scratch --tab "echo a" --tab "echo b" --dry-run
   kool iterm2 tab-set run bots --tab "[id=a] echo a" --save --force
+  kool iterm2 tab-set update bots --tab-id b --no-submit
+  kool iterm2 tab-set update bots --tab-id a --rm --force
   kool iterm2 tab-set status bots
   kool iterm2 tab-set stop bots
+`
+
+const tabSetUpdateHelp = `iterm2 tab-set update — mutate a named tab-set config (never runs iTerm)
+
+Usage:
+  kool iterm2 tab-set update <name> [options]
+
+Options:
+  --tab-id <id>         target tab (required for tab field ops / --rm / --create)
+  --rm                  remove the tab
+  --command <str>       patch command
+  --name <str>          patch tab display name
+  --cwd <path>          patch cwd
+  --clear-cwd           clear cwd
+  --no-submit           set no_submit: true
+  --submit              clear no_submit (omit/false)
+  --create              create tab if missing (requires --command)
+  --window-name <str>   patch set-level window_name (no --tab-id needed)
+  --dry-run             print plan; do not write
+  --force               skip y/N confirm on --rm (required non-TTY)
+  -h, --help            show this help
+
+Rules:
+  --tab-id required for tab field patch / --rm / --create
+  --rm exclusive with patch/create flags
+  --no-submit and --submit are mutually exclusive
+  --cwd and --clear-cwd are mutually exclusive
+  --create requires --command; id must not already exist
+  --rm cannot remove the last remaining tab
+  Field patch writes immediately (no y/N); --rm confirms unless --force
+
+Examples:
+  kool iterm2 tab-set update bots --tab-id b --no-submit
+  kool iterm2 tab-set update bots --tab-id a --command "echo A-new"
+  kool iterm2 tab-set update bots --tab-id c --create --command "echo c"
+  kool iterm2 tab-set update bots --tab-id a --rm --force
+  kool iterm2 tab-set update bots --window-name new-bots-win
+  kool iterm2 tab-set update bots --tab-id b --no-submit --dry-run
 `
 
 // tabSetFile is the on-disk version-1 schema.
@@ -75,10 +133,11 @@ type tabSetFile struct {
 }
 
 type tabSetTab struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Command string `json:"command"`
-	Cwd     string `json:"cwd"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Command  string `json:"command"`
+	Cwd      string `json:"cwd"`
+	NoSubmit bool   `json:"no_submit,omitempty"`
 }
 
 // loadedTabSet is a validated config ready for orchestration.
@@ -120,6 +179,8 @@ func runTabSet(args []string, stdout, stderr io.Writer) error {
 		return tabSetShow(rest, stdout, stderr)
 	case "run":
 		return tabSetRun(rest, stdout, stderr)
+	case "update":
+		return tabSetUpdate(rest, stdout, stderr)
 	case "status":
 		return tabSetStatus(rest, stdout, stderr)
 	case "stop":
@@ -208,8 +269,285 @@ func printTabSetDetails(w io.Writer, loaded *loadedTabSet) {
 		if tab.Cwd != "" {
 			line += fmt.Sprintf(" cwd=%s", tab.Cwd)
 		}
+		if tab.NoSubmit {
+			line += " no_submit=true"
+		}
 		fmt.Fprintln(w, line)
 	}
+}
+
+// tabSetUpdate mutates named config JSON only (never RunTabSet / iTerm).
+func tabSetUpdate(args []string, stdout, stderr io.Writer) error {
+	var (
+		tabID      string
+		rm         bool
+		command    string
+		tabName    string
+		cwd        string
+		clearCwd   bool
+		noSubmit   bool
+		submit     bool
+		create     bool
+		windowName string
+		dryRun     bool
+		force      bool
+	)
+	remain, err := lessflags.String("--tab-id", &tabID).
+		Bool("--rm", &rm).
+		String("--command", &command).
+		String("--name", &tabName).
+		String("--cwd", &cwd).
+		Bool("--clear-cwd", &clearCwd).
+		Bool("--no-submit", &noSubmit).
+		Bool("--submit", &submit).
+		Bool("--create", &create).
+		String("--window-name", &windowName).
+		Bool("--dry-run", &dryRun).
+		Bool("--force", &force).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
+	if err != nil {
+		if err == lessflags.ErrHelp {
+			fmt.Fprint(stdout, strings.TrimSpace(tabSetUpdateHelp)+"\n")
+			return nil
+		}
+		fmt.Fprint(stderr, err.Error()+"\n")
+		return errs.NewSilenceExitCode(1)
+	}
+
+	hasCommand := command != ""
+	hasTabName := tabName != ""
+	hasCwd := cwd != ""
+	hasWindowName := windowName != ""
+	hasTabPatch := hasCommand || hasTabName || hasCwd || clearCwd || noSubmit || submit
+	hasTabOp := hasTabPatch || rm || create
+
+	if noSubmit && submit {
+		fmt.Fprint(stderr, "tab-set update: cannot specify both --no-submit and --submit (mutually exclusive)\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if hasCwd && clearCwd {
+		fmt.Fprint(stderr, "tab-set update: cannot specify both --cwd and --clear-cwd (mutually exclusive)\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if rm && (hasTabPatch || create) {
+		fmt.Fprint(stderr, "tab-set update: --rm cannot be combined with patch/create flags (mutually exclusive)\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if !hasTabOp && !hasWindowName {
+		fmt.Fprint(stderr, "tab-set update: nothing to update; specify --tab-id fields, --rm, --create, or --window-name\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if hasTabOp && tabID == "" {
+		fmt.Fprint(stderr, "tab-set update: --tab-id is required for tab field patch / --rm / --create\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if create && !hasCommand {
+		fmt.Fprint(stderr, "tab-set update: --create requires --command\n")
+		return errs.NewSilenceExitCode(1)
+	}
+
+	if len(remain) == 0 {
+		fmt.Fprint(stderr, "tab-set update: missing set name\n")
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) > 1 {
+		fmt.Fprintf(stderr, "tab-set update: unexpected arguments: %s\n", strings.Join(remain[1:], " "))
+		return errs.NewSilenceExitCode(1)
+	}
+	setName := remain[0]
+
+	file, path, err := readTabSetFile(setName)
+	if err != nil {
+		fmt.Fprint(stderr, err.Error()+"\n")
+		return errs.NewSilenceExitCode(1)
+	}
+
+	// Apply window_name first (set-level; independent of tab ops).
+	oldWindowName := file.WindowName
+	if hasWindowName {
+		file.WindowName = windowName
+	}
+
+	if rm {
+		idx := findTabIndex(file, tabID)
+		if idx < 0 {
+			fmt.Fprintf(stderr, "tab-set update: tab %q not found in %q (use --create)\n", tabID, setName)
+			return errs.NewSilenceExitCode(1)
+		}
+		if len(file.Tabs) <= 1 {
+			fmt.Fprint(stderr, "tab-set update: cannot remove last remaining tab (tabs must not be empty)\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		if !force {
+			if !terminal.IsStdinTerminal() {
+				fmt.Fprint(stderr, "tab-set update: refuse to remove tab without --force (non-interactive / non-TTY)\n")
+				return errs.NewSilenceExitCode(1)
+			}
+			fmt.Fprintf(stdout, "Remove tab %q from tab-set %q? [y/N] ", tabID, setName)
+			reader := bufio.NewReader(os.Stdin)
+			line, _ := reader.ReadString('\n')
+			ans := strings.TrimSpace(strings.ToLower(line))
+			if ans != "y" && ans != "yes" {
+				fmt.Fprint(stderr, "tab-set update: remove declined\n")
+				return errs.NewSilenceExitCode(1)
+			}
+		}
+		if dryRun {
+			fmt.Fprintf(stdout, "dry-run: would remove tab %q from tab-set %q (%d tabs left)\n",
+				tabID, setName, len(file.Tabs)-1)
+			return nil
+		}
+		file.Tabs = append(file.Tabs[:idx], file.Tabs[idx+1:]...)
+		if err := writeTabSetFile(path, file); err != nil {
+			fmt.Fprint(stderr, err.Error()+"\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		fmt.Fprintf(stdout, "removed tab %q from tab-set %q (%d tabs left)\n", tabID, setName, len(file.Tabs))
+		return nil
+	}
+
+	if create {
+		if findTabIndex(file, tabID) >= 0 {
+			fmt.Fprintf(stderr, "tab-set update: tab %q already exists in %q\n", tabID, setName)
+			return errs.NewSilenceExitCode(1)
+		}
+		newTab := tabSetTab{
+			ID:      tabID,
+			Name:    tabID,
+			Command: command,
+		}
+		if hasTabName {
+			newTab.Name = tabName
+		}
+		if hasCwd {
+			newTab.Cwd = cwd
+		}
+		if noSubmit {
+			newTab.NoSubmit = true
+		}
+		if dryRun {
+			fmt.Fprintf(stdout, "dry-run: would create tab %q in tab-set %q command=%s\n", tabID, setName, command)
+			return nil
+		}
+		file.Tabs = append(file.Tabs, newTab)
+		if err := writeTabSetFile(path, file); err != nil {
+			fmt.Fprint(stderr, err.Error()+"\n")
+			return errs.NewSilenceExitCode(1)
+		}
+		fmt.Fprintf(stdout, "created tab %q in tab-set %q\n", tabID, setName)
+		return nil
+	}
+
+	// Field patch and/or window_name only.
+	var changes []string
+	if hasWindowName && oldWindowName != windowName {
+		changes = append(changes, fmt.Sprintf("  window_name: %q -> %q", oldWindowName, windowName))
+	}
+
+	if hasTabPatch {
+		idx := findTabIndex(file, tabID)
+		if idx < 0 {
+			fmt.Fprintf(stderr, "tab-set update: tab %q not found in %q (use --create)\n", tabID, setName)
+			return errs.NewSilenceExitCode(1)
+		}
+		tab := &file.Tabs[idx]
+		if hasCommand && tab.Command != command {
+			changes = append(changes, fmt.Sprintf("  command: %q -> %q", tab.Command, command))
+			tab.Command = command
+		}
+		if hasTabName && tab.Name != tabName {
+			changes = append(changes, fmt.Sprintf("  name: %q -> %q", tab.Name, tabName))
+			tab.Name = tabName
+		}
+		if hasCwd && tab.Cwd != cwd {
+			changes = append(changes, fmt.Sprintf("  cwd: %q -> %q", tab.Cwd, cwd))
+			tab.Cwd = cwd
+		}
+		if clearCwd && tab.Cwd != "" {
+			changes = append(changes, fmt.Sprintf("  cwd: %q -> \"\"", tab.Cwd))
+			tab.Cwd = ""
+		}
+		if noSubmit && !tab.NoSubmit {
+			changes = append(changes, "  no_submit: false -> true")
+			tab.NoSubmit = true
+		}
+		if submit && tab.NoSubmit {
+			changes = append(changes, "  no_submit: true -> false")
+			tab.NoSubmit = false
+		}
+	}
+
+	if dryRun {
+		fmt.Fprintf(stdout, "dry-run plan for tab-set %q\n", setName)
+		if tabID != "" {
+			fmt.Fprintf(stdout, "tab: %s\n", tabID)
+		}
+		if len(changes) == 0 {
+			fmt.Fprintln(stdout, "no field changes")
+		} else {
+			for _, c := range changes {
+				fmt.Fprintln(stdout, c)
+			}
+		}
+		fmt.Fprintln(stdout, "dry-run: no write")
+		return nil
+	}
+
+	if err := writeTabSetFile(path, file); err != nil {
+		fmt.Fprint(stderr, err.Error()+"\n")
+		return errs.NewSilenceExitCode(1)
+	}
+
+	if hasTabPatch {
+		fmt.Fprintf(stdout, "updated tab-set %q tab %q\n", setName, tabID)
+	} else {
+		fmt.Fprintf(stdout, "updated tab-set %q\n", setName)
+	}
+	for _, c := range changes {
+		fmt.Fprintln(stdout, c)
+	}
+	return nil
+}
+
+// readTabSetFile loads and lightly validates version-1 JSON for update mutations.
+func readTabSetFile(name string) (*tabSetFile, string, error) {
+	if name == "" {
+		return nil, "", fmt.Errorf("tab-set update: missing set name")
+	}
+	path := filepath.Join(tabSetConfigDir(), name+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", fmt.Errorf("tab-set %q not found (looked in %s)", name, tabSetConfigDir())
+		}
+		return nil, "", fmt.Errorf("tab-set %q: %w", name, err)
+	}
+	var file tabSetFile
+	if err := json.Unmarshal(data, &file); err != nil {
+		return nil, "", fmt.Errorf("tab-set %q: invalid JSON: %w", name, err)
+	}
+	if file.Version != 1 {
+		return nil, "", fmt.Errorf("tab-set %q: unsupported version %d (want 1)", name, file.Version)
+	}
+	if len(file.Tabs) == 0 {
+		return nil, "", fmt.Errorf("tab-set %q: tabs must not be empty", name)
+	}
+	return &file, path, nil
+}
+
+func findTabIndex(file *tabSetFile, tabID string) int {
+	for i, t := range file.Tabs {
+		id := strings.TrimSpace(t.ID)
+		if id == "" {
+			id = strings.TrimSpace(t.Name)
+		}
+		if id == tabID {
+			return i
+		}
+	}
+	return -1
 }
 
 func tabSetRun(args []string, stdout, stderr io.Writer) error {
@@ -337,7 +675,7 @@ func parseAdHocTabs(specs []string) ([]lib.TabSpec, error) {
 }
 
 // parseTabSpec parses: spaces [ spaces props spaces ] spaces command
-// props are key=value comma-separated (keys: id, name, cwd).
+// props are key=value comma-separated (keys: id, name, cwd, no_submit).
 func parseTabSpec(raw string, index int) (lib.TabSpec, error) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
@@ -345,6 +683,7 @@ func parseTabSpec(raw string, index int) (lib.TabSpec, error) {
 	}
 
 	var id, name, cwd, command string
+	var noSubmit bool
 	if strings.HasPrefix(s, "[") {
 		end := strings.Index(s, "]")
 		if end < 0 {
@@ -359,6 +698,13 @@ func parseTabSpec(raw string, index int) (lib.TabSpec, error) {
 		id = props["id"]
 		name = props["name"]
 		cwd = props["cwd"]
+		if rawNS, ok := props["no_submit"]; ok {
+			parsed, perr := parseBoolProp("no_submit", rawNS)
+			if perr != nil {
+				return lib.TabSpec{}, perr
+			}
+			noSubmit = parsed
+		}
 	} else {
 		command = s
 	}
@@ -373,10 +719,11 @@ func parseTabSpec(raw string, index int) (lib.TabSpec, error) {
 		name = id
 	}
 	return lib.TabSpec{
-		ID:      id,
-		Name:    name,
-		Command: command,
-		Cwd:     cwd,
+		ID:       id,
+		Name:     name,
+		Command:  command,
+		Cwd:      cwd,
+		NoSubmit: noSubmit,
 	}, nil
 }
 
@@ -402,13 +749,25 @@ func parseTabProps(body string) (map[string]string, error) {
 			return nil, fmt.Errorf("tab-set run: invalid tab props: empty key")
 		}
 		switch key {
-		case "id", "name", "cwd":
+		case "id", "name", "cwd", "no_submit":
 			result[key] = val
 		default:
 			return nil, fmt.Errorf("tab-set run: invalid tab props: unknown key %q", key)
 		}
 	}
 	return result, nil
+}
+
+// parseBoolProp accepts true/false, 1/0, yes/no (case-insensitive).
+func parseBoolProp(key, val string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "true", "1", "yes":
+		return true, nil
+	case "false", "0", "no":
+		return false, nil
+	default:
+		return false, fmt.Errorf("tab-set run: invalid tab props: invalid value for %s %q (want true/false/1/0/yes/no)", key, val)
+	}
 }
 
 func tabSetSave(loaded *loadedTabSet, force, dryRun bool, stdout, stderr io.Writer) error {
@@ -483,10 +842,11 @@ func loadedToTabSetFile(loaded *loadedTabSet) *tabSetFile {
 	tabs := make([]tabSetTab, 0, len(loaded.Tabs))
 	for _, t := range loaded.Tabs {
 		tabs = append(tabs, tabSetTab{
-			ID:      t.ID,
-			Name:    t.Name,
-			Command: t.Command,
-			Cwd:     t.Cwd,
+			ID:       t.ID,
+			Name:     t.Name,
+			Command:  t.Command,
+			Cwd:      t.Cwd,
+			NoSubmit: t.NoSubmit,
 		})
 	}
 	return &tabSetFile{
@@ -619,6 +979,11 @@ func printTabSetDiff(w io.Writer, setName string, oldFile, newFile *tabSetFile) 
 				fmt.Fprintf(w, "      - %s\n", ot.Cwd)
 				fmt.Fprintf(w, "      + %s\n", nt.Cwd)
 			}
+			if ot.NoSubmit != nt.NoSubmit {
+				fmt.Fprintln(w, "    no_submit:")
+				fmt.Fprintf(w, "      - %v\n", ot.NoSubmit)
+				fmt.Fprintf(w, "      + %v\n", nt.NoSubmit)
+			}
 		}
 	}
 	fmt.Fprintln(w, "added:")
@@ -648,7 +1013,7 @@ func tabContentEqual(a, b tabSetTab) bool {
 	if bName == "" {
 		bName = b.ID
 	}
-	return a.Command == b.Command && aName == bName && a.Cwd == b.Cwd
+	return a.Command == b.Command && aName == bName && a.Cwd == b.Cwd && a.NoSubmit == b.NoSubmit
 }
 
 func printDryRunPlan(w io.Writer, loaded *loadedTabSet, modeName string) {
@@ -659,7 +1024,11 @@ func printDryRunPlan(w io.Writer, loaded *loadedTabSet, modeName string) {
 	}
 	fmt.Fprintf(w, "would run %d tabs:\n", len(loaded.Tabs))
 	for _, tab := range loaded.Tabs {
-		fmt.Fprintf(w, "  - %s: %s\n", tab.ID, tab.Command)
+		if tab.NoSubmit {
+			fmt.Fprintf(w, "  - %s: %s (no_submit)\n", tab.ID, tab.Command)
+		} else {
+			fmt.Fprintf(w, "  - %s: %s\n", tab.ID, tab.Command)
+		}
 	}
 }
 
@@ -785,10 +1154,11 @@ func loadTabSet(name string) (*loadedTabSet, error) {
 			return nil, fmt.Errorf("tab-set %q: tab %q: command is required", name, id)
 		}
 		tabs = append(tabs, lib.TabSpec{
-			ID:      id,
-			Name:    t.Name,
-			Command: cmd,
-			Cwd:     t.Cwd,
+			ID:       id,
+			Name:     t.Name,
+			Command:  cmd,
+			Cwd:      t.Cwd,
+			NoSubmit: t.NoSubmit,
 		})
 	}
 	return &loadedTabSet{

@@ -55,8 +55,8 @@ github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIK
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/xhd2015/agent-pro v0.0.83 h1:XWc/EDiLe4yCY5UfrH4+ZXMLxljAw+QGruX0LPTs8Ys=
 github.com/xhd2015/agent-pro v0.0.83/go.mod h1:27Le5yjCV872zbJ4R9XDjyiUcCF/6SI6XzSQIhn6pTY=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.89 h1:4PoY8CbRrLOv/dobJVIiL+/QhJw4NemRlTScvq02scc=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.89/go.mod h1:9OHHDoNrbeV7HhPiPK4Je7nZ1DTCngMq3lUmB6JaU9k=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.92 h1:gMvIF8WXpnfw+pflMlFG2pf3OVPLbivhztinHsNYZqk=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.92/go.mod h1:9OHHDoNrbeV7HhPiPK4Je7nZ1DTCngMq3lUmB6JaU9k=
 github.com/xhd2015/gitops v0.0.27 h1:7bLgOtiGx6cZpwas2xf5Qhq3X6pBCikmXAu2KVTGuYM=
 github.com/xhd2015/gitops v0.0.27/go.mod h1:KS8y6tZ3FG+myEaR+H6MvoR099YrP/ADIHZX9ROpZo8=
 github.com/xhd2015/go-coverage v1.0.41 h1:JjUcE93IMz0KHmdCYUKq9JN/EDC/5k0OEhsMAeVvL88=

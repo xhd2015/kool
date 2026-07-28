@@ -12,9 +12,15 @@ run scratch --tab "echo x" --force --dry-run
 1. Tabs set; Force=true; Save=false; DryRun to avoid iTerm if force were ignored.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	req.SetName = "scratch"
 	req.Force = true
 	req.Save = false

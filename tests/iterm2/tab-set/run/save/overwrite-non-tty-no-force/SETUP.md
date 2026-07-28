@@ -14,9 +14,15 @@ existing bots.json + run bots --tab … --save  (handler non-TTY, no --force)
 3. RunForTest is non-interactive (no TTY) — locked rule requires --force.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.Save = true

@@ -12,9 +12,15 @@ run bots -n --no-new-window -> Error, exit 1
 2. DryRun optional (conflict should fail before run).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeBotsConfig(t, req.ConfigDir)
 	req.SetName = "bots"
 	req.NewWindow = true

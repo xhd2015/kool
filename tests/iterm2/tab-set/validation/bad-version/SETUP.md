@@ -11,9 +11,15 @@
 1. Write badver.json with version 2; show badver.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
+
 	writeConfigFile(t, req.ConfigDir, "badver", `{
   "version": 2,
   "tabs": [{"id": "a", "name": "a", "command": "echo a"}]
