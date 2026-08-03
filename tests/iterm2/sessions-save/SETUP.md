@@ -1,13 +1,13 @@
 # Scenario
 
-**Feature**: nested doctest root for `kool iterm2 sessions save|restore`
+**Feature**: nested doctest root for `kool iterm2 sessions save|restore` (+ macOS Space)
 
 ```
-# no live iTerm; fixtures via InstallPhasedFixtureCollectorForTest
+# no live iTerm / Mission Control; fixtures via InstallPhasedFixtureCollectorForTest
 Caller
-  -> kool iterm2 sessions save|restore [--dry-run] [--file] [--color|--no-color]
-  -> SnapshotCollector (phased fixture)
-  -> critical filter (grok/codex/mark)
+  -> kool iterm2 sessions save|restore [--dry-run] [--file] [--color|--no-color] [--ignore-macos-space]
+  -> SnapshotCollector (phased fixture) + optional SpaceIndexForWindow inject
+  -> critical filter (grok/codex/mark) + space record / placement plan
   -> plan stream / file write / restore plan
 ```
 

@@ -14,8 +14,8 @@ const sessionsHelp = `iterm2 sessions — inspect live iTerm2 windows, tabs, and
 
 Usage:
   kool iterm2 sessions snapshot [options]
-  kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color]
-  kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color]
+  kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
+  kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
   kool iterm2 sessions -h|--help
 
 Commands:
@@ -66,48 +66,54 @@ Examples:
 
 const sessionsSaveHelp = `iterm2 sessions save — checkpoint critical grok/codex/mark tabs
 
-Usage: kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color]
+Usage: kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
 
 Save busy panes that have a resolved grok or codex session_id, or a live mark
 process, into a checkpoint JSON (default: ~/.config/iterm2/sessions-save.json).
 
-  --dry-run     print plan only; do not write or prompt
-  --file PATH   checkpoint path (default: ~/.config/iterm2/sessions-save.json)
-  --color       force ANSI colors on (wins over NO_COLOR / non-TTY)
-  --no-color    force ANSI colors off
+  --dry-run              print plan only; do not write or prompt
+  --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-save.json)
+  --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
+  --no-color             force ANSI colors off
+  --ignore-macos-space   omit space / iterm_window_id; do not resolve Spaces
   -h, --help
 
 Overwrite: if the file exists and has not been restored yet, prompts [Y/n]
 on a TTY; non-interactive stdin errors out. Already-restored files are
 overwritten without a prompt. Zero critical sessions: exit 0, no write.
 Dry-run streams each critical window block as it is captured, then a footer.
+By default each window records macOS Space (space + iterm_window_id).
 
 Examples:
   kool iterm2 sessions save --dry-run
   kool iterm2 sessions save
   kool iterm2 sessions save --file ~/Desktop/pre-reboot.json
+  kool iterm2 sessions save --ignore-macos-space
 `
 
 const sessionsRestoreHelp = `iterm2 sessions restore — recreate windows and resume from checkpoint
 
-Usage: kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color]
+Usage: kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
 
 Read the checkpoint, create one window per saved window, one tab per entry,
 then send: cd <cwd> and grok --resume / codex resume / mark <message>.
 
-  --dry-run     print plan only; do not create tabs or mark restored
-  --file PATH   checkpoint path (default: ~/.config/iterm2/sessions-save.json)
-  --color       force ANSI colors on (wins over NO_COLOR / non-TTY)
-  --no-color    force ANSI colors off
+  --dry-run              print plan only; do not create tabs or mark restored
+  --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-save.json)
+  --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
+  --no-color             force ANSI colors off
+  --ignore-macos-space   ignore recorded space; create on current Desktop
   -h, --help
 
 If restored_at is set, the file is already consumed and restore errors.
 On full success, restored_at is written so the checkpoint cannot be applied twice.
+By default each window is placed on its recorded macOS Space (Switch/Create).
 
 Examples:
   kool iterm2 sessions restore --dry-run
   kool iterm2 sessions restore
   kool iterm2 sessions restore --file ~/Desktop/pre-reboot.json
+  kool iterm2 sessions restore --ignore-macos-space
 `
 
 const sessionHelp = `iterm2 session — inspect a single iTerm2 session

@@ -1,11 +1,11 @@
 # Scenario
 
-**Feature**: sessions save — checkpoint critical tabs
+**Feature**: sessions save — checkpoint critical tabs (+ optional Space fields)
 
 ```
 Caller
-  -> sessions save [--dry-run] [--file] [--color|--no-color]
-  -> phased capture + critical filter
+  -> sessions save [--dry-run] [--file] [--color|--no-color] [--ignore-macos-space]
+  -> phased capture + critical filter + SpaceIndexForWindow (unless ignore)
   -> stream window plan / write JSON / error
 ```
 

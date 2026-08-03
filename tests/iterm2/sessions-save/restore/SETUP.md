@@ -1,12 +1,12 @@
 # Scenario
 
-**Feature**: sessions restore — recreate windows from checkpoint
+**Feature**: sessions restore — recreate windows from checkpoint (+ Space placement)
 
 ```
 Caller
-  -> sessions restore [--dry-run] [--file] [--color|--no-color]
-  -> read SaveDocument
-  <- plan / apply / consumed error
+  -> sessions restore [--dry-run] [--file] [--color|--no-color] [--ignore-macos-space]
+  -> read SaveDocument; plan space N (Desktop N+1) unless ignore
+  <- plan / apply (Switch+Create+AS) / consumed error
 ```
 
 ```go

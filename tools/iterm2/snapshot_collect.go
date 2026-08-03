@@ -335,7 +335,7 @@ func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error
 			return nil, append(warnings, w2...), err
 		}
 		warnings = append(warnings, w2...)
-		win := SnapshotWindow{Index: hdr.Index, Name: hdr.Name, Tabs: tabs}
+		win := SnapshotWindow{Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID, Tabs: tabs}
 		for ti := range win.Tabs {
 			t := &win.Tabs[ti]
 			nTabs++
@@ -390,7 +390,7 @@ func (c *SnapshotCollector) ListWindows() (windows []SnapshotWindow, warnings []
 	if c.fixtureEnabled {
 		out := make([]SnapshotWindow, len(c.fixtureWindows))
 		for i, w := range c.fixtureWindows {
-			out[i] = SnapshotWindow{Index: w.Index, Name: w.Name}
+			out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID}
 		}
 		return out, nil, nil
 	}
@@ -454,7 +454,7 @@ func (c *SnapshotCollector) ListTabsAndSessions(windowIndex int) (tabs []Snapsho
 func cloneWindows(in []SnapshotWindow) []SnapshotWindow {
 	out := make([]SnapshotWindow, len(in))
 	for i, w := range in {
-		out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, Tabs: cloneTabs(w.Tabs)}
+		out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, Tabs: cloneTabs(w.Tabs)}
 	}
 	return out
 }
@@ -547,7 +547,12 @@ tell application "iTerm2"
     on error
       set wname to ""
     end try
-    set out to out & "###W###" & wi & "###" & wname & linefeed
+    try
+      set wid to id of w
+    on error
+      set wid to 0
+    end try
+    set out to out & "###W###" & wi & "###" & wname & "###" & wid & linefeed
   end repeat
   return out
 end tell
@@ -625,9 +630,20 @@ func parseHierarchy(raw string) ([]SnapshotWindow, []string) {
 		switch {
 		case strings.HasPrefix(row, "###W###"):
 			rest := strings.TrimPrefix(row, "###W###")
-			idxStr, name, _ := strings.Cut(rest, "###")
-			idx, _ := strconv.Atoi(idxStr)
-			windows = append(windows, SnapshotWindow{Index: idx, Name: name})
+			// Formats: "idx###name" or "idx###name###windowID"
+			parts := strings.SplitN(rest, "###", 3)
+			idx, _ := strconv.Atoi(parts[0])
+			name := ""
+			if len(parts) > 1 {
+				name = parts[1]
+			}
+			var wid uint64
+			if len(parts) > 2 {
+				if v, err := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64); err == nil {
+					wid = v
+				}
+			}
+			windows = append(windows, SnapshotWindow{Index: idx, Name: name, WindowID: wid})
 			curW = &windows[len(windows)-1]
 			curT = nil
 		case strings.HasPrefix(row, "###T###"):

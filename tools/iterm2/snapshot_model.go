@@ -21,9 +21,12 @@ type SnapshotSummary struct {
 
 // SnapshotWindow is one iTerm2 window.
 type SnapshotWindow struct {
-	Index int           `json:"index"`
-	Name  string        `json:"name"`
-	Tabs  []SnapshotTab `json:"tabs"`
+	Index int    `json:"index"`
+	Name  string `json:"name"`
+	// WindowID is the iTerm/AppleScript window id (CG window number when available).
+	// Used to resolve macOS Space on sessions save; zero means unknown.
+	WindowID uint64        `json:"window_id,omitempty"`
+	Tabs     []SnapshotTab `json:"tabs"`
 }
 
 // SnapshotTab is one tab; sessions are panes within the tab.

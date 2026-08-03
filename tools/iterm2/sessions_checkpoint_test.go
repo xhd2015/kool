@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xhd2015/dot-pkgs/go-pkgs/computer-use/macos/space"
 )
 
 func TestBuildSaveDocument_FiltersAndKinds(t *testing.T) {
@@ -441,7 +443,10 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 		t.Fatal("dry-run must not stamp")
 	}
 
-	// real restore with mocked AS
+	// real restore with mocked AS + Space backend (no live Mission Control)
+	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
+	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
+
 	var scripts []string
 	prevAS := sessionsRunRestoreAS
 	sessionsRunRestoreAS = func(script string) (string, error) {
@@ -641,6 +646,9 @@ func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
 
+	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
+	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
+
 	warnLine := `could not set window title "Bounding walk.jsonl Size… - grok": Can't set name of window`
 	prevAS := sessionsRunRestoreAS
 	sessionsRunRestoreAS = func(script string) (string, error) {
@@ -699,6 +707,9 @@ func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
 	prevPath := sessionsSavePathForTest
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+
+	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
+	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
 
 	prevAS := sessionsRunRestoreAS
 	sessionsRunRestoreAS = func(script string) (string, error) {
