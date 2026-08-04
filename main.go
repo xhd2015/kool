@@ -33,8 +33,8 @@ import (
 	"github.com/xhd2015/kool/tools/react"
 	"github.com/xhd2015/kool/tools/rules"
 	"github.com/xhd2015/kool/tools/scaffold"
-	"github.com/xhd2015/kool/tools/service"
 	"github.com/xhd2015/kool/tools/sandbox"
+	"github.com/xhd2015/kool/tools/service"
 	sshcmd "github.com/xhd2015/kool/tools/ssh"
 	"github.com/xhd2015/kool/tools/stringtool"
 	"github.com/xhd2015/kool/tools/timeout"
@@ -88,6 +88,7 @@ VSCode:
   vscode tasks list|find|show|run    list/find/show tasks; run --dry-run prints plan
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
+  iterm2 focus <dir> [--index N]    focus an existing iTerm2 directory session
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
   iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
   iterm2 session <id> status         live status for one session (id = iTerm unique ID)

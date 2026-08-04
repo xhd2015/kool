@@ -15,6 +15,7 @@ import (
 const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
 iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
+iterm2 focus <dir> [--index N]
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
@@ -32,6 +33,9 @@ Open directory:
 Title commands (require ITERM_SESSION_ID):
   set-title [--window] <title>     set session/tab name, or window name with --window
   get-title [--window]             print session/tab name, or window name with --window
+
+Focus command:
+  focus <dir> [--index N]          focus one existing exact directory match; never creates a session
 
 Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set list                     list configured tab sets
@@ -106,6 +110,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return runSetTitle(args[1:], stdout, stderr)
 		case "get-title":
 			return runGetTitle(args[1:], stdout, stderr)
+		case "focus":
+			if runFocus(args[1:], stdout, stderr, liveFocusBoundary{}) != 0 {
+				return errs.NewSilenceExitCode(1)
+			}
+			return nil
 		case "tab-set":
 			return runTabSet(args[1:], stdout, stderr)
 		case "sessions":
