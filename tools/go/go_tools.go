@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xhd2015/kool/tools/go/coverage"
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
 	"github.com/xhd2015/kool/tools/go/modules"
@@ -83,6 +84,8 @@ func Handle(args []string) error {
 		return example.Handle(args)
 	case "run":
 		return run.Handle(args)
+	case "coverage":
+		return coverage.Handle(args)
 	case "version":
 		return cmd.Debug().Run("go", args...)
 	case "env":
