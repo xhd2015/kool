@@ -1,0 +1,5 @@
+mode: set
+example.com/mod/pkg/keep/k.go:1.1,2.2 2 1
+example.com/mod/script/gen/g.go:1.1,2.2 8 8
+example.com/mod/cmd/tool/main.go:1.1,2.2 8 8
+example.com/mod/pkg/legacy_old/x.go:1.1,2.2 8 8

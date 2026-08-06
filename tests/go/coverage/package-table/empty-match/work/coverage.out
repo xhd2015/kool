@@ -1,0 +1,3 @@
+mode: set
+example.com/mod/script/gen/g.go:1.1,2.2 8 8
+other.com/lib/b.go:1.1,2.2 10 10

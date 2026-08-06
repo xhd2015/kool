@@ -1,0 +1,3 @@
+mode: set
+example.com/other/svc/s.go:1.1,2.2 2 2
+example.com/mod/cli/c.go:1.1,2.2 8 8
