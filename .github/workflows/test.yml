@@ -16,6 +16,20 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Nested modules (own go.mod) are not covered by root `go test ./...`.
+      - name: Go test cmd/kool-with-go1.18
+        run: go -C cmd/kool-with-go1.18 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.19
+        run: go -C cmd/kool-with-go1.19 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.24
+        run: go -C cmd/kool-with-go1.24 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.25
+        run: go -C cmd/kool-with-go1.25 test -count=1 ./...
+      - name: Go test script/gen-kool/kool-template
+        run: go -C script/gen-kool/kool-template test -count=1 ./...
+      - name: Go test tools/create/server_go_db_template
+        run: go -C tools/create/server_go_db_template test -count=1 ./...
+
       - name: Go test
         run: |
           go test -count=1 \
