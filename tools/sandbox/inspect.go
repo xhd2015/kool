@@ -70,5 +70,11 @@ func handleInspect(args []string) error {
 	for _, k := range keys {
 		fmt.Printf("  %s\n", k)
 	}
+	if len(blob.RuntimeLoadDevbox) > 0 {
+		fmt.Printf("runtime-load-devbox: %d\n", len(blob.RuntimeLoadDevbox))
+		for _, p := range blob.RuntimeLoadDevbox {
+			fmt.Printf("  %s\n", p)
+		}
+	}
 	return nil
 }

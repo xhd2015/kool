@@ -22,9 +22,11 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin [--] <command> [args...]
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.HelpAtRoot = false
 	req.HelpBuild = false
 	req.Subcommand = "build"

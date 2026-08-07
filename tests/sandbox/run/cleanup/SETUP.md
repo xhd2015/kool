@@ -13,9 +13,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'true'
 2. After successful guest exit, assert parent is empty again.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.SealedDoubleDash = true
 	return nil
 }

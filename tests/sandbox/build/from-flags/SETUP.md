@@ -12,9 +12,13 @@ user -> kool sandbox build -o OUT --file L=R --env K=V
 1. Leaves set ExtraFiles/ExtraEnv only; Input remains unset.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.Output = "sandbox.bin"
 	req.OutputSet = true
 	req.Input = ""

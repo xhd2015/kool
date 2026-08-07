@@ -14,9 +14,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'cat hello.txt'
 2. Guest: `sh -c 'cat hello.txt'`.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	if _, err := writeLocalFile(t, req.WorkingDir, "hello.txt", "hello from sandbox\n"); err != nil {
 		return err
 	}

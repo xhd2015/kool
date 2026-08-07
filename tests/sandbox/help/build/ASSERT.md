@@ -2,7 +2,7 @@
 
 - Exit 0.
 - Stdout documents `-o`/`--output`, `-i`/`--input`, `--file`, `--env`, `--goos`,
-  `--goarch`.
+  `--goarch`, `--home-linked`, `--runtime-load-devbox`.
 - Stdout ends with newline.
 
 ## Exit Code
@@ -15,9 +15,10 @@ import (
 	"testing"
 
 	"github.com/xhd2015/doctest/assert"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +36,8 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 --env
 --goos
 --goarch
+--home-linked
+--runtime-load-devbox
 </contains>
 `)
 	low := strings.ToLower(resp.Stdout)
@@ -46,3 +49,4 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 	}
 }
 ```
+

@@ -14,9 +14,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'printf %s "$SANDBOX_ROOT"; echo
 2. Guest prints `$SANDBOX_ROOT` then `pwd` on separate lines.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.ExtraEnv = []string{"MARKER=1"}
 	// Two lines: SANDBOX_ROOT then pwd (absolute).
 	req.SealedArgs = []string{"sh", "-c", `printf '%s\n' "$SANDBOX_ROOT"; pwd`}

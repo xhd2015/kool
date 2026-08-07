@@ -20,23 +20,27 @@ type metaYAML struct {
 
 // buildOpts holds merged build inputs after flag parse.
 type buildOpts struct {
-	Output string
-	Input  string
-	Files  []string // LOCAL=SANDBOX_REL
-	Env    []string // KEY=VALUE
-	Goos   string
-	Goarch string
+	Output            string
+	Input             string
+	Files             []string // LOCAL=SANDBOX_REL
+	Env               []string // KEY=VALUE
+	Goos              string
+	Goarch            string
+	HomeLinked        bool
+	RuntimeLoadDevbox []string // absolute remote paths; sealed only, never opened at pack
 }
 
 // mergePack builds a PackBlob from -i directory and flag overrides.
 // Flags win on the same relative path or env key.
 func mergePack(opts *buildOpts) (*PackBlob, error) {
 	blob := &PackBlob{
-		Version:   packBlobVersion,
-		Name:      "sandbox",
-		CreatedAt: time.Now().UTC(),
-		Files:     nil,
-		Env:       map[string]string{},
+		Version:           packBlobVersion,
+		Name:              "sandbox",
+		CreatedAt:         time.Now().UTC(),
+		HomeLinked:        opts.HomeLinked,
+		RuntimeLoadDevbox: append([]string(nil), opts.RuntimeLoadDevbox...),
+		Files:             nil,
+		Env:               map[string]string{},
 	}
 
 	fileMap := map[string]PackFile{} // path -> file

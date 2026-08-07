@@ -13,9 +13,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'exit 42'
 1. Minimal pack; guest exits 42.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.ExtraEnv = []string{"MARKER=1"}
 	req.SealedArgs = []string{"sh", "-c", "exit 42"}
 	return nil

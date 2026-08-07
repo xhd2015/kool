@@ -12,9 +12,13 @@ kool sandbox build -o sandbox.bin --file local.txt=app/local.txt --env FLAG_ENV=
 1. Write local source file; pass --file and --env; no -i.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	if _, err := writeLocalFile(t, req.WorkingDir, "local.txt", "flag-only content\n"); err != nil {
 		return err
 	}

@@ -12,9 +12,13 @@ kool sandbox build -o sandbox.bin --file missing-local.txt=app/config.txt
 1. Point --file at a path that is not created under WorkingDir.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.Output = "sandbox.bin"
 	req.OutputSet = true
 	// Relative local path; deliberately not written by Setup.

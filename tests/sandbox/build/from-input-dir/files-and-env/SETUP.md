@@ -13,9 +13,13 @@ kool sandbox build -o sandbox.bin -i in
 1. Write fixture input dir with one file and one env entry.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_, err := writeInputDir(t, req.WorkingDir, "in",
 		map[string]string{"hello.txt": "hello from sandbox\n"},
 		map[string]string{"TOKEN": "fixture-token"},

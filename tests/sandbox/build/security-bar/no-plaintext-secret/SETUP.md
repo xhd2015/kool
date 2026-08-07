@@ -13,9 +13,13 @@ kool sandbox build -o sandbox.bin -i in
 1. Pack a highly unique secret string into a file under -i.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	const secret = "SECRET_PROBE_kool_sandbox_p1_9f3a2c1b7e"
 	req.SecretProbe = secret
 	_, err := writeInputDir(t, req.WorkingDir, "in",

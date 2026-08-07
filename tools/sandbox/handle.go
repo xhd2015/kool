@@ -24,6 +24,8 @@ Build options:
   --env KEY=VALUE                  pack an environment variable (repeatable)
   --goos OS                        target GOOS (default: host)
   --goarch ARCH                    target GOARCH (default: host)
+  --home-linked                    seed real $HOME into sandbox; guest HOME=SANDBOX_ROOT
+  --runtime-load-devbox ABS        seal absolute remote path for runtime load (repeatable)
 
 Examples:
   kool sandbox build -o sandbox.bin -i ./pack

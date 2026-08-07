@@ -24,6 +24,8 @@ Options:
   --env KEY=VALUE                  pack an environment variable (repeatable; overrides -i key)
   --goos OS                        target GOOS (default: host)
   --goarch ARCH                    target GOARCH (default: host)
+  --home-linked                    seed real $HOME into sandbox; guest HOME=SANDBOX_ROOT
+  --runtime-load-devbox ABS        seal absolute remote path for runtime load (repeatable; not opened at pack)
   -h,--help                        show help message
 
 Input directory layout:
@@ -40,12 +42,14 @@ Examples:
   kool sandbox build -o sandbox.bin -i ./pack
   kool sandbox build -o sandbox.bin --file secret.txt=app/secret.txt --env TOKEN=x
   kool sandbox build -o sandbox.bin --goos linux --goarch amd64 --env X=1
+  kool sandbox build -o sandbox.bin --file a.txt=a.txt --runtime-load-devbox /abs/path/box
 `
 
 func handleBuild(args []string) error {
 	var opts buildOpts
 	var files []string
 	var envs []string
+	var runtimeLoadDevbox []string
 
 	remain, err := lessflags.
 		String("-o,--output", &opts.Output).
@@ -54,6 +58,8 @@ func handleBuild(args []string) error {
 		StringSlice("--env", &envs).
 		String("--goos", &opts.Goos).
 		String("--goarch", &opts.Goarch).
+		Bool("--home-linked", &opts.HomeLinked).
+		StringSlice("--runtime-load-devbox", &runtimeLoadDevbox).
 		Help("-h,--help", buildHelp).
 		Parse(args)
 	if err != nil {
@@ -65,6 +71,7 @@ func handleBuild(args []string) error {
 
 	opts.Files = files
 	opts.Env = envs
+	opts.RuntimeLoadDevbox = runtimeLoadDevbox
 
 	if opts.Output == "" {
 		return fmt.Errorf("requires -o/--output")
@@ -80,6 +87,13 @@ func handleBuild(args []string) error {
 	for _, e := range opts.Env {
 		if _, _, err := splitEnvFlag(e); err != nil {
 			return err
+		}
+	}
+
+	// --runtime-load-devbox paths must be absolute; sealed as strings only (no open).
+	for _, p := range opts.RuntimeLoadDevbox {
+		if p == "" || !filepath.IsAbs(p) {
+			return fmt.Errorf("Error: --runtime-load-devbox requires an absolute path (got relative: %q)", p)
 		}
 	}
 
@@ -156,9 +170,23 @@ func buildSealedBinary(outPath, goos, goarch string, sealed []byte) error {
 		return err
 	}
 
-	mod := fmt.Sprintf("module sandbox-runner\n\ngo 1.22\n\nrequire github.com/xhd2015/kool v0.0.0\n\nreplace github.com/xhd2015/kool => %s\n",
-		filepath.ToSlash(absModRoot))
-	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte(mod), 0644); err != nil {
+	// Main module replaces do not inherit from replaced modules; copy kool's
+	// path replaces (e.g. local go-pkgs) so go mod tidy can resolve them offline.
+	extraReplaces, err := koolPathReplaces(absModRoot)
+	if err != nil {
+		return err
+	}
+
+	var b strings.Builder
+	b.WriteString("module sandbox-runner\n\ngo 1.22\n\nrequire github.com/xhd2015/kool v0.0.0\n\n")
+	b.WriteString("replace github.com/xhd2015/kool => ")
+	b.WriteString(filepath.ToSlash(absModRoot))
+	b.WriteString("\n")
+	for _, line := range extraReplaces {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte(b.String()), 0644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(tmp, "payload.seal"), sealed, 0644); err != nil {
@@ -210,6 +238,64 @@ func main() {
 		return fmt.Errorf("go build sealed binary: %w\n%s", err, out)
 	}
 	return nil
+}
+
+// koolPathReplaces returns absolute replace lines from kool's go.mod for local
+// path dependencies (replace X => ./rel or /abs). Versioned module replaces are
+// left to the toolchain.
+func koolPathReplaces(koolRoot string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Join(koolRoot, "go.mod"))
+	if err != nil {
+		return nil, fmt.Errorf("read kool go.mod: %w", err)
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") {
+			continue
+		}
+		// replace MODULE => PATH
+		if !strings.HasPrefix(line, "replace ") {
+			continue
+		}
+		rest := strings.TrimSpace(strings.TrimPrefix(line, "replace "))
+		// skip multi-line replace blocks (rare); only single-line path replaces
+		parts := strings.SplitN(rest, "=>", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		mod := strings.TrimSpace(parts[0])
+		// drop optional version on left: "module v1.2.3"
+		if fields := strings.Fields(mod); len(fields) >= 1 {
+			mod = fields[0]
+		}
+		rhs := strings.TrimSpace(parts[1])
+		// version-only replace (e.g. => v1.2.3) — skip; path replaces only
+		if rhs == "" || (!strings.HasPrefix(rhs, ".") && !strings.HasPrefix(rhs, "/") && !filepath.IsAbs(rhs)) {
+			// Windows abs paths have drive letter; treat non-version path carefully
+			if !filepath.IsAbs(rhs) && !strings.Contains(rhs, string(filepath.Separator)) && !strings.Contains(rhs, "/") {
+				continue
+			}
+		}
+		// If RHS looks like a module version (v1.2.3), skip.
+		if strings.HasPrefix(rhs, "v") && !strings.ContainsAny(rhs, "/\\") {
+			continue
+		}
+		path := rhs
+		// strip trailing version if "path v0.0.0" form (unusual for path replace)
+		if fields := strings.Fields(path); len(fields) >= 1 {
+			path = fields[0]
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(koolRoot, path)
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("replace %s => %s", mod, filepath.ToSlash(abs)))
+	}
+	return out, nil
 }
 
 // findKoolModuleRoot locates the local github.com/xhd2015/kool module directory

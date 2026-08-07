@@ -16,9 +16,11 @@ user -> kool sandbox [--help | build --help]
 import (
 	"testing"
 	"time"
+
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	// Help leaves finish immediately.
 	if req.ProcessTimeout > 15*time.Second || req.ProcessTimeout <= 0 {
 		req.ProcessTimeout = 15 * time.Second

@@ -12,9 +12,13 @@ kool sandbox build -o sandbox.bin --env NOTVALID
 1. Pass malformed --env (no `=`).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.Output = "sandbox.bin"
 	req.OutputSet = true
 	req.ExtraEnv = []string{"NOTVALID"}

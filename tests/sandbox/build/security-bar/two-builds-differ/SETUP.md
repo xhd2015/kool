@@ -13,9 +13,13 @@ kool sandbox build -o sandbox.bin.second -i in
 1. Fixture pack; BuildTwice=true so Run performs two builds.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_, err := writeInputDir(t, req.WorkingDir, "in",
 		map[string]string{"a.txt": "same-input\n"},
 		map[string]string{"E": "1"},

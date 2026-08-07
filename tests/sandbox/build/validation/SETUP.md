@@ -16,9 +16,11 @@ user -> kool sandbox build …
 import (
 	"testing"
 	"time"
+
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.AfterBuildInspect = false
 	req.BuildTwice = false
 	if req.ProcessTimeout > 30*time.Second || req.ProcessTimeout <= 0 {

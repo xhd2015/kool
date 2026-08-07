@@ -17,9 +17,13 @@ kool sandbox build -o sandbox.bin -i in --file flag.txt=shared.txt --env SHARED=
 3. AfterBuildInspect inherited true.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_, err := writeInputDir(t, req.WorkingDir, "in",
 		map[string]string{"shared.txt": "content-from-dir\n"},
 		map[string]string{"SHARED": "from-dir"},

@@ -14,9 +14,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'cat app/data/nested.txt'
 2. Guest cats that relative path from materialize cwd.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	if _, err := writeLocalFile(t, req.WorkingDir, "nested.txt", "nested-content\n"); err != nil {
 		return err
 	}

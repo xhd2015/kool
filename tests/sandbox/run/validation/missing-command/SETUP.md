@@ -14,9 +14,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin
 2. Invoke sealed binary with empty argv (no guest command).
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.ExtraEnv = []string{"MARKER=1"}
 	req.SealedArgs = nil
 	req.SealedDoubleDash = false

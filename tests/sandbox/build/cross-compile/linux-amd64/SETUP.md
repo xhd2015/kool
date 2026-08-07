@@ -12,9 +12,13 @@ kool sandbox build -o sandbox.bin --goos linux --goarch amd64 --env X=1
 1. Flags-only pack with cross-compile targets.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.ExtraEnv = []string{"X=1"}
 	req.Goos = "linux"
 	req.Goarch = "amd64"

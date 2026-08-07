@@ -13,9 +13,13 @@ kool sandbox build -o sandbox.bin -i in
 1. Write meta.yaml with a distinctive name plus one file so pack is non-empty.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_, err := writeInputDir(t, req.WorkingDir, "in",
 		map[string]string{"readme.txt": "named pack\n"},
 		nil,

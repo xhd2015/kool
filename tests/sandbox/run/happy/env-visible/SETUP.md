@@ -14,9 +14,13 @@ KOOL_SANDBOX_ROOT=PARENT ./sandbox.bin -- sh -c 'printf %s "$FOO"'
 2. Guest prints `$FOO`.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.ExtraEnv = []string{"FOO=bar"}
 	req.SealedArgs = []string{"sh", "-c", `printf %s "$FOO"`}
 	return nil

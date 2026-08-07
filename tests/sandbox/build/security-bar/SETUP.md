@@ -17,9 +17,13 @@ user -> build same input twice
 1. Security leaves use non-empty packs; no inspect unless leaf opts in.
 
 ```go
-import "testing"
+import (
+	"testing"
 
-func Setup(t *testing.T, req *Request) error {
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.Output = "sandbox.bin"
 	req.OutputSet = true
 	req.AfterBuildInspect = false
