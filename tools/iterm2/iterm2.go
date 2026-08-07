@@ -16,13 +16,14 @@ const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
 iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
 iterm2 focus <dir> [--index N]
+iterm2 install [--dry-run] [--download-dir DIR] [--download-only]
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
 when running inside iTerm2 (ITERM_SESSION_ID set), manage named tab-set layouts,
-or snapshot / save / restore live windows/tabs/sessions.
+install official iTerm2 (no Homebrew), or snapshot / save / restore live sessions.
 
 Open directory:
   dir                              directory to open (required)
@@ -36,6 +37,12 @@ Title commands (require ITERM_SESSION_ID):
 
 Focus command:
   focus <dir> [--index N]          focus one existing exact directory match; never creates a session
+
+Install official iTerm2 (zip from iterm2.com → ~/Applications by default):
+  install [flags]                  resolve/download/install latest stable
+  install --dry-run                print plan only (no download/install)
+  install --download-dir <dir>     zip/cache directory
+  install --download-only          download zip only (no Applications install)
 
 Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set list                     list configured tab sets
@@ -68,6 +75,8 @@ Examples:
   kool iterm2 get-title --window
   kool iterm2 tab-set list
   kool iterm2 tab-set run bots --dry-run
+  kool iterm2 install --dry-run
+  kool iterm2 install --download-only --download-dir ~/Downloads
   kool iterm2 sessions snapshot
   kool iterm2 sessions snapshot --json -o iterm.json
   kool iterm2 sessions save --dry-run
@@ -115,6 +124,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 				return errs.NewSilenceExitCode(1)
 			}
 			return nil
+		case "install":
+			return runInstall(args[1:], stdout, stderr)
 		case "tab-set":
 			return runTabSet(args[1:], stdout, stderr)
 		case "sessions":
