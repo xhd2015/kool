@@ -148,14 +148,52 @@ func readLenBytes(data []byte, off int) ([]byte, int, error) {
 	return data[off : off+n], off + n, nil
 }
 
-// findSealedPayload locates the first KOOLSAND magic in binary and returns
-// the slice starting at that magic through end-of-parsed-structure (or EOF).
+// findSealedPayload locates a valid KOOLSAND payload in a sealed runner binary.
+// The magic string can appear elsewhere in the binary (type names, debug data);
+// we scan all occurrences and accept the first region that parses as a full
+// length-prefixed seal frame with the expected version.
 func findSealedPayload(bin []byte) ([]byte, error) {
 	magic := []byte(sealMagic)
-	idx := bytes.Index(bin, magic)
-	if idx < 0 {
-		return nil, fmt.Errorf("no sealed sandbox payload found in binary")
+	for start := 0; start < len(bin); {
+		rel := bytes.Index(bin[start:], magic)
+		if rel < 0 {
+			break
+		}
+		idx := start + rel
+		if looksLikeSealedPayload(bin[idx:]) {
+			return bin[idx:], nil
+		}
+		start = idx + 1
 	}
-	// Return from magic to end; unseal will parse length-prefixed fields.
-	return bin[idx:], nil
+	return nil, fmt.Errorf("no sealed sandbox payload found in binary")
+}
+
+// looksLikeSealedPayload reports whether data starts with a structurally valid
+// seal frame (magic + version + four length-prefixed blobs).
+func looksLikeSealedPayload(data []byte) bool {
+	if len(data) < 8+4 {
+		return false
+	}
+	if string(data[:8]) != sealMagic {
+		return false
+	}
+	ver := binary.BigEndian.Uint32(data[8:12])
+	if ver != sealVersion {
+		return false
+	}
+	off := 12
+	// privDER, wrappedDEK, nonce, ciphertext
+	for i := 0; i < 4; i++ {
+		if off+4 > len(data) {
+			return false
+		}
+		n := int(binary.BigEndian.Uint32(data[off : off+4]))
+		off += 4
+		// Bound absurd sizes (binary embeds one pack; multi‑MB cipher is ok, multi‑GB is not).
+		if n <= 0 || n > 64<<20 || off+n > len(data) {
+			return false
+		}
+		off += n
+	}
+	return true
 }
