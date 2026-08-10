@@ -15,7 +15,7 @@ const sessionsHelp = `iterm2 sessions — inspect live iTerm2 windows, tabs, and
 Usage:
   kool iterm2 sessions snapshot [options]
   kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
-  kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
+  kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
   kool iterm2 sessions -h|--help
 
 Commands:
@@ -91,7 +91,8 @@ printed when any critical window was dropped.
 
 Multi-app: when dual iTerm installs are running (~/Applications/iTerm.app and
 /Applications/iTerm.app), save merges windows from both and records per-window
-canonical app. Restore ignores app and always uses the preferred install.
+canonical app. Restore by default prefers ~/Applications/iTerm.app when both
+installs exist; use restore --same-app to recreate each window in its recorded app.
 
 Examples:
   kool iterm2 sessions save --dry-run
@@ -103,7 +104,7 @@ Examples:
 
 const sessionsRestoreHelp = `iterm2 sessions restore — recreate windows and resume from checkpoint
 
-Usage: kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
+Usage: kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
 
 Read the checkpoint, create one window per saved window, one tab per entry,
 then send: cd <cwd> and grok --resume / codex resume / mark <message>.
@@ -113,17 +114,24 @@ then send: cd <cwd> and grok --resume / codex resume / mark <message>.
   --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
   --no-color             force ANSI colors off
   --ignore-macos-space   ignore recorded space; create on current Desktop
+  --same-app             recreate each window in its recorded app (canonical
+                         home/system path). Default prefers
+                         ~/Applications/iTerm.app when multiple installs exist;
+                         else the only install on disk; else bare iTerm2
   -h, --help
 
 If restored_at is set, the file is already consumed and restore errors.
 On full success, restored_at is written so the checkpoint cannot be applied twice.
 By default each window is placed on its recorded macOS Space (Switch/Create).
+Create target: by default one global install (prefer home when both exist);
+--same-app uses each window's recorded app.
 
 Examples:
   kool iterm2 sessions restore --dry-run
   kool iterm2 sessions restore
   kool iterm2 sessions restore --file ~/Desktop/pre-reboot.json
   kool iterm2 sessions restore --ignore-macos-space
+  kool iterm2 sessions restore --same-app
 `
 
 const sessionHelp = `iterm2 session — inspect a single iTerm2 session

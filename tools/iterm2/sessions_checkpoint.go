@@ -53,7 +53,7 @@ type SaveSummary struct {
 type SaveWindow struct {
 	SourceIndex   int       `json:"source_index"`
 	Name          string    `json:"name,omitempty"`
-	App           string    `json:"app,omitempty"` // canonical install path; restore ignores
+	App           string    `json:"app,omitempty"` // canonical install; restore prefer-home or --same-app
 	Space         int       `json:"space"`                     // 0-based Desktop; always emitted when not ignore
 	ItermWindowID int64     `json:"iterm_window_id,omitempty"` // info only at save; restore never uses it
 	Tabs          []SaveTab `json:"tabs"`
@@ -701,7 +701,7 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 	var ignoreMacOSSpace bool
 	var spacesRaw string
 	var spacesSet bool
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, &spacesRaw, &spacesSet, sessionsSaveHelp)
+	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, &spacesRaw, &spacesSet, nil, sessionsSaveHelp)
 	if err != nil {
 		if err == errHelpRequested {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsSaveHelp)+"\n")
@@ -1202,8 +1202,10 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 	var fileFlag string
 	var forceColor, forceNoColor bool
 	var ignoreMacOSSpace bool
+	var sameApp bool
 	// Restore does not accept --spaces (nil spacesSet → unknown flag).
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, nil, nil, sessionsRestoreHelp)
+	// sameApp non-nil accepts --same-app (save passes nil → unknown).
+	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, nil, nil, &sameApp, sessionsRestoreHelp)
 	if err != nil {
 		if err == errHelpRequested {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsRestoreHelp)+"\n")
@@ -1277,8 +1279,28 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 
+	// App create targets: prefer-home global or --same-app per-window.
+	disk := resolveRestoreAppDisk()
+	plan := restorePlanOpts{SameApp: sameApp}
+	if sameApp {
+		plan.PerWindow = make([]RestoreAppTarget, len(doc.Windows))
+		for i, win := range doc.Windows {
+			t := resolveSameAppWindowTarget(win.App, disk)
+			if t.Warning != "" {
+				WriteWarning(stderr, t.Warning)
+			}
+			plan.PerWindow[i] = t
+		}
+	} else {
+		t := resolvePreferHomeTarget(disk)
+		if t.Warning != "" {
+			WriteWarning(stderr, t.Warning)
+		}
+		plan.Global = t
+	}
+
 	if dryRun {
-		formatRestorePlan(stdout, doc, path, true, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs)
+		formatRestorePlan(stdout, doc, path, true, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs, plan)
 		return nil
 	}
 
@@ -1291,7 +1313,7 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 			WriteError(stderr, fmt.Sprintf("sessions restore: failed to mark restored_at: %v", err))
 			return errs.NewSilenceExitCode(1)
 		}
-		formatRestorePlan(stdout, doc, path, false, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs)
+		formatRestorePlan(stdout, doc, path, false, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs, plan)
 		return nil
 	}
 
@@ -1308,9 +1330,16 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 				return errs.NewSilenceExitCode(1)
 			}
 		}
+		// Path-tell resolved app (global prefer-home or --same-app per-window).
+		var tell string
+		if sameApp {
+			tell = resolveSameAppWindowTarget(win.App, disk).TellPath()
+		} else {
+			tell = plan.Global.TellPath()
+		}
 		// One window at a time so each lands on the frontmost Space.
 		single := &SaveDocument{Windows: []SaveWindow{win}}
-		script := BuildSessionsRestoreScript(single)
+		script := BuildSessionsRestoreScriptWithTell(single, tell)
 		asOut, aerr := sessionsRunRestoreAS(script)
 		if aerr != nil {
 			WriteError(stderr, fmt.Sprintf("sessions restore: AppleScript failed: %v", aerr))
@@ -1333,15 +1362,24 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		WriteError(stderr, fmt.Sprintf("sessions restore: windows created but failed to mark restored_at: %v", err))
 		return errs.NewSilenceExitCode(1)
 	}
-	formatRestorePlan(stdout, doc, path, false, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs)
+	formatRestorePlan(stdout, doc, path, false, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs, plan)
 	return nil
+}
+
+// restorePlanOpts carries resolved create targets for restore plan text / live tell.
+type restorePlanOpts struct {
+	SameApp   bool
+	Global    RestoreAppTarget   // default mode (one target for all windows)
+	PerWindow []RestoreAppTarget // --same-app; index-aligned with doc.Windows
 }
 
 // formatRestorePlan writes the restore dry-run plan or live summary.
 // Header/summary counts are would-create / actually restored (skipped excluded).
 // Dry-run lists every checkpoint tab with skip / would-restore action markers (E2).
 // When skippedCount > 0, a skip meta clause is included (E4).
-func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool, color bool, ignoreMacOSSpace bool, tabSkipped [][]bool, skippedCount, remainWindows, remainTabs int) {
+// Default mode: global "restore target" + optional per-window "recorded app" when differs.
+// --same-app: per-window "app  <path>" create target (no global restore target).
+func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool, color bool, ignoreMacOSSpace bool, tabSkipped [][]bool, skippedCount, remainWindows, remainTabs int, plan restorePlanOpts) {
 	if dryRun {
 		fmt.Fprintf(w, "%s %d windows / %d tabs from %s\n",
 			paint(color, ansiGreen, "Would restore"),
@@ -1351,12 +1389,34 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 		if skippedCount > 0 {
 			fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, fmt.Sprintf("(%d skipped already running)", skippedCount)))
 		}
+		// Global restore target (default mode only).
+		if !plan.SameApp {
+			fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, "restore target  "+plan.Global.Display()))
+		}
 		for wi, win := range doc.Windows {
 			fmt.Fprintf(w, "\n  %s\n", paint(color, ansiBold, "new window"))
 			if !ignoreMacOSSpace {
 				s, _ := clampSpaceIndex(win.Space)
 				meta := formatSpaceDesktopLabel(s)
 				fmt.Fprintf(w, "    %s\n", paint(color, ansiGray, meta))
+			}
+			if plan.SameApp {
+				// Per-window create target (resolved; may be prefer-home fallback).
+				t := RestoreAppTarget{Bare: true}
+				if wi < len(plan.PerWindow) {
+					t = plan.PerWindow[wi]
+				}
+				fmt.Fprintf(w, "    %s\n", paint(color, ansiGray, "app  "+t.Display()))
+			} else {
+				// Honesty meta: recorded app only when it differs from restore target.
+				recorded := strings.TrimSpace(win.App)
+				if c := canonicalITermAppPath(recorded); c != "" {
+					recorded = c
+				}
+				target := plan.Global.Display()
+				if recorded != "" && recorded != target {
+					fmt.Fprintf(w, "    %s\n", paint(color, ansiGray, "recorded app  "+recorded))
+				}
 			}
 			for ti, tab := range win.Tabs {
 				skipped := tabSkipped != nil && wi < len(tabSkipped) && ti < len(tabSkipped[wi]) && tabSkipped[wi][ti]
@@ -1394,7 +1454,9 @@ var errHelpRequested = fmt.Errorf("help")
 // parseSaveRestoreFlags parses shared save/restore flags.
 // spacesRaw/spacesSet: pass non-nil on save to accept --spaces; pass nil on
 // restore so --spaces is rejected as unknown.
-func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceColor, forceNoColor *bool, ignoreMacOSSpace *bool, spacesRaw *string, spacesSet *bool, helpText string) ([]string, error) {
+// sameApp: pass non-nil on restore to accept --same-app; pass nil on save so
+// --same-app is rejected as unknown.
+func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceColor, forceNoColor *bool, ignoreMacOSSpace *bool, spacesRaw *string, spacesSet *bool, sameApp *bool, helpText string) ([]string, error) {
 	// Manual parse to keep less-flags optional and help clean.
 	var remain []string
 	for i := 0; i < len(args); i++ {
@@ -1412,6 +1474,11 @@ func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceC
 			if ignoreMacOSSpace != nil {
 				*ignoreMacOSSpace = true
 			}
+		case a == "--same-app":
+			if sameApp == nil {
+				return nil, fmt.Errorf("unknown flag %s", a)
+			}
+			*sameApp = true
 		case a == "--spaces":
 			if spacesSet == nil {
 				return nil, fmt.Errorf("unknown flag %s", a)

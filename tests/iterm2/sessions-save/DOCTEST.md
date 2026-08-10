@@ -5,25 +5,28 @@ Checkpoint critical **grok**, **codex**, and **mark** tabs to
 windows with `cd` + resume commands. **P2** also records macOS Space
 (`space` + `iterm_window_id`) and restores placement by Space index.
 **Multi-app** records per-window canonical **`app`** (home + system iTerm
-installs) on save only; restore ignores `app`.
+installs) on save. Restore **default** picks one global path target
+(prefer `~/Applications/iTerm.app` when that install exists on disk); opt-in
+**`--same-app`** recreates each window in its recorded `app`.
 
 **Sibling of** `./tests/iterm2/sessions` (snapshot) and `sessions-p4` (enrich).
 
 ## Version
 
-0.0.3
+0.0.4
 
-**Classic TDD (color + streaming + Space + already-running + multi-app):**
-dry-run color flags, progressive save stream, **macOS Space**, **restore
-already-running skip**, and **multi-app / `app` field** leaves are
-intentionally **RED** until the implementer lands those behaviors. Existing
-dry-run / write / restore / help leaves stay contracted and should remain
-**GREEN** on monochrome buffered output (zero-value Request defaults — no
-Space / already-running / multi-app fixture flags). After already-running
-lands, restore always attempts a live capture; capture fail is soft so prior
-leaves without fixtures stay GREEN. Multi-app is **save-only**; restore seeds
-with or without `app` stay GREEN (unknown JSON field ignored; restore never
-targets recorded app).
+**Classic TDD (color + streaming + Space + already-running + multi-app +
+restore app-target):** dry-run color flags, progressive save stream, **macOS
+Space**, **restore already-running skip**, **multi-app / `app` field**, and
+**restore prefer-home / `--same-app`** leaves are intentionally **RED** until
+the implementer lands those behaviors. Existing dry-run / write / restore /
+help leaves stay contracted and should remain **GREEN** on monochrome
+buffered output (zero-value Request defaults — no Space / already-running /
+multi-app / RestoreAppDisk fixture flags). After already-running lands,
+restore always attempts a live capture; capture fail is soft so prior leaves
+without fixtures stay GREEN. Extra dry-run meta lines (`restore target`,
+`recorded app`) are additive: prior leaves that only assert Would restore /
+resume cmds stay GREEN if product always prints them.
 
 ## DSN (Domain Specific Notion)
 
@@ -32,7 +35,8 @@ targets recorded app).
 - **Caller** — invokes `kool iterm2 sessions save|restore …`.
 - **kool CLI / handler** — `tools/iterm2` routes `sessions save` / `sessions restore`;
   flags `--dry-run`, `--file`, **`--color`**, **`--no-color`**,
-  **`--ignore-macos-space`**, save-only **`--spaces LIST`**, `-h/--help`.
+  **`--ignore-macos-space`**, save-only **`--spaces LIST`**, restore-only
+  **`--same-app`**, `-h/--help`.
 - **SnapshotCollector** — injectable via `InstallPhasedFixtureCollectorForTest`;
   phased `ListWindows` / `ListTabsAndSessions` + enrich + agent resolve.
   Fixtures may carry per-window **WindowID** (iTerm/CG window number) and
@@ -58,9 +62,20 @@ targets recorded app).
   on; gray **`app  <canonical>`** meta when `app` non-empty); after all
   windows, writes the **footer**. No “scanning…” header. First window has no
   leading blank line.
-- **Restore planner** — restore `--dry-run` prints header → each window (with
-  space meta) / tab → footer. **Ignores `app`** (preferred install only; no
-  app placement lines). No Switch/Create/AS side effects for placement.
+- **Restore app resolver** — chooses create/tell path by **disk presence**
+  (injectable for tests), not by which process is running:
+  - **Default** (no `--same-app`): one global target for all windows —
+    prefer `~/Applications/iTerm.app` when that path exists; else system;
+    else warn + bare `"iTerm2"`. Does **not** use per-window recorded `app`
+    for create/tell.
+  - **`--same-app`**: per-window path from checkpoint `windows[].app`
+    (canonical home/system); empty/missing → same prefer-home fallback + warn.
+  - Missing target on disk → warn + fallback (home → system → bare).
+- **Restore planner** — restore `--dry-run` prints header → optional global
+  **`restore target  <path>`** → each window (space meta; under default,
+  **`recorded app  <path>`** only when it differs from restore target; under
+  `--same-app`, per-window **`app  <path>`** create target) / tab → footer.
+  No Switch/Create/AS side effects for placement on dry-run.
 - **Already-running scanner** — after valid unconsumed checkpoint load (dry-run
   and live), capture live snapshot (enrich on), index critical panes by
   agent `kind`+`session_id` and mark exact `message`. Checkpoint tabs that hit
@@ -106,11 +121,13 @@ Zero critical → exit 0, **no write**.
 | Home form | Always `~/…`, never expanded `/Users/…`. Non-standard home install (e.g. `.bak`) still records `~/Applications/iTerm.app` (optional one warning). |
 | Multi-app save | Sources = bare AS tagged asApp ∪ path-tells for other running canonical installs; hard-dedupe by `iterm_window_id`; renumber `source_index` globally 1…N. |
 | Dual collapse | Other path yields no new ids → stderr warning + partial save, exit 0 (D2). |
-| Dry-run meta | When `app` non-empty, window block includes gray **`app  <path>`** line (D4). |
-| Restore | **Ignores** `app` (D8); preferred app only. Old seeds without `app` unchanged. |
-| Snapshot | Multi-app is **save-only** (`CaptureOpts` / save path); `sessions snapshot` unchanged (D3). |
+| Dry-run meta (save) | When `app` non-empty, window block includes gray **`app  <path>`** line (D4). |
+| Restore default | One global **`restore target`** (prefer home when on disk). Recorded `app` is **not** used for create. Dry-run shows **`recorded app`** only when it differs from restore target (Open2). |
+| Restore `--same-app` | Per-window create target = recorded `app` (canonical). Dry-run **`app  <path>`** per window. Empty app → prefer-home fallback + warn (R7). |
+| Restore fallback | Neither install on disk → warn + bare `"iTerm2"` (Open1/R8). Path missing → warn + chain home→system→bare (R6). |
+| Snapshot | Multi-app capture is **save-only** (`CaptureOpts` / save path); `sessions snapshot` unchanged (D3). |
 
-### Implementer inject (tests — multi-app)
+### Implementer inject (tests — multi-app + restore app disk)
 
 Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
 
@@ -121,6 +138,20 @@ Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
   `UseMultiAppSpacesFixture` + `FixtureApp` (assert target for single-app).
   Until inject lands, topology fixtures still drive RED asserts on missing
   `"app"` / dual app values / collapse warning.
+- **Restore disk presence** (required for deterministic L2 app-target leaves):
+  land **`SetRestoreAppDiskForTest`** (name may match; mirror
+  `SetMultiAppPreflightForTest` style — mutex + `t.Cleanup(nil)`):
+  - Signature sketch: `func SetRestoreAppDiskForTest(homeExists, systemExists bool)`
+    or a small struct / optional-pointer override of “which installs exist”.
+  - When set, restore target resolution uses inject instead of `os.Stat` on
+    `~/Applications/iTerm.app` and `/Applications/iTerm.app`.
+  - Doctest `Request.RestoreAppDisk` values map in `Run`:
+    - `"both"` → home+system true
+    - `"system"` → only system
+    - `"home"` → only home
+    - `"neither"` → both false
+  - Designer **does not** call the hook until it exists (would break compile of
+    the whole tree). Implementer wires the call in root `Run` ModeRestore.
 
 ### Save (Space)
 
@@ -175,7 +206,7 @@ Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
 | Bold | `W{n}`, `new window` |
 | Green kinds | `grok`, `codex` |
 | Yellow kind | `mark` |
-| Gray | path, cwd, resume_cmd lines, counts meta, space meta, `(dry-run: not written\|not applied)`, saved_at meta |
+| Gray | path, cwd, resume_cmd lines, counts meta, space meta, **`restore target`**, **`recorded app`**, restore **`app`** (same-app), `(dry-run: not written\|not applied)`, saved_at meta |
 
 Stderr: existing yellow `warning:`, red `Error:` (unchanged).
 
@@ -201,10 +232,15 @@ critical content, stdout must already contain `W1` (stream probe).
   - test hook to inject Space index resolver (fixed index / error)
   - test hook to inject Space Backend + restore AppleScript for live placement
   - already-running scan after checkpoint load (dry-run + live); soft capture fail
+  - **`SetRestoreAppDiskForTest`** for home/system install existence (restore
+    prefer-home / `--same-app` fallback); see Implementer inject above
+  - restore create/tell uses path `tell application "/…/iTerm.app"` (or expanded
+    home path) when target resolved — not only bare `"iTerm2"`
 - Doctest harness: `SeedRawJSON` / `SeedDoc`, `--ignore-macos-space` via Request,
   `RestoreLiveFixture` + `FailSnapshotCapture` + `MockRestoreAS` for already-running
-  L2 leaves; `UseMultiApp*` + `FixtureApp` for multi-app L2 leaves.
-  FileJSON/stdout/stderr/AS-script asserts.
+  L2 leaves; `UseMultiApp*` + `FixtureApp` for multi-app L2 leaves;
+  **`SameApp`** + **`RestoreAppDisk`** for restore app-target leaves (implementer
+  wires disk inject in `Run`). FileJSON/stdout/stderr/AS-script asserts.
 
 ## Decision Tree
 
@@ -215,7 +251,8 @@ sessions-save/
 │   ├── color-flags/             save -h / restore -h mention --color + --no-color
 │   ├── ignore-macos-space/      save -h / restore -h mention --ignore-macos-space
 │   ├── spaces-flag/             save -h mentions --spaces
-│   └── multi-app/               save -h mentions dual installs / app / preferred restore
+│   ├── multi-app/               save -h mentions dual installs / app / preferred restore
+│   └── same-app/                ★ restore -h: --same-app + prefer home when multi
 ├── save/
 │   ├── dry-run/                 plan only; no file (auto color; pipe OK monochrome)
 │   ├── write/                   writes version + saved_at; no restored_at
@@ -244,7 +281,17 @@ sessions-save/
 └── restore/
     ├── dry-run/                 plan shows cd + resume; not stamped (no app seed)
     ├── consumed/                restored_at set → error
-    ├── app-ignored/             seed with app; dry-run OK; ignores app; not stamped
+    ├── app-ignored/             ★ rewritten: default ignores app for create; may show
+    │                            restore target + recorded app when differs
+    ├── app-target/              ★ prefer-home + --same-app path targeting
+    │   ├── default-prefer-home/ both installs; target home; recorded system differs
+    │   ├── default-only-system/ only system on disk → target system
+    │   ├── default-only-home/   only home on disk → target home
+    │   ├── same-app-system/     --same-app; plan app system (+ live path-tell AS)
+    │   ├── same-app-home/       --same-app; plan app home
+    │   ├── same-app-mixed/      --same-app; two windows different apps
+    │   ├── same-app-empty-fallback/ --same-app; empty app → warn + prefer-home
+    │   └── neither-install-bare/ neither on disk → warn + bare iTerm2 plan
     ├── color/
     │   └── force-on/            restore --dry-run --color → ANSI
     ├── space/                   ★ P2 macOS Space on restore
@@ -273,6 +320,7 @@ sessions-save/
 | `help/ignore-macos-space/` | save + restore help document `--ignore-macos-space` | RED until flag documented |
 | `help/spaces-flag/` | save help documents `--spaces` | GREEN |
 | `help/multi-app/` | save help mentions dual installs / app / preferred restore | RED until help documents multi-app |
+| `help/same-app/` | restore help documents `--same-app` + prefer home when multiple | RED until flag/help lands |
 | `save/dry-run/` | Would save + critical ids; no file | GREEN (monochrome OK) |
 | `save/write/` | file version, saved_at, kinds | GREEN |
 | `save/zero/` | 0 critical; no write | GREEN |
@@ -294,7 +342,15 @@ sessions-save/
 | `save/app/dedupe-collapse/` | dual same ids → one window + stderr warn; exit 0 | RED until multi-app dedupe |
 | `save/app/filter-spaces/` | `--spaces` after multi-app; kept window retains correct `app` | RED until multi-app + spaces |
 | `restore/dry-run/` | Would restore; not stamped (seed without app) | GREEN |
-| `restore/app-ignored/` | seed with `app`; dry-run works; ignores app; not stamped | GREEN (JSON ignore + restore ignores app) |
+| `restore/app-ignored/` | default: seed system app + both installs; `restore target` home; `recorded app` system; no same-app create `app` line; not stamped | RED (rewritten contract) |
+| `restore/app-target/default-prefer-home/` | both installs; recorded system → target home + recorded app line | RED |
+| `restore/app-target/default-only-system/` | only system on disk → restore target system | RED |
+| `restore/app-target/default-only-home/` | only home on disk → restore target home | RED |
+| `restore/app-target/same-app-system/` | `--same-app`; plan/AS targets system path | RED |
+| `restore/app-target/same-app-home/` | `--same-app`; plan targets home | RED |
+| `restore/app-target/same-app-mixed/` | `--same-app`; two windows different apps | RED |
+| `restore/app-target/same-app-empty-fallback/` | `--same-app`; empty app → warn + prefer-home | RED |
+| `restore/app-target/neither-install-bare/` | neither install → warn + bare iTerm2 plan | RED |
 | `restore/consumed/` | consumed error | GREEN |
 | `restore/color/force-on/` | restore `--color` ANSI | RED |
 | `restore/space/dry-run-recorded/` | seed space 2 → plan `space 2 (Desktop 3)`; not stamped | RED |
@@ -330,6 +386,9 @@ doctest test ./tests/iterm2/sessions-save/restore/already-running
 doctest test ./tests/iterm2/sessions-save/save/app
 doctest test ./tests/iterm2/sessions-save/restore/app-ignored
 doctest test ./tests/iterm2/sessions-save/help/multi-app
+# Restore prefer-home / --same-app:
+doctest test ./tests/iterm2/sessions-save/help/same-app
+doctest test ./tests/iterm2/sessions-save/restore/app-target
 ```
 
 ```go
@@ -439,11 +498,31 @@ type Request struct {
 	// Also installs a Space MockBackend so live placement does not hit Mission Control.
 	MockRestoreAS bool
 
+	// --- Restore app-target / --same-app (zero-value = prior leaves unchanged). ---
+	// SameApp maps to restore --same-app (opt-in per-window recorded app create).
+	// Default false = one global prefer-home target; recorded app not used for create.
+	SameApp bool
+	// RestoreAppDisk injects which canonical installs exist on disk for restore
+	// target resolution (parallel-safe via implementer SetRestoreAppDiskForTest).
+	// Empty = no inject (product live disk check). Values:
+	//   RestoreDiskBoth | RestoreDiskSystem | RestoreDiskHome | RestoreDiskNeither
+	// Designer stores the field; implementer wires the product hook in Run
+	// (calling a missing symbol would break compile of the whole tree).
+	RestoreAppDisk string
+
 	// Force non-TTY for overwrite checks (default true for save tests).
 	NonTTY *bool
 
 	WorkingDir string
 }
+
+// RestoreAppDisk values for Request.RestoreAppDisk (disk presence inject).
+const (
+	RestoreDiskBoth    = "both"    // home + system exist
+	RestoreDiskSystem  = "system"  // only /Applications/iTerm.app
+	RestoreDiskHome    = "home"    // only ~/Applications/iTerm.app
+	RestoreDiskNeither = "neither" // neither install on disk
+)
 
 type Response struct {
 	Stdout   string
@@ -1087,6 +1166,9 @@ func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 		var stdout, stderr bytes.Buffer
 
 		// Live snapshot for already-running scan (optional; zero-value = prior leaves).
+		// App-target leaves (RestoreAppDisk set) install idle-only when no other
+		// live fixture is requested so SeedRawJSON session ids do not match a
+		// dirty global/live collector (already-running pollution).
 		if req.FailSnapshotCapture {
 			installRestoreFailCapture(t)
 		} else if req.RestoreLiveFixture != "" {
@@ -1097,6 +1179,9 @@ func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 			installIdleOnly(t)
 		} else if req.UseTwoCriticalWindows {
 			installTwoCritical(t, nil)
+		} else if req.RestoreAppDisk != "" {
+			// Prefer-home / --same-app leaves: isolate capture from live iTerm.
+			installIdleOnly(t)
 		}
 
 		var asScripts []string
@@ -1111,9 +1196,32 @@ func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 			t.Cleanup(func() { iterm2.SetSessionsRunRestoreASForTest(nil) })
 		}
 
+		// Disk inject for restore prefer-home / --same-app (exclusive hold until Cleanup).
+		diskInjected := false
+		switch req.RestoreAppDisk {
+		case RestoreDiskBoth:
+			iterm2.SetRestoreAppDiskForTest(true, true)
+			diskInjected = true
+		case RestoreDiskSystem:
+			iterm2.SetRestoreAppDiskForTest(false, true)
+			diskInjected = true
+		case RestoreDiskHome:
+			iterm2.SetRestoreAppDiskForTest(true, false)
+			diskInjected = true
+		case RestoreDiskNeither:
+			iterm2.SetRestoreAppDiskForTest(false, false)
+			diskInjected = true
+		}
+		if diskInjected {
+			t.Cleanup(func() { iterm2.ClearRestoreAppDiskForTest() })
+		}
+
 		args := []string{"sessions", "restore", "--file", path}
 		if req.DryRun {
 			args = append(args, "--dry-run")
+		}
+		if req.SameApp {
+			args = append(args, "--same-app")
 		}
 		args = appendColorFlags(args, req)
 		args = appendSpaceFlags(args, req)

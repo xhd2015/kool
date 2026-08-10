@@ -5,5 +5,5 @@
 ```
 Caller
   -> kool iterm2 sessions [-h|save -h|restore -h]
-  <- usage documents subcommands, color flags, --ignore-macos-space, --spaces, multi-app
+  <- usage documents subcommands, color flags, --ignore-macos-space, --spaces, multi-app, --same-app
 ```

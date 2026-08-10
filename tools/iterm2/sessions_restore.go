@@ -15,18 +15,29 @@ import (
 //
 // as two separate write text lines (empty cwd skips the cd line).
 //
+// Uses bare tell application "iTerm2". Prefer BuildSessionsRestoreScriptWithTell
+// when a path target is known.
+//
 // Window title setting is best-effort: each set name is wrapped in try/on error
 // so a refused title does not abort remaining windows. Failures are returned
 // as one line per title on stdout (empty stdout means all titles OK).
 func BuildSessionsRestoreScript(doc *SaveDocument) string {
+	return BuildSessionsRestoreScriptWithTell(doc, "")
+}
+
+// BuildSessionsRestoreScriptWithTell is BuildSessionsRestoreScript with an
+// optional path-tell target. appTell is an absolute .app path (or expanded home
+// path); empty or "iTerm2" uses bare tell application "iTerm2".
+func BuildSessionsRestoreScriptWithTell(doc *SaveDocument, appTell string) string {
+	tellLit := appleScriptAppLiteral(appTell)
 	if doc == nil || len(doc.Windows) == 0 {
-		return `tell application "iTerm2"
+		return fmt.Sprintf(`tell application %s
   activate
-end tell`
+end tell`, tellLit)
 	}
 
 	lines := []string{
-		`tell application "iTerm2"`,
+		fmt.Sprintf(`tell application %s`, tellLit),
 		`  activate`,
 		`  set titleWarnings to ""`,
 	}

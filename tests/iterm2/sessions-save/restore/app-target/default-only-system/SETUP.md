@@ -1,20 +1,18 @@
 # Scenario
 
-**Feature**: default restore ignores recorded `app` for create; may show restore target + recorded app when it differs
+**Feature**: default restore when only system install on disk targets system
 
 ```
 Caller
-  -> seed ckpt app=/Applications/iTerm.app (system)
-  -> RestoreAppDisk=both (prefer home)
-  -> sessions restore --dry-run  (no --same-app)
-  <- restore target home; recorded app system; no same-app create `app` line; not stamped
+  -> seed ckpt with home recorded app (differs from available install)
+  -> RestoreAppDisk=system
+  -> sessions restore --dry-run
+  <- restore target /Applications/iTerm.app; not home; Would restore; not stamped
 ```
 
 ## Steps
 
-1. ModeRestore; DryRun; RestoreAppDisk=both; SeedRawJSON with system app.
-2. Asserts prove default does **not** use recorded app as create target (R4),
-   while still surfacing honesty meta (Open2).
+1. ModeRestore; DryRun; RestoreAppDisk=system; SeedRawJSON with home app.
 
 ```go
 import (
@@ -27,9 +25,8 @@ func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_ = d
 	req.Mode = ModeRestore
 	req.DryRun = true
-	req.SameApp = false
-	req.RestoreAppDisk = RestoreDiskBoth
-	req.FilePath = "ckpt-with-app.json"
+	req.RestoreAppDisk = RestoreDiskSystem
+	req.FilePath = "ckpt-only-system.json"
 	req.SeedRawJSON = `{
   "version": 1,
   "saved_at": "2026-07-25T18:00:00+0800",
@@ -45,10 +42,8 @@ func Setup(t *testing.T, d *session.Doctest, req *Request) error {
   "windows": [
     {
       "source_index": 1,
-      "name": "Win-With-App",
-      "app": "/Applications/iTerm.app",
-      "space": 1,
-      "iterm_window_id": 508113,
+      "name": "Win-Only-System",
+      "app": "~/Applications/iTerm.app",
       "tabs": [
         {
           "cwd": "/proj/a",

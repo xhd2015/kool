@@ -56,7 +56,7 @@ Sessions snapshot / save / restore / status:
   sessions snapshot [options]      dump all windows/tabs/sessions (cli|json|md|html)
   sessions save [--dry-run] [--file PATH]
                                    checkpoint critical grok/codex/mark tabs
-  sessions restore [--dry-run] [--file PATH]
+  sessions restore [--dry-run] [--file PATH] [--same-app]
                                    recreate windows and resume from checkpoint
   session <id> status [options]    live status for one session (id = iTerm unique ID)
 

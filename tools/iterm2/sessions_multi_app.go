@@ -324,6 +324,146 @@ func absoluteITermAppPath(canonical string) string {
 	return CanonicalITermAppSystem
 }
 
+// --- Restore app disk presence + prefer-home / --same-app targeting ---
+
+// restoreAppDisk describes which canonical iTerm installs exist on disk.
+type restoreAppDisk struct {
+	HomeExists   bool
+	SystemExists bool
+}
+
+var (
+	restoreAppDiskMu   sync.Mutex
+	restoreAppDiskInj  *restoreAppDisk // nil → live os.Stat
+	restoreAppDiskHold sync.Mutex      // exclusive inject ownership (parallel-safe)
+)
+
+// SetRestoreAppDiskForTest injects which canonical installs exist for restore
+// target resolution (prefer-home / --same-app). Takes an exclusive hold until
+// ClearRestoreAppDiskForTest so parallel leaves cannot clobber each other.
+// Prefer t.Cleanup(ClearRestoreAppDiskForTest).
+func SetRestoreAppDiskForTest(homeExists, systemExists bool) {
+	restoreAppDiskHold.Lock()
+	restoreAppDiskMu.Lock()
+	restoreAppDiskInj = &restoreAppDisk{HomeExists: homeExists, SystemExists: systemExists}
+	restoreAppDiskMu.Unlock()
+}
+
+// ClearRestoreAppDiskForTest restores live disk checks and releases the
+// exclusive inject hold from SetRestoreAppDiskForTest.
+func ClearRestoreAppDiskForTest() {
+	restoreAppDiskMu.Lock()
+	restoreAppDiskInj = nil
+	restoreAppDiskMu.Unlock()
+	restoreAppDiskHold.Unlock()
+}
+
+// resolveRestoreAppDisk returns home/system install existence (inject or live).
+func resolveRestoreAppDisk() restoreAppDisk {
+	restoreAppDiskMu.Lock()
+	inj := restoreAppDiskInj
+	restoreAppDiskMu.Unlock()
+	if inj != nil {
+		return *inj
+	}
+	return liveRestoreAppDisk()
+}
+
+func liveRestoreAppDisk() restoreAppDisk {
+	var d restoreAppDisk
+	if _, err := os.Stat(CanonicalITermAppSystem); err == nil {
+		d.SystemExists = true
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		p := filepath.Join(home, "Applications", "iTerm.app")
+		if _, err := os.Stat(p); err == nil {
+			d.HomeExists = true
+		}
+	}
+	return d
+}
+
+// RestoreAppTarget is a resolved create/tell target for restore.
+type RestoreAppTarget struct {
+	// Canonical is ~/Applications/iTerm.app or /Applications/iTerm.app, or empty when Bare.
+	Canonical string
+	// Bare means fall back to tell application "iTerm2" (no path).
+	Bare bool
+	// Warning is optional user message without the "warning:" prefix.
+	Warning string
+}
+
+// Display returns the plan-text form: canonical path or bare "iTerm2".
+func (t RestoreAppTarget) Display() string {
+	if t.Bare || t.Canonical == "" {
+		return "iTerm2"
+	}
+	return t.Canonical
+}
+
+// TellPath returns the absolute .app path for AppleScript path-tell, or "" for bare.
+func (t RestoreAppTarget) TellPath() string {
+	if t.Bare || t.Canonical == "" {
+		return ""
+	}
+	return absoluteITermAppPath(t.Canonical)
+}
+
+// resolvePreferHomeTarget picks one global create target from disk presence:
+// both → home; only home → home; only system → system; neither → bare + warn.
+func resolvePreferHomeTarget(disk restoreAppDisk) RestoreAppTarget {
+	if disk.HomeExists {
+		// Prefer home when both exist, or only home.
+		return RestoreAppTarget{Canonical: CanonicalITermAppHome}
+	}
+	if disk.SystemExists {
+		return RestoreAppTarget{Canonical: CanonicalITermAppSystem}
+	}
+	return RestoreAppTarget{
+		Bare: true,
+		Warning: "neither iTerm install found on disk (missing ~/Applications/iTerm.app " +
+			"and /Applications/iTerm.app); falling back to bare application \"iTerm2\"",
+	}
+}
+
+// resolveSameAppWindowTarget picks the per-window create target under --same-app.
+// Recorded app on disk → that path; empty/missing app or path not on disk →
+// prefer-home fallback + warning.
+func resolveSameAppWindowTarget(recordedApp string, disk restoreAppDisk) RestoreAppTarget {
+	recorded := strings.TrimSpace(recordedApp)
+	if recorded == "" {
+		fb := resolvePreferHomeTarget(disk)
+		fb.Warning = "window has empty/missing recorded app; falling back to prefer-home target"
+		if fb.Bare {
+			fb.Warning = "window has empty/missing recorded app and neither iTerm install " +
+				"found on disk; falling back to bare application \"iTerm2\""
+		}
+		return fb
+	}
+	c := canonicalITermAppPath(recorded)
+	if c == "" {
+		// Non-canonical recorded path — still try exact home/system match strings.
+		if recorded == CanonicalITermAppHome || recorded == CanonicalITermAppSystem {
+			c = recorded
+		} else {
+			fb := resolvePreferHomeTarget(disk)
+			fb.Warning = fmt.Sprintf("recorded app %q is not a known iTerm install; falling back to prefer-home target", recorded)
+			return fb
+		}
+	}
+	onDisk := (c == CanonicalITermAppHome && disk.HomeExists) ||
+		(c == CanonicalITermAppSystem && disk.SystemExists)
+	if onDisk {
+		return RestoreAppTarget{Canonical: c}
+	}
+	fb := resolvePreferHomeTarget(disk)
+	fb.Warning = fmt.Sprintf("recorded app %s not found on disk; falling back to prefer-home target", c)
+	if fb.Bare {
+		fb.Warning = fmt.Sprintf("recorded app %s not found on disk and neither install available; falling back to bare application \"iTerm2\"", c)
+	}
+	return fb
+}
+
 // CaptureSnapshotForSave captures all multi-app sources when live (not fixture).
 // Fixture collectors already carry dual App tags in one snapshot — single pass.
 // opts.SpaceAllow enables space-first deep-capture filter (save --spaces).
