@@ -42,11 +42,14 @@ unknown-subcommand. Prefer `--once` on every write leaf (no real 10m sleep).
 
 ### Behaviors
 
-- First tick **immediate**, then sleep interval (L2 uses `--once` only).
+- First tick **immediate**, then sleep interval (live loop only).
+- **`--dry-run`**: one plan cycle then **exit** (no interval loop; no write).
+- L2 live write leaves use `--once` (no real 10m sleep). Dry-run leaf omits `--once`.
 - Success cycle stdout ≈ `Saved N critical sessions …` + path line.
 - Zero: `0 critical sessions (nothing to save; previous backup kept)` (wording flexible).
 - Soft fail: `warning: …` + exit 0 with `--once`.
-- Help: documents auto-backup, `--interval` default 10m, `--once`, default path.
+- Help: documents auto-backup, `--interval` default 10m, `--once`, default path;
+  `--dry-run` as one-cycle plan exit.
 - Parent `sessions -h` lists `auto-backup`.
 
 ## Decision Tree
@@ -65,7 +68,7 @@ sessions-auto-backup/
 │   ├── capture-fail/
 │   │   ├── soft-exit/       FailSnapshotCapture → warning + exit 0; no file
 │   │   └── no-clobber/      fail + seed → previous file kept
-│   ├── dry-run/             plan only; no write
+│   ├── dry-run/             --dry-run alone: plan; no write; exits (no loop)
 │   └── custom-file/         --file PATH used in write + stdout path line
 └── validation/
     └── bad-interval/        invalid --interval → Error + non-zero (before loop)
@@ -83,7 +86,7 @@ sessions-auto-backup/
 | `once/zero/keep-existing/` | idle + seed → old content kept | RED |
 | `once/capture-fail/soft-exit/` | capture fail → warning; exit 0; no file | RED |
 | `once/capture-fail/no-clobber/` | capture fail + seed → old kept | RED |
-| `once/dry-run/` | Would save plan; no file | RED |
+| `once/dry-run/` | --dry-run without --once: Would save; no file; exits | GREEN |
 | `once/custom-file/` | --file absolute path written + mentioned | RED |
 | `validation/bad-interval/` | bad --interval → Error; non-zero | RED |
 
@@ -122,15 +125,16 @@ const (
 )
 
 // Request drives L2 in-process auto-backup via iterm2.RunForTest.
-// Leaves always set Once=true (no multi-cycle sleep).
+// Live write leaves set Once=true (no multi-cycle sleep). DryRun alone also
+// exits after one cycle without Once (product: --dry-run implies one-shot).
 type Request struct {
 	Mode string
 
 	HelpArgs []string
 
-	// Once maps to --once (required for L2 write leaves).
+	// Once maps to --once (required for L2 live write leaves).
 	Once bool
-	// DryRun maps to --dry-run (plan only; no write).
+	// DryRun maps to --dry-run (plan only; no write; always one cycle then exit).
 	DryRun bool
 	// FilePath is absolute or relative to WorkingDir; empty omits --file
 	// (product default ~/.config/iterm2/sessions-auto.json — avoid in write

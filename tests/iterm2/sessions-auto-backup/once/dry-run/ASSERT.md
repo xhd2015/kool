@@ -1,6 +1,6 @@
 ## Expected
 
-- Exit 0
+- Exit 0 after one plan (no --once; proves --dry-run does not loop)
 - Stdout Would save + grok session id + mark
 - plan-auto.json not created
 
@@ -23,8 +23,12 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Process returned: --dry-run must not hang in the interval loop without --once.
 	if resp.ExitCode != 0 {
 		t.Fatalf("exit=%d stderr=%q stdout=%q", resp.ExitCode, resp.Stderr, resp.Stdout)
+	}
+	if req.Once {
+		t.Fatal("this leaf must run without --once to prove dry-run exits alone")
 	}
 	out := resp.Stdout
 	if !strings.Contains(out, "Would save") {

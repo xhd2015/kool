@@ -57,8 +57,8 @@ and keep the previous backup. Zero critical sessions: message only, no write.
   --interval DUR         sleep between cycles (default 10m); accepts 10m, 60s,
                          or bare seconds (pkgs/duration.Parse)
   --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-auto.json)
-  --once                 run a single cycle and exit
-  --dry-run              plan only; do not write
+  --once                 run a single live cycle and exit
+  --dry-run              plan only for one cycle; do not write; exit (no loop)
   --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
   --no-color             force ANSI colors off
   --ignore-macos-space   omit space / iterm_window_id; do not resolve Spaces
@@ -73,7 +73,7 @@ Examples:
   kool iterm2 sessions auto-backup
   kool iterm2 sessions auto-backup --once
   kool iterm2 sessions auto-backup --interval 5m --once
-  kool iterm2 sessions auto-backup --once --dry-run
+  kool iterm2 sessions auto-backup --dry-run
   kool iterm2 sessions auto-backup --once --file ~/Desktop/crash-auto.json
 `
 
@@ -134,13 +134,14 @@ func runSessionsAutoBackup(args []string, stdout, stderr io.Writer) error {
 
 	path := effectiveAutoPath(fileFlag)
 
-	// First tick immediate; --once exits after one cycle.
+	// First tick immediate. Exit after one cycle for --once or --dry-run
+	// (dry-run is a preview, not a background loop).
 	for {
 		if err := runAutoBackupCycle(stdout, stderr, path, dryRun, color, ignoreMacOSSpace, spacesAllow); err != nil {
 			// Hard errors (e.g. write failure) propagate; capture soft-fails inside cycle.
 			return err
 		}
-		if once {
+		if once || dryRun {
 			return nil
 		}
 		time.Sleep(interval)
