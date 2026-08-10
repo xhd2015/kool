@@ -16,7 +16,7 @@ const help = `iterm2 <dir> [-r] [-n] [--send <command>]...
 iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
 iterm2 focus <dir> [--index N]
-iterm2 install [--dry-run] [--download-dir DIR] [--download-only]
+iterm2 install [--dry-run] [--download-dir DIR] [--download-only] [--via-open]
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
@@ -43,6 +43,7 @@ Install official iTerm2 (zip from iterm2.com → ~/Applications by default):
   install --dry-run                print plan only (no download/install)
   install --download-dir <dir>     zip/cache directory
   install --download-only          download zip only (no Applications install)
+  install --via-open               user-driven install (clear quarantine + open / Gatekeeper)
 
 Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set list                     list configured tab sets
@@ -79,6 +80,7 @@ Examples:
   kool iterm2 tab-set run bots --dry-run
   kool iterm2 install --dry-run
   kool iterm2 install --download-only --download-dir ~/Downloads
+  kool iterm2 install --via-open
   kool iterm2 sessions snapshot
   kool iterm2 sessions snapshot --json -o iterm.json
   kool iterm2 sessions save --dry-run

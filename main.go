@@ -23,6 +23,7 @@ import (
 	"github.com/xhd2015/kool/tools/html/html2markdown"
 	"github.com/xhd2015/kool/tools/html/html2text"
 	"github.com/xhd2015/kool/tools/http"
+	codexcmd "github.com/xhd2015/kool/tools/codex"
 	iterm2cmd "github.com/xhd2015/kool/tools/iterm2"
 	"github.com/xhd2015/kool/tools/js"
 	"github.com/xhd2015/kool/tools/json2yaml"
@@ -93,6 +94,7 @@ VSCode:
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
   iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
   iterm2 session <id> status         live status for one session (id = iTerm unique ID)
+  codex install [--dry-run] [--check-update]  ensure OpenAI Codex CLI is installed/updated
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 
 Project:  
@@ -178,6 +180,8 @@ func handle(args []string) error {
 		return handleVscode(args)
 	case "iterm2":
 		return iterm2cmd.Handle(args)
+	case "codex":
+		return codexcmd.Handle(args)
 	case "macos":
 		return macos.Handle(args)
 	case "create":

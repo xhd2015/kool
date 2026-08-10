@@ -17,10 +17,59 @@ func TestRunInstall_Help(t *testing.T) {
 		t.Fatalf("help: %v stderr=%q", err, stderr.String())
 	}
 	out := stdout.String()
-	for _, want := range []string{"--dry-run", "--download-dir", "--download-only", "kool iterm2 install"} {
+	for _, want := range []string{"--dry-run", "--download-dir", "--download-only", "--via-open", "kool iterm2 install"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help missing %q\n%s", want, out)
 		}
+	}
+	low := strings.ToLower(out)
+	if !strings.Contains(low, "open") && !strings.Contains(low, "gatekeeper") && !strings.Contains(low, "quarantine") {
+		t.Errorf("help should mention open/Gatekeeper/quarantine:\n%s", out)
+	}
+}
+
+func TestRunInstall_ViaOpenIncompatibleWithDownloadOnly(t *testing.T) {
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	err := runInstall([]string{"--via-open", "--download-only", "--download-dir", dir}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected error for --via-open + --download-only")
+	}
+	if !strings.Contains(stderr.String(), "Error:") {
+		t.Fatalf("stderr must contain Error:; got %q", stderr.String())
+	}
+	low := strings.ToLower(stderr.String())
+	if !strings.Contains(low, "via-open") || !strings.Contains(low, "download-only") {
+		t.Fatalf("stderr should mention both flags; got %q", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "iTerm2-3_6_11.zip")); !os.IsNotExist(err) {
+		t.Fatalf("must not write zip: err=%v", err)
+	}
+}
+
+func TestRunInstall_DryRunViaOpen(t *testing.T) {
+	srv := startFakeITerm2LatestServer(t, []byte("PK\x03\x04fake"))
+	withInstallHTTP(t, srv.URL+"/latest", srv.Client())
+
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	err := runInstall([]string{"--dry-run", "--via-open", "--download-dir", dir}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("dry-run --via-open: %v stderr=%q", err, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "dry-run:") {
+		t.Fatalf("expected dry-run banner:\n%s", out)
+	}
+	if !strings.Contains(out, "3.6.11") {
+		t.Fatalf("expected version:\n%s", out)
+	}
+	low := strings.ToLower(out)
+	if !strings.Contains(low, "via-open") && !strings.Contains(low, "open") && !strings.Contains(low, "quarantine") {
+		t.Fatalf("dry-run --via-open plan should mention open/via-open/quarantine:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "iTerm2-3_6_11.zip")); !os.IsNotExist(err) {
+		t.Fatalf("dry-run must not write zip: err=%v", err)
 	}
 }
 
@@ -70,8 +119,11 @@ func TestRunInstall_DryRun(t *testing.T) {
 	if !strings.Contains(out, "3.6.11") {
 		t.Fatalf("expected version:\n%s", out)
 	}
-	if !strings.Contains(out, filepath.Join(dir, "iTerm2-3_6_11.zip")) {
-		t.Fatalf("expected zip path under download-dir:\n%s", out)
+	if !strings.Contains(out, "iTerm2-3_6_11.zip") {
+		t.Fatalf("expected zip name under download-dir:\n%s", out)
+	}
+	if !strings.Contains(out, "--download-dir") {
+		t.Fatalf("expected dry-run to note --download-dir:\n%s", out)
 	}
 	// No zip written on dry-run.
 	if _, err := os.Stat(filepath.Join(dir, "iTerm2-3_6_11.zip")); !os.IsNotExist(err) {

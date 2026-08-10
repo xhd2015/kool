@@ -28,6 +28,8 @@ Flags:
   --dry-run              print plan only (resolve URL; no download/install)
   --download-dir <dir>   directory for the zip (and install cache workdir)
   --download-only        download zip only; do not install to Applications
+  --via-open             user-driven install: clear quarantine then open the app
+                         (Gatekeeper path; incompatible with --download-only)
   -h, --help             show this help
 
 Examples:
@@ -35,6 +37,8 @@ Examples:
   kool iterm2 install --dry-run
   kool iterm2 install --download-dir ~/Downloads
   kool iterm2 install --download-only --download-dir ~/Downloads
+  kool iterm2 install --via-open
+  kool iterm2 install --dry-run --via-open
 `
 
 // installHTTPClient is overridable in tests (nil → http.DefaultClient / library default).
@@ -46,14 +50,29 @@ var installLatestURL string
 // installHome overrides the install home directory in tests when non-empty.
 var installHome string
 
+// SetInstallHTTPForTest injects latest URL + HTTP client for install resolve/download.
+// Returns restore; callers should defer restore (also safe under a process mutex).
+func SetInstallHTTPForTest(latestURL string, client *http.Client) (restore func()) {
+	prevClient := installHTTPClient
+	prevURL := installLatestURL
+	installHTTPClient = client
+	installLatestURL = latestURL
+	return func() {
+		installHTTPClient = prevClient
+		installLatestURL = prevURL
+	}
+}
+
 // runInstall handles: kool iterm2 install [flags]
 func runInstall(args []string, stdout, stderr io.Writer) error {
 	var dryRun bool
 	var downloadOnly bool
+	var viaOpen bool
 	var downloadDir string
 
 	remain, err := lessflags.Bool("--dry-run", &dryRun).
 		Bool("--download-only", &downloadOnly).
+		Bool("--via-open", &viaOpen).
 		String("--download-dir", &downloadDir).
 		HelpFunc("-h,--help", func() {}).
 		HelpNoExit().
@@ -68,6 +87,10 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	}
 	if len(remain) > 0 {
 		fmt.Fprintf(stderr, "Error: unexpected arguments: %s\nRun 'kool iterm2 install --help' for usage.\n", strings.Join(remain, " "))
+		return errs.NewSilenceExitCode(1)
+	}
+	if viaOpen && downloadOnly {
+		fmt.Fprint(stderr, "Error: --via-open is incompatible with --download-only\n")
 		return errs.NewSilenceExitCode(1)
 	}
 
@@ -99,10 +122,21 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	if dryRun {
 		fmt.Fprintf(stdout, "dry-run: would install iTerm2 %s\n", version)
 		fmt.Fprintf(stdout, "  url:    %s\n", url)
-		fmt.Fprintf(stdout, "  zip:    %s\n", zipPath)
+		// When --download-dir is set, show zip basename only so dry-run stdout
+		// does not echo the absolute host path (callers already know the dir).
+		// Default cache path is still printed in full for discoverability.
+		if strings.TrimSpace(downloadDir) != "" {
+			fmt.Fprintf(stdout, "  zip:    %s (under --download-dir)\n", filepath.Base(zipPath))
+		} else {
+			fmt.Fprintf(stdout, "  zip:    %s\n", zipPath)
+		}
 		if downloadOnly {
 			fmt.Fprintf(stdout, "  mode:   download-only (skip Applications install)\n")
 			fmt.Fprintf(stdout, "  steps:  download\n")
+		} else if viaOpen {
+			fmt.Fprintf(stdout, "  target: %s\n", targetApp)
+			fmt.Fprintf(stdout, "  mode:   via-open (user open / clear-quarantine)\n")
+			fmt.Fprintf(stdout, "  steps:  download, extract, install, clear-quarantine, open, register, verify\n")
 		} else {
 			fmt.Fprintf(stdout, "  target: %s\n", targetApp)
 			fmt.Fprintf(stdout, "  steps:  download, extract, install, register, verify\n")
@@ -129,11 +163,12 @@ func runInstall(args []string, stdout, stderr io.Writer) error {
 	// Full install via library.
 	fmt.Fprintf(stdout, "iTerm2  resolve  %s (%s)\n", url, version)
 	opts := iterm2install.InstallOpts{
-		Home:           installHome,
-		CacheDir:       cacheDir,
-		LatestURL:      installLatestURL,
-		HTTPClient:     installHTTPClient,
-		SkipScriptable: false,
+		Home:               installHome,
+		CacheDir:           cacheDir,
+		LatestURL:          installLatestURL,
+		HTTPClient:         installHTTPClient,
+		SkipScriptable:     false,
+		InstallViaUserOpen: viaOpen,
 	}
 	// InstallLatest re-resolves; that's fine. Ensure CacheDir is set so zip lands under --download-dir.
 	result, err := iterm2install.InstallLatest(ctx, opts)
