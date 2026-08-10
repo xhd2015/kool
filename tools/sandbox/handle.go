@@ -11,11 +11,13 @@ kool sandbox - Pack files/env into a sealed sandbox binary
 Usage:
   kool sandbox build -o OUTPUT [OPTIONS]
   kool sandbox inspect <binary>
+  kool sandbox notify-event --type TYPE --path ABS [OPTIONS]
   kool sandbox -h|--help
 
 Commands:
-  build     pack files and env into a sealed cross-compiled binary
-  inspect   list packed paths, content hashes, and env keys (no secret values)
+  build          pack files and env into a sealed cross-compiled binary
+  inspect        list packed paths, content hashes, and env keys (no secret values)
+  notify-event   publish JSON events to live session sockets under $ROOT/events
 
 Build options:
   -o,--output PATH                 output sealed binary path (required)
@@ -32,6 +34,7 @@ Examples:
   kool sandbox build -o sandbox.bin --file cfg.txt=app/cfg.txt --env TOKEN=x
   kool sandbox build -o sandbox.bin --goos linux --goarch amd64 --env X=1
   kool sandbox inspect ./sandbox.bin
+  kool sandbox notify-event --type devbox.updated --path /abs/load.bin
 `
 
 // Handle is the production entry for kool sandbox.
@@ -58,6 +61,8 @@ func Handle(args []string) error {
 		return handleBuild(args[1:])
 	case "inspect":
 		return handleInspect(args[1:])
+	case "notify-event":
+		return handleNotifyEvent(args[1:])
 	default:
 		return fmt.Errorf("unrecognized command: %s", args[0])
 	}

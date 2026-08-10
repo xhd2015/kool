@@ -113,6 +113,23 @@ func RunEmbedded(sealed []byte, args []string) int {
 		}
 	}
 
+	// Topology B: bind $parent/events/<session-id>.sock while the guest runs.
+	// Parent is the materialize parent (sibling of session dirs); session-id is
+	// the basename of the materialize root.
+	parent := filepath.Dir(absRoot)
+	sessionID := filepath.Base(absRoot)
+	loadAbsPaths := make([]string, 0, len(loads))
+	for _, ld := range loads {
+		loadAbsPaths = append(loadAbsPaths, ld.Abs)
+	}
+	evListener, err := startEventListener(parent, sessionID, absRoot, loadAbsPaths)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: events listener: %v\n", err)
+		return 1
+	}
+	// Stop listener (unlink sock) before session RemoveAll.
+	defer evListener.Stop()
+
 	env := append([]string{}, os.Environ()...)
 	for k, v := range mergedEnv {
 		if blob.HomeLinked && k == "HOME" {
