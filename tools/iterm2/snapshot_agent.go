@@ -10,6 +10,14 @@ import (
 type CaptureOpts struct {
 	// NoEnrich skips procresolve agent attach (CLI --no-enrich).
 	NoEnrich bool
+	// SpaceAllow, when non-empty, enables space-first filtering: resolve each
+	// window's Space from WindowID/FixedSpace and skip ListTabsAndSessions +
+	// enrich when the index is not in the allowlist (go-best-practice: cheap
+	// gate before expensive work). Used by sessions save --spaces.
+	SpaceAllow []int
+	// SpaceSkipped, when non-nil, receives the count of window headers skipped
+	// by SpaceAllow (not deep-captured).
+	SpaceSkipped *int
 }
 
 // attachAgent resolves grok/codex session info for a busy pane and sets s.Agent.

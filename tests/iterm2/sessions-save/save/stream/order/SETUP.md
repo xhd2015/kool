@@ -11,7 +11,7 @@ sessions save --dry-run --no-color
 
 ## Steps
 
-1. Default progressive dry-run stream (ObserveStreamOrder already set by parent).
+1. ObserveStreamOrder true (parent also sets ModeSave/DryRun/two-window fixture).
 
 ```go
 import (
@@ -22,7 +22,7 @@ import (
 
 func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_ = d
-	_ = req
+	req.ObserveStreamOrder = true
 	return nil
 }
 ```

@@ -82,9 +82,17 @@ func (liveSpaceBackend) Highest() (int, error)          { return space.Highest(n
 
 // resolveSpaceForWindow maps a snapshot window to (space, iterm_window_id, warning).
 // On missing id or resolve failure: space=0 + warning; still returns iterm id when known.
+// FixedSpace (fixture) wins when set — no resolver call.
 func resolveSpaceForWindow(win SnapshotWindow) (spaceIdx int, itermID int64, warn string) {
 	if win.WindowID != 0 {
 		itermID = int64(win.WindowID)
+	}
+	if win.FixedSpace != nil {
+		idx := *win.FixedSpace
+		if idx < 0 {
+			return 0, itermID, fmt.Sprintf("invalid macOS Space index %d; using space 0", idx)
+		}
+		return idx, itermID, ""
 	}
 	if itermID == 0 {
 		return 0, 0, "could not resolve macOS Space (missing iterm window id); using space 0"

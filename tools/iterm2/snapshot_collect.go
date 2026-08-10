@@ -39,6 +39,14 @@ type SnapshotCollector struct {
 	// ResolveFromPID optionally overrides live procresolve (production default).
 	ResolveFromPID func(pid int) (*procresolve.Result, error)
 
+	// AppTell is the AppleScript application target for live capture.
+	// Empty → "iTerm2". Absolute path → tell that .app (second dual-install instance).
+	// Canonical App tags are set separately via AppTag / multi-app merge.
+	AppTell string
+	// AppTag is stamped on every window from this collector (canonical app path).
+	// Empty leaves window.App unset (fixtures may set App per window).
+	AppTag string
+
 	// fixtureEnabled + fixtureWindows drive phased APIs without AppleScript.
 	fixtureEnabled bool
 	fixtureWindows []SnapshotWindow
@@ -169,6 +177,11 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 	}
 	// Clone windows so enrich mutations do not alter the caller's slice.
 	fxWindows := cloneWindows(opts.Windows)
+	// Multi-app fixture topology: tag App from names when unset so sealed
+	// installMultiApp* helpers (From-System / From-Home / …) get dual apps.
+	for i := range fxWindows {
+		tagFixtureAppFromName(&fxWindows[i])
+	}
 
 	agentByTTY := opts.AgentResolveByTTY
 	if agentByTTY != nil {
@@ -179,6 +192,20 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 		}
 		agentByTTY = cp
 	}
+
+	// Multi-app preflight inject for fixture path: dual-running home+system so
+	// dual-collapse leaves warn when secondary app has no distinct windows.
+	// Restored via same t.Cleanup as collector release (exclusive hold).
+	prevPreflight := currentMultiAppPreflightFn()
+	SetMultiAppPreflightForTest(func() (MultiAppPreflight, error) {
+		return MultiAppPreflight{
+			AsApp:       CanonicalITermAppSystem,
+			RunningApps: []string{CanonicalITermAppSystem, CanonicalITermAppHome},
+		}, nil
+	})
+	t.Cleanup(func() {
+		SetMultiAppPreflightForTest(prevPreflight)
+	})
 
 	c := &SnapshotCollector{
 		fixtureEnabled:    true,
@@ -327,15 +354,46 @@ func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error
 		return tc
 	}
 
+	spaceAllowSet := spaceAllowSet(opts.SpaceAllow)
+	spaceGate := len(spaceAllowSet) > 0
+	spaceSkipped := 0
+
 	var nTabs, nSess, nIdle, nBusy, nUnknown int
 	windows := make([]SnapshotWindow, 0, len(headers))
 	for _, hdr := range headers {
+		app := hdr.App
+		if app == "" {
+			app = c.AppTag
+		}
+		// Space-first gate: resolve Space from header before expensive tabs/enrich.
+		hdrWin := SnapshotWindow{
+			Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID,
+			FixedSpace: hdr.FixedSpace, App: app,
+		}
+		spaceIdx, _, spaceWarn := resolveSpaceForWindow(hdrWin)
+		if spaceWarn != "" && spaceGate {
+			// Soft-fail already maps to 0; still may filter. Surface only when deep-capturing.
+		}
+		if spaceGate && !spaceAllowed(spaceIdx, spaceAllowSet) {
+			spaceSkipped++
+			continue
+		}
+		// Pin resolved space so later attachSpaceFields stays consistent without re-resolve surprises.
+		sp := spaceIdx
+		hdrWin.FixedSpace = &sp
+
 		tabs, w2, err := c.ListTabsAndSessions(hdr.Index)
 		if err != nil {
 			return nil, append(warnings, w2...), err
 		}
 		warnings = append(warnings, w2...)
-		win := SnapshotWindow{Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID, Tabs: tabs}
+		if spaceWarn != "" {
+			warnings = append(warnings, "warning: "+spaceWarn)
+		}
+		win := SnapshotWindow{
+			Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID,
+			FixedSpace: hdrWin.FixedSpace, App: app, Tabs: tabs,
+		}
 		for ti := range win.Tabs {
 			t := &win.Tabs[ti]
 			nTabs++
@@ -364,6 +422,9 @@ func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error
 		}
 		windows = append(windows, win)
 	}
+	if opts.SpaceSkipped != nil {
+		*opts.SpaceSkipped = spaceSkipped
+	}
 
 	snap := &Snapshot{
 		CapturedAt: now.Format("2006-01-02T15:04:05") + zoneOffset(now),
@@ -390,7 +451,7 @@ func (c *SnapshotCollector) ListWindows() (windows []SnapshotWindow, warnings []
 	if c.fixtureEnabled {
 		out := make([]SnapshotWindow, len(c.fixtureWindows))
 		for i, w := range c.fixtureWindows {
-			out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID}
+			out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, FixedSpace: w.FixedSpace, App: w.App}
 		}
 		return out, nil, nil
 	}
@@ -398,7 +459,7 @@ func (c *SnapshotCollector) ListWindows() (windows []SnapshotWindow, warnings []
 	if runAS == nil {
 		runAS = defaultRunAppleScript
 	}
-	raw, err := runAS(listWindowsAppleScript)
+	raw, err := runAS(listWindowsAppleScript(c.AppTell))
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error: failed to query iTerm2: %w", err)
 	}
@@ -411,6 +472,9 @@ func (c *SnapshotCollector) ListWindows() (windows []SnapshotWindow, warnings []
 	// Ensure headers-only (strip any accidental tabs).
 	for i := range wins {
 		wins[i].Tabs = nil
+		if wins[i].App == "" && c.AppTag != "" {
+			wins[i].App = c.AppTag
+		}
 	}
 	return wins, warnings, nil
 }
@@ -432,7 +496,7 @@ func (c *SnapshotCollector) ListTabsAndSessions(windowIndex int) (tabs []Snapsho
 	if runAS == nil {
 		runAS = defaultRunAppleScript
 	}
-	script := listTabsAndSessionsAppleScript(windowIndex)
+	script := listTabsAndSessionsAppleScript(windowIndex, c.AppTell)
 	raw, err := runAS(script)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error: failed to query iTerm2 window %d: %w", windowIndex, err)
@@ -454,7 +518,7 @@ func (c *SnapshotCollector) ListTabsAndSessions(windowIndex int) (tabs []Snapsho
 func cloneWindows(in []SnapshotWindow) []SnapshotWindow {
 	out := make([]SnapshotWindow, len(in))
 	for i, w := range in {
-		out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, Tabs: cloneTabs(w.Tabs)}
+		out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, FixedSpace: w.FixedSpace, App: w.App, Tabs: cloneTabs(w.Tabs)}
 	}
 	return out
 }
@@ -536,8 +600,27 @@ func containsSession(list []*SnapshotSession, s *SnapshotSession) bool {
 	return false
 }
 
-const listWindowsAppleScript = `
-tell application "iTerm2"
+// appleScriptAppLiteral returns the tell-application target string for AS.
+// Empty → "iTerm2". Path → quoted absolute path (escaped for AS double quotes).
+func appleScriptAppLiteral(appTell string) string {
+	appTell = strings.TrimSpace(appTell)
+	if appTell == "" || appTell == "iTerm2" {
+		return `"iTerm2"`
+	}
+	// Expand ~ for AppleScript path tell.
+	if strings.HasPrefix(appTell, "~/") {
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			appTell = home + appTell[1:]
+		}
+	}
+	esc := strings.ReplaceAll(appTell, `\`, `\\`)
+	esc = strings.ReplaceAll(esc, `"`, `\"`)
+	return `"` + esc + `"`
+}
+
+func listWindowsAppleScript(appTell string) string {
+	return fmt.Sprintf(`
+tell application %s
   set out to ""
   set wi to 0
   repeat with w in windows
@@ -556,12 +639,13 @@ tell application "iTerm2"
   end repeat
   return out
 end tell
-`
+`, appleScriptAppLiteral(appTell))
+}
 
-func listTabsAndSessionsAppleScript(windowIndex int) string {
+func listTabsAndSessionsAppleScript(windowIndex int, appTell string) string {
 	// Iterate windows by 1-based ordinal matching ListWindows numbering.
 	return fmt.Sprintf(`
-tell application "iTerm2"
+tell application %s
   set out to ""
   set wi to 0
   set target to %d
@@ -613,7 +697,7 @@ tell application "iTerm2"
   end repeat
   return out
 end tell
-`, windowIndex)
+`, appleScriptAppLiteral(appTell), windowIndex)
 }
 
 func parseHierarchy(raw string) ([]SnapshotWindow, []string) {

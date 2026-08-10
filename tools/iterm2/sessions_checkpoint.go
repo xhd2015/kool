@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,8 +29,16 @@ type SaveDocument struct {
 	RestoredAt *string           `json:"restored_at"` // null until restore succeeds
 	Host       string            `json:"host"`
 	Source     string            `json:"source"`
+	Filter     *SaveFilter       `json:"filter,omitempty"` // present when save used --spaces
 	Summary    SaveSummary       `json:"summary"`
 	Windows    []SaveWindow      `json:"windows"`
+}
+
+// SaveFilter records save-time constraints applied when building the checkpoint.
+// Restore ignores this object for placement; it is audit/metadata only.
+type SaveFilter struct {
+	// Spaces is the sorted, deduped 0-based allowlist from --spaces.
+	Spaces []int `json:"spaces,omitempty"`
 }
 
 // SaveSummary counts critical tabs in the checkpoint.
@@ -43,18 +53,21 @@ type SaveSummary struct {
 type SaveWindow struct {
 	SourceIndex   int       `json:"source_index"`
 	Name          string    `json:"name,omitempty"`
-	Space         int       `json:"space"`                         // 0-based Desktop; always emitted when not ignore
-	ItermWindowID int64     `json:"iterm_window_id,omitempty"`     // info only at save; restore never uses it
+	App           string    `json:"app,omitempty"` // canonical install path; restore ignores
+	Space         int       `json:"space"`                     // 0-based Desktop; always emitted when not ignore
+	ItermWindowID int64     `json:"iterm_window_id,omitempty"` // info only at save; restore never uses it
 	Tabs          []SaveTab `json:"tabs"`
 	// noSpaceRecord omits space + iterm_window_id on marshal (--ignore-macos-space).
 	noSpaceRecord bool `json:"-"`
 }
 
 // MarshalJSON always emits "space" (including 0) unless noSpaceRecord.
+// App is omitempty (canonical strings only when known).
 func (w SaveWindow) MarshalJSON() ([]byte, error) {
 	type out struct {
 		SourceIndex   int       `json:"source_index"`
 		Name          string    `json:"name,omitempty"`
+		App           string    `json:"app,omitempty"`
 		Space         *int      `json:"space,omitempty"`
 		ItermWindowID int64     `json:"iterm_window_id,omitempty"`
 		Tabs          []SaveTab `json:"tabs"`
@@ -62,6 +75,7 @@ func (w SaveWindow) MarshalJSON() ([]byte, error) {
 	o := out{
 		SourceIndex: w.SourceIndex,
 		Name:        w.Name,
+		App:         w.App,
 		Tabs:        w.Tabs,
 	}
 	if !w.noSpaceRecord {
@@ -171,11 +185,13 @@ func BuildSaveDocument(snap *Snapshot, now time.Time, host string) (*SaveDocumen
 		if len(tabs) == 0 {
 			continue
 		}
-		windows = append(windows, SaveWindow{
+		sw := SaveWindow{
 			SourceIndex: win.Index,
 			Name:        win.Name,
 			Tabs:        tabs,
-		})
+		}
+		attachAppField(&sw, win, "")
+		windows = append(windows, sw)
 	}
 
 	nTabs := 0
@@ -223,6 +239,144 @@ func applySpaceToSaveDocument(doc *SaveDocument, snap *Snapshot, ignore bool) []
 		}
 	}
 	return warnings
+}
+
+// parseSpacesList parses a comma-separated 0-based Space allowlist.
+// Returns sorted unique indexes in [0, maxRecordedSpace).
+func parseSpacesList(s string) ([]int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, fmt.Errorf("--spaces requires a comma-separated list of space indexes (e.g. 0,2)")
+	}
+	parts := strings.Split(s, ",")
+	seen := make(map[int]struct{}, len(parts))
+	var out []int
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return nil, fmt.Errorf("invalid --spaces entry: empty")
+		}
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return nil, fmt.Errorf("invalid space index %q", p)
+		}
+		if n < 0 || n >= maxRecordedSpace {
+			return nil, fmt.Errorf("invalid space index %d (valid 0..%d)", n, maxRecordedSpace-1)
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("--spaces requires a comma-separated list of space indexes (e.g. 0,2)")
+	}
+	sort.Ints(out)
+	return out, nil
+}
+
+// formatSpacesList formats an allowlist for CLI messages (e.g. "0,2").
+func formatSpacesList(spaces []int) string {
+	if len(spaces) == 0 {
+		return ""
+	}
+	parts := make([]string, len(spaces))
+	for i, n := range spaces {
+		parts[i] = strconv.Itoa(n)
+	}
+	return strings.Join(parts, ",")
+}
+
+// spaceAllowSet builds a membership set from a sorted allowlist.
+func spaceAllowSet(allow []int) map[int]struct{} {
+	if len(allow) == 0 {
+		return nil
+	}
+	set := make(map[int]struct{}, len(allow))
+	for _, s := range allow {
+		set[s] = struct{}{}
+	}
+	return set
+}
+
+// spaceAllowed reports whether spaceIdx is in the allow set.
+// When set is nil/empty, all spaces are allowed.
+func spaceAllowed(spaceIdx int, set map[int]struct{}) bool {
+	if len(set) == 0 {
+		return true
+	}
+	_, ok := set[spaceIdx]
+	return ok
+}
+
+// recomputeSaveSummary recalculates Summary from Windows.
+func recomputeSaveSummary(doc *SaveDocument) {
+	if doc == nil {
+		return
+	}
+	byKind := map[string]int{}
+	nTabs := 0
+	for _, w := range doc.Windows {
+		for _, t := range w.Tabs {
+			byKind[t.Kind]++
+			nTabs++
+		}
+	}
+	doc.Summary = SaveSummary{
+		Windows:  len(doc.Windows),
+		Tabs:     nTabs,
+		Sessions: nTabs,
+		ByKind:   byKind,
+	}
+}
+
+// sortSaveWindowsBySpace orders windows for stable plan/checkpoint output:
+// space ascending, then app, name, iterm_window_id. Independent of --spaces
+// flag order and multi-app discovery order. Renumbers source_index to 1…N.
+func sortSaveWindowsBySpace(windows []SaveWindow) {
+	sort.SliceStable(windows, func(i, j int) bool {
+		a, b := windows[i], windows[j]
+		if a.Space != b.Space {
+			return a.Space < b.Space
+		}
+		if a.App != b.App {
+			return a.App < b.App
+		}
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.ItermWindowID < b.ItermWindowID
+	})
+	renumberSaveSourceIndexes(windows)
+}
+
+// filterSaveDocumentBySpaces drops windows whose Space is not in allow.
+// allow must be non-empty (caller only invokes when --spaces was set).
+// Returns the number of critical windows dropped.
+// Soft-fail resolve (space=0) is treated as space 0 for membership (D6-A).
+func filterSaveDocumentBySpaces(doc *SaveDocument, allow []int) int {
+	if doc == nil || len(allow) == 0 {
+		return 0
+	}
+	set := spaceAllowSet(allow)
+	var kept []SaveWindow
+	skipped := 0
+	for _, w := range doc.Windows {
+		if spaceAllowed(w.Space, set) {
+			kept = append(kept, w)
+			continue
+		}
+		skipped++
+	}
+	doc.Windows = kept
+	recomputeSaveSummary(doc)
+	return skipped
+}
+
+// formatSpacesSkipWarning is the footer message when --spaces dropped windows.
+func formatSpacesSkipWarning(skipped int, allow []int) string {
+	return fmt.Sprintf("skipped %d windows not matching --spaces %s", skipped, formatSpacesList(allow))
 }
 
 func emptySaveDoc(now time.Time, host string) *SaveDocument {
@@ -416,6 +570,7 @@ func extractCriticalFromWindow(win SnapshotWindow, ignoreSpace bool) (SaveWindow
 		Name:        win.Name,
 		Tabs:        tabs,
 	}
+	attachAppField(&sw, win, "")
 	if warn := attachSpaceFields(&sw, win, ignoreSpace); warn != "" {
 		warnings = append(warnings, "warning: "+warn)
 	}
@@ -452,17 +607,26 @@ func paintKind(color bool, kind string) string {
 }
 
 // formatSaveWindowBlock writes one critical window plan block (streaming dry-run).
-func formatSaveWindowBlock(w io.Writer, win SaveWindow, color bool) {
+// leadingBlank is true for the 2nd+ window (separator); false for the first so
+// stdout does not start with an empty line (go-best-practice plan UX).
+func formatSaveWindowBlock(w io.Writer, win SaveWindow, color bool, leadingBlank bool) {
 	label := win.Name
 	if label == "" {
 		label = "(untitled)"
 	}
 	wLabel := paint(color, ansiBold, fmt.Sprintf("W%d", win.SourceIndex))
-	fmt.Fprintf(w, "\n  %s  %q\n", wLabel, label)
+	if leadingBlank {
+		fmt.Fprintln(w)
+	}
+	fmt.Fprintf(w, "  %s  %q\n", wLabel, label)
 	if !win.noSpaceRecord {
 		// space N (Desktop N+1); never show iterm_window_id in plan text.
 		meta := formatSpaceDesktopLabel(win.Space)
 		fmt.Fprintf(w, "    %s\n", paint(color, ansiGray, meta))
+	}
+	if win.App != "" {
+		// Gray app meta when known (multi-app / single-app asApp).
+		fmt.Fprintf(w, "    %s\n", paint(color, ansiGray, "app  "+win.App))
 	}
 	for i, tab := range win.Tabs {
 		id := tab.SessionID
@@ -522,8 +686,8 @@ func formatSaveFooter(w io.Writer, doc *SaveDocument, path string, dryRun bool, 
 // Live save: footer only.
 func formatSavePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool, color bool) {
 	if dryRun {
-		for _, win := range doc.Windows {
-			formatSaveWindowBlock(w, win, color)
+		for i, win := range doc.Windows {
+			formatSaveWindowBlock(w, win, color, i > 0)
 		}
 	}
 	formatSaveFooter(w, doc, path, dryRun, color)
@@ -535,7 +699,9 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 	var fileFlag string
 	var forceColor, forceNoColor bool
 	var ignoreMacOSSpace bool
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, sessionsSaveHelp)
+	var spacesRaw string
+	var spacesSet bool
+	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, &spacesRaw, &spacesSet, sessionsSaveHelp)
 	if err != nil {
 		if err == errHelpRequested {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsSaveHelp)+"\n")
@@ -548,6 +714,18 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "Error: sessions save: unexpected arguments: %s\n", strings.Join(remain, " "))
 		return errs.NewSilenceExitCode(1)
 	}
+	if spacesSet && ignoreMacOSSpace {
+		WriteError(stderr, "--spaces cannot be used with --ignore-macos-space")
+		return errs.NewSilenceExitCode(1)
+	}
+	var spacesAllow []int
+	if spacesSet {
+		spacesAllow, err = parseSpacesList(spacesRaw)
+		if err != nil {
+			WriteError(stderr, err.Error())
+			return errs.NewSilenceExitCode(1)
+		}
+	}
 
 	color, err := resolvePlanColor(forceColor, forceNoColor)
 	if err != nil {
@@ -559,10 +737,13 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 
 	// Dry-run: progressive capture — emit each critical window block as ready.
 	if dryRun {
-		return runSessionsSaveDryRun(stdout, stderr, path, color, ignoreMacOSSpace)
+		return runSessionsSaveDryRun(stdout, stderr, path, color, ignoreMacOSSpace, spacesAllow)
 	}
 
-	snap, warnings, err := CaptureSnapshotWith(CaptureOpts{NoEnrich: false})
+	// Multi-app live capture with space-first gate when --spaces is set.
+	spaceSkipped := 0
+	capOpts := CaptureOpts{NoEnrich: false, SpaceAllow: spacesAllow, SpaceSkipped: &spaceSkipped}
+	snap, warnings, err := CaptureSnapshotForSave(capOpts)
 	if err != nil {
 		WriteError(stderr, strings.TrimPrefix(err.Error(), "Error: "))
 		return errs.NewSilenceExitCode(1)
@@ -581,8 +762,34 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 		WriteWarning(stderr, strings.TrimPrefix(w, "warning: "))
 	}
 
+	// Multi-app: attach canonical app, hard-dedupe by iterm_window_id, renumber,
+	// dual-collapse warn when other running install contributed no windows.
+	pf := resolveMultiAppPreflight()
+	var collapseWarn string
+	doc.Windows, collapseWarn = applyMultiAppToSaveWindows(doc.Windows, snap, pf)
+	recomputeSaveSummary(doc)
+	if collapseWarn != "" {
+		WriteWarning(stderr, collapseWarn)
+	}
+
+	// Space filter already applied at capture (space-first). Record filter metadata.
+	skippedSpaces := spaceSkipped
+	if len(spacesAllow) > 0 {
+		doc.Filter = &SaveFilter{Spaces: append([]int(nil), spacesAllow...)}
+		// Safety: re-filter in case FixedSpace missing on any window.
+		if n := filterSaveDocumentBySpaces(doc, spacesAllow); n > 0 {
+			skippedSpaces += n
+		}
+	}
+	// Stable order: space asc (not discovery order / --spaces flag order).
+	sortSaveWindowsBySpace(doc.Windows)
+	recomputeSaveSummary(doc)
+
 	if doc.Summary.Sessions == 0 {
 		fmt.Fprintln(stdout, "0 critical sessions (nothing to save)")
+		if skippedSpaces > 0 {
+			WriteWarning(stderr, formatSpacesSkipWarning(skippedSpaces, spacesAllow))
+		}
 		return nil
 	}
 
@@ -634,33 +841,85 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 		return errs.NewSilenceExitCode(1)
 	}
 	formatSavePlan(stdout, doc, path, false, color)
+	if skippedSpaces > 0 {
+		WriteWarning(stderr, formatSpacesSkipWarning(skippedSpaces, spacesAllow))
+	}
 	return nil
 }
 
-// runSessionsSaveDryRun captures windows progressively, writing each critical
-// window block as soon as that window is ready, then the Would save footer.
-func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ignoreMacOSSpace bool) error {
+// runSessionsSaveDryRun streams critical window blocks then the Would save footer.
+// Space-first (--spaces): only deep-capture matching Desktops (cli/streaming + speed).
+// Fixture inject: progressive capture (stream-order contract). Live: multi-app stream.
+func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ignoreMacOSSpace bool, spacesAllow []int) error {
 	now := sessionsNowFn()
 	host, _ := sessionsHostnameFn()
+	pf := resolveMultiAppPreflight()
 
 	var windows []SaveWindow
 	byKind := map[string]int{}
 	var filterWarns []string
+	emitted := 0
+	seenITermIDs := map[int64]struct{}{}
+	spaceSkipped := 0
 
-	c := activeCollector()
-	_, warnings, err := c.capture(func(win SnapshotWindow) error {
+	// collectOnly: append critical windows without printing (live path sorts first).
+	// streamPrint: fixture path prints as ready (stream-order doctest contract).
+	collectCritical := func(win SnapshotWindow, streamPrint bool) {
 		sw, warns := extractCriticalFromWindow(win, ignoreMacOSSpace)
 		filterWarns = append(filterWarns, warns...)
 		if len(sw.Tabs) == 0 {
-			return nil
+			return
+		}
+		attachAppField(&sw, win, pf.AsApp)
+		if sw.ItermWindowID != 0 {
+			if _, ok := seenITermIDs[sw.ItermWindowID]; ok {
+				return
+			}
+			seenITermIDs[sw.ItermWindowID] = struct{}{}
+		}
+		// Space filter already applied at capture when --spaces set; keep belt-and-suspenders.
+		if len(spacesAllow) > 0 {
+			allowSet := spaceAllowSet(spacesAllow)
+			if !spaceAllowed(sw.Space, allowSet) {
+				spaceSkipped++
+				return
+			}
 		}
 		for _, tab := range sw.Tabs {
 			byKind[tab.Kind]++
 		}
+		if streamPrint {
+			sw.SourceIndex = emitted + 1
+			windows = append(windows, sw)
+			formatSaveWindowBlock(stdout, sw, color, emitted > 0)
+			emitted++
+			return
+		}
 		windows = append(windows, sw)
-		formatSaveWindowBlock(stdout, sw, color)
-		return nil
-	}, CaptureOpts{NoEnrich: false})
+	}
+
+	capOpts := CaptureOpts{
+		NoEnrich:     false,
+		SpaceAllow:   spacesAllow,
+		SpaceSkipped: &spaceSkipped,
+	}
+
+	c := activeCollector()
+	var warnings []string
+	var err error
+	if c.fixtureEnabled {
+		// Progressive fixture path (doctest stream-order probe).
+		_, warnings, err = c.capture(func(win SnapshotWindow) error {
+			collectCritical(win, true)
+			return nil
+		}, capOpts)
+	} else {
+		// Live multi-app + space-first: collect all keepers, sort by space, then print.
+		_, warnings, err = CaptureSnapshotForSaveStream(capOpts, func(win SnapshotWindow) error {
+			collectCritical(win, false)
+			return nil
+		})
+	}
 	if err != nil {
 		WriteError(stderr, strings.TrimPrefix(err.Error(), "Error: "))
 		return errs.NewSilenceExitCode(1)
@@ -671,6 +930,25 @@ func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ig
 	for _, w := range filterWarns {
 		WriteWarning(stderr, strings.TrimPrefix(w, "warning: "))
 	}
+	if collapseWarn := evaluateMultiAppCollapse(pf, collectAppsPresent(windows)); collapseWarn != "" {
+		WriteWarning(stderr, collapseWarn)
+	}
+	skippedSpaces := spaceSkipped
+
+	// Live path: stable order by space (flag order 10,11,12 vs 12,10,11 identical).
+	if !c.fixtureEnabled {
+		sortSaveWindowsBySpace(windows)
+		// Rebuild byKind after sort (unchanged content).
+		byKind = map[string]int{}
+		for _, w := range windows {
+			for _, tab := range w.Tabs {
+				byKind[tab.Kind]++
+			}
+		}
+		for i, w := range windows {
+			formatSaveWindowBlock(stdout, w, color, i > 0)
+		}
+	}
 
 	nTabs := 0
 	for _, w := range windows {
@@ -678,6 +956,9 @@ func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ig
 	}
 	if nTabs == 0 {
 		fmt.Fprintln(stdout, "0 critical sessions (nothing to save)")
+		if skippedSpaces > 0 {
+			WriteWarning(stderr, formatSpacesSkipWarning(skippedSpaces, spacesAllow))
+		}
 		return nil
 	}
 	if byKind == nil {
@@ -697,7 +978,14 @@ func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ig
 		},
 		Windows: windows,
 	}
+	if len(spacesAllow) > 0 {
+		// Always store sorted allowlist (parseSpacesList already sorts; re-copy).
+		doc.Filter = &SaveFilter{Spaces: append([]int(nil), spacesAllow...)}
+	}
 	formatSaveFooter(stdout, doc, path, true, color)
+	if skippedSpaces > 0 {
+		WriteWarning(stderr, formatSpacesSkipWarning(skippedSpaces, spacesAllow))
+	}
 	return nil
 }
 
@@ -914,7 +1202,8 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 	var fileFlag string
 	var forceColor, forceNoColor bool
 	var ignoreMacOSSpace bool
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, sessionsRestoreHelp)
+	// Restore does not accept --spaces (nil spacesSet → unknown flag).
+	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, nil, nil, sessionsRestoreHelp)
 	if err != nil {
 		if err == errHelpRequested {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsRestoreHelp)+"\n")
@@ -1102,7 +1391,10 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 // errHelpRequested is returned when -h was parsed.
 var errHelpRequested = fmt.Errorf("help")
 
-func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceColor, forceNoColor *bool, ignoreMacOSSpace *bool, helpText string) ([]string, error) {
+// parseSaveRestoreFlags parses shared save/restore flags.
+// spacesRaw/spacesSet: pass non-nil on save to accept --spaces; pass nil on
+// restore so --spaces is rejected as unknown.
+func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceColor, forceNoColor *bool, ignoreMacOSSpace *bool, spacesRaw *string, spacesSet *bool, helpText string) ([]string, error) {
 	// Manual parse to keep less-flags optional and help clean.
 	var remain []string
 	for i := 0; i < len(args); i++ {
@@ -1119,6 +1411,26 @@ func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceC
 		case a == "--ignore-macos-space":
 			if ignoreMacOSSpace != nil {
 				*ignoreMacOSSpace = true
+			}
+		case a == "--spaces":
+			if spacesSet == nil {
+				return nil, fmt.Errorf("unknown flag %s", a)
+			}
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("--spaces requires a comma-separated list of space indexes (e.g. 0,2)")
+			}
+			i++
+			*spacesSet = true
+			if spacesRaw != nil {
+				*spacesRaw = args[i]
+			}
+		case strings.HasPrefix(a, "--spaces="):
+			if spacesSet == nil {
+				return nil, fmt.Errorf("unknown flag --spaces")
+			}
+			*spacesSet = true
+			if spacesRaw != nil {
+				*spacesRaw = strings.TrimPrefix(a, "--spaces=")
 			}
 		case a == "--file" || a == "-f":
 			if i+1 >= len(args) {

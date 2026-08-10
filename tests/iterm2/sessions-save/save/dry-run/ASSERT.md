@@ -27,6 +27,10 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 		t.Fatalf("exit=%d stderr=%q stdout=%q", resp.ExitCode, resp.Stderr, resp.Stdout)
 	}
 	out := resp.Stdout
+	// First window block must not be preceded by a blank line.
+	if strings.HasPrefix(out, "\n") {
+		t.Fatalf("dry-run must not start with a leading empty line; stdout:\n%q", out)
+	}
 	if !strings.Contains(out, "Would save") {
 		t.Fatalf("missing Would save:\n%s", out)
 	}

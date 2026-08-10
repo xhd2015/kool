@@ -32,15 +32,18 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 		t.Fatalf("exit=%d stderr=%q stdout=%q", resp.ExitCode, resp.Stderr, resp.Stdout)
 	}
 	out := resp.Stdout
-	if !strings.Contains(out, "\x1b[") {
-		t.Fatalf("--color must emit ANSI escapes; stdout:\n%s", out)
+	if strings.HasPrefix(out, "\n") {
+		t.Fatalf("dry-run must not start with a leading empty line; stdout:\n%q", out)
 	}
-	// Green verb and/or bold window label (token map D6/D7).
-	hasGreenOrBold := strings.Contains(out, "\x1b[32m") || // green
-		strings.Contains(out, "\x1b[1m") || // bold
-		strings.Contains(out, "\x1b[01m")
-	if !hasGreenOrBold {
-		t.Fatalf("expected green and/or bold ANSI (Would save / W{n}); stdout:\n%q", out)
+	// go-best-practice token map: green verb/kind, bold W{n}, gray meta.
+	if !strings.Contains(out, "\x1b[32m") {
+		t.Fatalf("expected green ANSI (Would save / grok|codex); stdout:\n%q", out)
+	}
+	if !strings.Contains(out, "\x1b[1m") && !strings.Contains(out, "\x1b[01m") {
+		t.Fatalf("expected bold ANSI (W{n}); stdout:\n%q", out)
+	}
+	if !strings.Contains(out, "\x1b[90m") {
+		t.Fatalf("expected gray ANSI (path/cwd/space/dry-run note); stdout:\n%q", out)
 	}
 	if !strings.Contains(out, "Would save") {
 		t.Fatalf("missing Would save (may be colored):\n%s", out)

@@ -40,10 +40,17 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 		t.Fatalf("expected W1 on stdout before last ListTabs (streaming); stdout now:\n%s", resp.Stdout)
 	}
 	out := resp.Stdout
+	if strings.HasPrefix(out, "\n") {
+		t.Fatalf("stream dry-run must not start with a leading empty line; stdout:\n%q", out)
+	}
 	for _, want := range []string{"W1", "W2", "Would save"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("final stdout missing %q:\n%s", want, out)
 		}
+	}
+	// Separator blank only between windows (after W1 block, before W2).
+	if !strings.Contains(out, "\n\n  ") {
+		t.Fatalf("expected blank line between W1 and W2; stdout:\n%q", out)
 	}
 	p := filepath.Join(req.WorkingDir, "stream-plan.json")
 	if _, e := os.Stat(p); !os.IsNotExist(e) {

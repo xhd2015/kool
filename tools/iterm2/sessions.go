@@ -14,7 +14,7 @@ const sessionsHelp = `iterm2 sessions — inspect live iTerm2 windows, tabs, and
 
 Usage:
   kool iterm2 sessions snapshot [options]
-  kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
+  kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
   kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
   kool iterm2 sessions -h|--help
 
@@ -66,7 +66,7 @@ Examples:
 
 const sessionsSaveHelp = `iterm2 sessions save — checkpoint critical grok/codex/mark tabs
 
-Usage: kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space]
+Usage: kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
 
 Save busy panes that have a resolved grok or codex session_id, or a live mark
 process, into a checkpoint JSON (default: ~/.config/iterm2/sessions-save.json).
@@ -76,6 +76,9 @@ process, into a checkpoint JSON (default: ~/.config/iterm2/sessions-save.json).
   --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
   --no-color             force ANSI colors off
   --ignore-macos-space   omit space / iterm_window_id; do not resolve Spaces
+  --spaces LIST          only save windows on these 0-based Space indexes
+                         (comma-separated, e.g. 0,2); cannot combine with
+                         --ignore-macos-space; recorded as filter.spaces
   -h, --help
 
 Overwrite: if the file exists and has not been restored yet, prompts [Y/n]
@@ -83,12 +86,19 @@ on a TTY; non-interactive stdin errors out. Already-restored files are
 overwritten without a prompt. Zero critical sessions: exit 0, no write.
 Dry-run streams each critical window block as it is captured, then a footer.
 By default each window records macOS Space (space + iterm_window_id).
+With --spaces, windows outside the list are omitted; a skip warning is
+printed when any critical window was dropped.
+
+Multi-app: when dual iTerm installs are running (~/Applications/iTerm.app and
+/Applications/iTerm.app), save merges windows from both and records per-window
+canonical app. Restore ignores app and always uses the preferred install.
 
 Examples:
   kool iterm2 sessions save --dry-run
   kool iterm2 sessions save
   kool iterm2 sessions save --file ~/Desktop/pre-reboot.json
   kool iterm2 sessions save --ignore-macos-space
+  kool iterm2 sessions save --spaces 0,2
 `
 
 const sessionsRestoreHelp = `iterm2 sessions restore — recreate windows and resume from checkpoint

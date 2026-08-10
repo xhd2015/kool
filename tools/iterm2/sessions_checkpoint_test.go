@@ -730,3 +730,218 @@ func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
 		t.Fatal("must not stamp restored_at on hard AS failure")
 	}
 }
+
+func TestSortSaveWindowsBySpace(t *testing.T) {
+	windows := []SaveWindow{
+		{Name: "c", Space: 12, App: CanonicalITermAppHome, ItermWindowID: 3},
+		{Name: "a", Space: 10, App: CanonicalITermAppHome, ItermWindowID: 1},
+		{Name: "b", Space: 11, App: CanonicalITermAppSystem, ItermWindowID: 2},
+		{Name: "a2", Space: 10, App: CanonicalITermAppSystem, ItermWindowID: 4},
+	}
+	sortSaveWindowsBySpace(windows)
+	// space asc, then app, then name
+	wantSpaces := []int{10, 10, 11, 12}
+	wantNames := []string{"a2", "a", "b", "c"} // app system < home for space 10? "/" vs "~" — "/" < "~"
+	// CanonicalITermAppSystem = "/Applications/..." < CanonicalITermAppHome = "~/..."
+	for i, sp := range wantSpaces {
+		if windows[i].Space != sp {
+			t.Fatalf("i=%d space=%d want %d windows=%+v", i, windows[i].Space, sp, windows)
+		}
+	}
+	if windows[0].Name != "a2" || windows[0].App != CanonicalITermAppSystem {
+		t.Fatalf("space 10 first should be system a2: %+v", windows[0])
+	}
+	if windows[1].Name != "a" {
+		t.Fatalf("space 10 second home a: %+v", windows[1])
+	}
+	_ = wantNames
+	for i := range windows {
+		if windows[i].SourceIndex != i+1 {
+			t.Fatalf("source_index not renumbered: %+v", windows)
+		}
+	}
+}
+
+func TestFormatSaveWindowBlock_NoLeadingBlankOnFirst(t *testing.T) {
+	win := SaveWindow{
+		SourceIndex: 1,
+		Name:        "work",
+		Space:       1,
+		Tabs: []SaveTab{{
+			Kind: "grok", SessionID: "sess-1", Cwd: "/proj", ResumeCmd: "grok --resume sess-1",
+		}},
+	}
+	var buf bytes.Buffer
+	formatSaveWindowBlock(&buf, win, false, false)
+	out := buf.String()
+	if strings.HasPrefix(out, "\n") {
+		t.Fatalf("first block must not start with blank line: %q", out)
+	}
+	if !strings.HasPrefix(out, "  W1") {
+		t.Fatalf("want indent + W1; got %q", out)
+	}
+
+	buf.Reset()
+	formatSaveWindowBlock(&buf, win, false, true)
+	out2 := buf.String()
+	if !strings.HasPrefix(out2, "\n  W1") {
+		t.Fatalf("subsequent block must start with blank line: %q", out2)
+	}
+}
+
+func TestFormatSavePlan_ColorTokens(t *testing.T) {
+	doc := &SaveDocument{
+		Summary: SaveSummary{Windows: 1, Tabs: 1, Sessions: 1, ByKind: map[string]int{"grok": 1}},
+		Windows: []SaveWindow{{
+			SourceIndex: 1, Name: "work", Space: 0,
+			Tabs: []SaveTab{{Kind: "grok", SessionID: "s1", Cwd: "/a", ResumeCmd: "grok --resume s1"}},
+		}},
+	}
+	var buf bytes.Buffer
+	formatSavePlan(&buf, doc, "/tmp/x.json", true, true)
+	out := buf.String()
+	if strings.HasPrefix(out, "\n") {
+		t.Fatalf("leading blank: %q", out)
+	}
+	for _, code := range []string{"\x1b[32m", "\x1b[1m", "\x1b[90m"} {
+		if !strings.Contains(out, code) {
+			t.Fatalf("missing SGR %q in:\n%q", code, out)
+		}
+	}
+	if !strings.Contains(out, "Would save") {
+		t.Fatal(out)
+	}
+}
+
+func TestParseSpacesList(t *testing.T) {
+	got, err := parseSpacesList("2,0,2, 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []int{0, 1, 2}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+	if _, err := parseSpacesList(""); err == nil {
+		t.Fatal("expected empty error")
+	}
+	if _, err := parseSpacesList("16"); err == nil {
+		t.Fatal("expected range error")
+	}
+	if _, err := parseSpacesList("-1"); err == nil {
+		t.Fatal("expected negative error")
+	}
+	if _, err := parseSpacesList("x"); err == nil {
+		t.Fatal("expected non-int error")
+	}
+}
+
+func TestFilterSaveDocumentBySpaces(t *testing.T) {
+	doc := &SaveDocument{
+		Windows: []SaveWindow{
+			{SourceIndex: 1, Space: 0, Tabs: []SaveTab{{Kind: "grok", Cwd: "/a", ResumeCmd: "g"}}},
+			{SourceIndex: 2, Space: 2, Tabs: []SaveTab{{Kind: "mark", Cwd: "/b", ResumeCmd: "m"}}},
+			{SourceIndex: 3, Space: 1, Tabs: []SaveTab{{Kind: "codex", Cwd: "/c", ResumeCmd: "c"}}},
+		},
+	}
+	recomputeSaveSummary(doc)
+	skipped := filterSaveDocumentBySpaces(doc, []int{0, 2})
+	if skipped != 1 {
+		t.Fatalf("skipped=%d", skipped)
+	}
+	if doc.Summary.Windows != 2 || doc.Summary.Sessions != 2 {
+		t.Fatalf("summary=%+v", doc.Summary)
+	}
+	if len(doc.Windows) != 2 || doc.Windows[0].Space != 0 || doc.Windows[1].Space != 2 {
+		t.Fatalf("windows=%+v", doc.Windows)
+	}
+}
+
+func TestSessionsSave_SpacesFilter_WriteAndSkipWarn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spaces.json")
+	prevPath := sessionsSavePathForTest
+	sessionsSavePathForTest = path
+	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+
+	const (
+		wid0 = uint64(1001)
+		wid2 = uint64(1002)
+	)
+	space0, space2 := 0, 2
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
+		ITermRunning: true,
+		Windows: []SnapshotWindow{
+			{
+				Index: 1, Name: "On-0", WindowID: wid0, FixedSpace: &space0,
+				Tabs: []SnapshotTab{{Index: 1, Sessions: []SnapshotSession{
+					{Index: 1, ID: "A", TTY: "/dev/ttys001", Profile: "Default"},
+				}}},
+			},
+			{
+				Index: 2, Name: "On-2", WindowID: wid2, FixedSpace: &space2,
+				Tabs: []SnapshotTab{{Index: 1, Sessions: []SnapshotSession{
+					{Index: 1, ID: "B", TTY: "/dev/ttys002", Profile: "Default"},
+				}}},
+			},
+		},
+		BusyTTYs: []string{"ttys001", "ttys002"},
+		CwdByTTY: map[string]string{"ttys001": "/proj/a", "ttys002": "/proj/b"},
+		AgentResolveByTTY: map[string]AgentResolveFixture{
+			"ttys001": {Kind: "grok", SessionID: "sess-space-0"},
+			"ttys002": {Kind: "codex", SessionID: "sess-space-2"},
+		},
+		Hostname: "testhost",
+	})
+
+	var stdout, stderr bytes.Buffer
+	if err := runSessions([]string{"save", "--spaces", "0"}, &stdout, &stderr); err != nil {
+		t.Fatalf("%v stderr=%s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Saved") {
+		t.Fatalf("stdout:\n%s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "skipped 1 windows not matching --spaces 0") {
+		t.Fatalf("stderr skip warn:\n%s", stderr.String())
+	}
+	got, err := ReadSaveDocument(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Filter == nil || len(got.Filter.Spaces) != 1 || got.Filter.Spaces[0] != 0 {
+		t.Fatalf("filter=%+v", got.Filter)
+	}
+	if got.Summary.Windows != 1 || got.Summary.Sessions != 1 {
+		t.Fatalf("summary=%+v", got.Summary)
+	}
+	if got.Windows[0].Space != 0 {
+		t.Fatalf("space=%d", got.Windows[0].Space)
+	}
+}
+
+func TestSessionsSave_SpacesConflictIgnore(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSessions([]string{"save", "--spaces", "0", "--ignore-macos-space"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+	if !strings.Contains(stderr.String(), "--spaces cannot be used with --ignore-macos-space") {
+		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+}
+
+func TestSessionsSave_SpacesInvalid(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSessions([]string{"save", "--spaces", "16"}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("expected invalid space error")
+	}
+	if !strings.Contains(stderr.String(), "invalid space index 16") {
+		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+}

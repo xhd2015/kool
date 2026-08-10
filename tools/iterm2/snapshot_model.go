@@ -25,8 +25,15 @@ type SnapshotWindow struct {
 	Name  string `json:"name"`
 	// WindowID is the iTerm/AppleScript window id (CG window number when available).
 	// Used to resolve macOS Space on sessions save; zero means unknown.
-	WindowID uint64        `json:"window_id,omitempty"`
-	Tabs     []SnapshotTab `json:"tabs"`
+	WindowID uint64 `json:"window_id,omitempty"`
+	// FixedSpace, when non-nil, is the resolved 0-based Space for tests/fixtures.
+	// Prefer this over SpaceIndexForWindow so parallel tests need no global hook.
+	FixedSpace *int `json:"-"`
+	// App is the canonical iTerm install that owns this window (fixture tag or
+	// multi-app save source). Only "~/Applications/iTerm.app" or
+	// "/Applications/iTerm.app". Not emitted on sessions snapshot JSON.
+	App  string        `json:"-"`
+	Tabs []SnapshotTab `json:"tabs"`
 }
 
 // SnapshotTab is one tab; sessions are panes within the tab.

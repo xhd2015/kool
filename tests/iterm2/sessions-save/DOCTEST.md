@@ -4,6 +4,8 @@ Checkpoint critical **grok**, **codex**, and **mark** tabs to
 `~/.config/iterm2/sessions-save.json` (override with `--file`), then restore
 windows with `cd` + resume commands. **P2** also records macOS Space
 (`space` + `iterm_window_id`) and restores placement by Space index.
+**Multi-app** records per-window canonical **`app`** (home + system iTerm
+installs) on save only; restore ignores `app`.
 
 **Sibling of** `./tests/iterm2/sessions` (snapshot) and `sessions-p4` (enrich).
 
@@ -11,14 +13,17 @@ windows with `cd` + resume commands. **P2** also records macOS Space
 
 0.0.3
 
-**Classic TDD (color + streaming + Space + already-running):** dry-run color
-flags, progressive save stream, **macOS Space**, and **restore already-running
-skip** leaves are intentionally **RED** until the implementer lands those
-behaviors. Existing dry-run / write / restore / help leaves stay contracted and
-should remain **GREEN** on monochrome buffered output (zero-value Request
-defaults — no Space / already-running fixture flags). After already-running
-lands, restore always attempts a live capture; capture fail is soft (D6) so
-prior leaves without fixtures stay GREEN.
+**Classic TDD (color + streaming + Space + already-running + multi-app):**
+dry-run color flags, progressive save stream, **macOS Space**, **restore
+already-running skip**, and **multi-app / `app` field** leaves are
+intentionally **RED** until the implementer lands those behaviors. Existing
+dry-run / write / restore / help leaves stay contracted and should remain
+**GREEN** on monochrome buffered output (zero-value Request defaults — no
+Space / already-running / multi-app fixture flags). After already-running
+lands, restore always attempts a live capture; capture fail is soft so prior
+leaves without fixtures stay GREEN. Multi-app is **save-only**; restore seeds
+with or without `app` stay GREEN (unknown JSON field ignored; restore never
+targets recorded app).
 
 ## DSN (Domain Specific Notion)
 
@@ -27,14 +32,21 @@ prior leaves without fixtures stay GREEN.
 - **Caller** — invokes `kool iterm2 sessions save|restore …`.
 - **kool CLI / handler** — `tools/iterm2` routes `sessions save` / `sessions restore`;
   flags `--dry-run`, `--file`, **`--color`**, **`--no-color`**,
-  **`--ignore-macos-space`**, `-h/--help`.
+  **`--ignore-macos-space`**, save-only **`--spaces LIST`**, `-h/--help`.
 - **SnapshotCollector** — injectable via `InstallPhasedFixtureCollectorForTest`;
   phased `ListWindows` / `ListTabsAndSessions` + enrich + agent resolve.
-  Fixtures may carry per-window **WindowID** (iTerm/CG window number) once the
-  model gains that field.
+  Fixtures may carry per-window **WindowID** (iTerm/CG window number) and
+  (implementer) **App** for multi-app dual-source tags.
+- **App preflight** — save-only: resolve bare `tell application "iTerm2"` →
+  AS window ids → CG owner PID majority → `proc_pidpath` → canonical **asApp**;
+  discover running home + `/Applications` iTerm binaries; build source list
+  (bare tagged asApp ∪ path-tells for other running apps); merge windows;
+  hard-dedupe by `iterm_window_id`; renumber `source_index` 1…N. Dual collapse
+  (other path yields no new ids) → stderr **warning**, partial save, exit 0.
 - **Space index resolver** — P1 `space.SpaceIndexForWindow(windowID)` (via go.mod
   replace to `external/dot-pkgs-…/go-pkgs`). Save maps window id → 0-based
   Desktop index. Injectable for tests (implementer hook; no live WindowServer).
+  **`--spaces`** runs **after** multi-app merge.
 - **Space Backend** — Create / Switch / Highest for restore placement
   (`MockBackend` pattern from `computer-use/macos/space`). Live restore only;
   dry-run never calls it.
@@ -43,9 +55,12 @@ prior leaves without fixtures stay GREEN.
 - **Save plan streamer** — on save `--dry-run`, after each window is captured
   and classified with ≥1 critical tab, writes that **window block** to stdout
   immediately (includes **space N (Desktop N+1)** meta when Space recording is
-  on); after all windows, writes the **footer**. No “scanning…” header.
+  on; gray **`app  <canonical>`** meta when `app` non-empty); after all
+  windows, writes the **footer**. No “scanning…” header. First window has no
+  leading blank line.
 - **Restore planner** — restore `--dry-run` prints header → each window (with
-  space meta) / tab → footer. No Switch/Create/AS side effects for placement.
+  space meta) / tab → footer. **Ignores `app`** (preferred install only; no
+  app placement lines). No Switch/Create/AS side effects for placement.
 - **Already-running scanner** — after valid unconsumed checkpoint load (dry-run
   and live), capture live snapshot (enrich on), index critical panes by
   agent `kind`+`session_id` and mark exact `message`. Checkpoint tabs that hit
@@ -56,8 +71,10 @@ prior leaves without fixtures stay GREEN.
   `--color` && `--no-color` → error; `--color` force on; `--no-color` force
   off; else `NO_COLOR` non-empty → off; else stdout TTY.
 - **Fixture installer (tests)** — phased fixture + optional `OnListTabs` stream
-  probe; `SeedRawJSON` for checkpoints with `space` / `iterm_window_id` without
-  requiring production struct fields yet. No live iTerm / Mission Control.
+  probe; multi-app topology fixtures (`UseMultiApp*`); `SeedRawJSON` for
+  checkpoints with `space` / `iterm_window_id` / `app` without requiring
+  production struct fields at design time. No live iTerm / Mission Control /
+  dual-process.
 
 ### Critical filter
 
@@ -78,6 +95,32 @@ Zero critical → exit 0, **no write**.
 | `iterm_window_id` | iTerm AS / CG window number at save; **info only**. Restore never uses it. Emitted when known. |
 | `--ignore-macos-space` on save | Omit **both** `space` and `iterm_window_id`. No resolve. |
 | `--ignore-macos-space` on restore | Ignore `space`; create windows on current Desktop (legacy AS path). No Switch/Create. |
+| `--spaces LIST` on save | 0-based comma list; keep only windows whose resolved `space` is in LIST. Hard error with `--ignore-macos-space`. Soft resolve fail → `space=0` for membership. Runs **after** multi-app merge. |
+| `filter.spaces` | When `--spaces` used: sorted unique list in checkpoint. Omitted when flag not set. Restore ignores for placement. |
+
+### Checkpoint App field (`SaveWindow.app`)
+
+| Field / rule | Behavior |
+|--------------|----------|
+| `app` | Optional JSON string. Only **`~/Applications/iTerm.app`** or **`/Applications/iTerm.app`**. Always set when known (D1). Version stays 1 (additive). |
+| Home form | Always `~/…`, never expanded `/Users/…`. Non-standard home install (e.g. `.bak`) still records `~/Applications/iTerm.app` (optional one warning). |
+| Multi-app save | Sources = bare AS tagged asApp ∪ path-tells for other running canonical installs; hard-dedupe by `iterm_window_id`; renumber `source_index` globally 1…N. |
+| Dual collapse | Other path yields no new ids → stderr warning + partial save, exit 0 (D2). |
+| Dry-run meta | When `app` non-empty, window block includes gray **`app  <path>`** line (D4). |
+| Restore | **Ignores** `app` (D8); preferred app only. Old seeds without `app` unchanged. |
+| Snapshot | Multi-app is **save-only** (`CaptureOpts` / save path); `sessions snapshot` unchanged (D3). |
+
+### Implementer inject (tests — multi-app)
+
+Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
+
+- `SnapshotWindow.App` (fixture tag) and/or preflight inject for **asApp** + **runningApps**
+- Multi-app fixture collector: two sources of windows with different App tags
+  (home vs system); merge + dedupe by `iterm_window_id` in product
+- Doctest harness uses `UseMultiAppFixture` / `UseMultiAppDedupeFixture` /
+  `UseMultiAppSpacesFixture` + `FixtureApp` (assert target for single-app).
+  Until inject lands, topology fixtures still drive RED asserts on missing
+  `"app"` / dual app values / collapse warning.
 
 ### Save (Space)
 
@@ -85,6 +128,9 @@ Zero critical → exit 0, **no write**.
 2. Unless ignore: resolve `space` via `SpaceIndexForWindow(iterm_window_id)` (injectable).
 3. Resolve fail / non-type-0 → `space=0` + **warning** (stderr yellow); still may emit `iterm_window_id` if known.
 4. Always emit `space` when not ignore (including 0).
+5. When `--spaces`: after resolve, drop non-matching critical windows; recompute summary;
+   set `filter.spaces`; if any dropped → stderr warning footer
+   `skipped N windows not matching --spaces …`.
 
 ### Restore (Space)
 
@@ -136,7 +182,9 @@ Stderr: existing yellow `warning:`, red `Error:` (unchanged).
 ### Streaming order (save --dry-run, observable)
 
 1. For each window after enrich: classify critical tabs
-2. If ≥1 critical → **write that window block** (`W{n}` …) to stdout immediately
+2. If ≥1 critical → **write that window block** (`W{n}` …) to stdout immediately.
+   **First** critical window has **no** leading blank line; later windows are
+   separated by one blank line.
 3. After all windows → footer: green Would save + gray path + dry-run note
 
 When `ListTabsAndSessions` for the **last** window begins and ≥2 windows have
@@ -147,13 +195,16 @@ critical content, stdout must already contain `W1` (stream probe).
 - `InstallPhasedFixtureCollectorForTest` + `AgentResolveByTTY` / `BusyLeafByTTY`
 - **Implementer surface (expected):**
   - `SnapshotWindow.WindowID` (uint64) for fixture `iterm_window_id`
+  - `SnapshotWindow.App` / `SaveWindow.App` (JSON `app`; canonical strings only)
+  - multi-app / preflight inject (asApp, runningApps, dual-source collectors)
   - `SaveWindow.Space` / `SaveWindow.ItermWindowID` (JSON `space` / `iterm_window_id`)
   - test hook to inject Space index resolver (fixed index / error)
   - test hook to inject Space Backend + restore AppleScript for live placement
   - already-running scan after checkpoint load (dry-run + live); soft capture fail
 - Doctest harness: `SeedRawJSON` / `SeedDoc`, `--ignore-macos-space` via Request,
   `RestoreLiveFixture` + `FailSnapshotCapture` + `MockRestoreAS` for already-running
-  L2 leaves. FileJSON/stdout/stderr/AS-script asserts.
+  L2 leaves; `UseMultiApp*` + `FixtureApp` for multi-app L2 leaves.
+  FileJSON/stdout/stderr/AS-script asserts.
 
 ## Decision Tree
 
@@ -162,7 +213,9 @@ sessions-save/
 ├── help/
 │   ├── show-usage/              sessions -h mentions save + restore
 │   ├── color-flags/             save -h / restore -h mention --color + --no-color
-│   └── ignore-macos-space/      save -h / restore -h mention --ignore-macos-space
+│   ├── ignore-macos-space/      save -h / restore -h mention --ignore-macos-space
+│   ├── spaces-flag/             save -h mentions --spaces
+│   └── multi-app/               save -h mentions dual installs / app / preferred restore
 ├── save/
 │   ├── dry-run/                 plan only; no file (auto color; pipe OK monochrome)
 │   ├── write/                   writes version + saved_at; no restored_at
@@ -174,14 +227,24 @@ sessions-save/
 │   │   └── conflict/            --color --no-color → non-zero + together msg
 │   ├── stream/
 │   │   └── order/               two critical windows; W1 before last ListTabs
-│   └── space/                   ★ P2 macOS Space on save
-│       ├── dry-run-label/       plan shows space N (Desktop N+1); not iterm_window_id
-│       ├── write-fields/        FileJSON emits "space" (incl 0); not ignore
-│       ├── ignore-omit/         --ignore-macos-space → no space / iterm_window_id keys
-│       └── resolve-fail/        resolve fail → space 0 + stderr warning
+│   ├── space/                   ★ P2 macOS Space on save
+│   │   ├── dry-run-label/       plan shows space N (Desktop N+1); not iterm_window_id
+│   │   ├── write-fields/        FileJSON emits "space" (incl 0); not ignore
+│   │   ├── ignore-omit/         --ignore-macos-space → no space / iterm_window_id keys
+│   │   ├── resolve-fail/        resolve fail → space 0 + stderr warning
+│   │   ├── filter-keep/         --spaces 0 keeps space-0 window; skip warn + filter.spaces
+│   │   ├── filter-drop-all/     --spaces 1 drops all; 0 critical + skip warn; no write
+│   │   └── conflict-ignore/     --spaces + --ignore-macos-space → error
+│   └── app/                     ★ multi-app + SaveWindow.app (save only)
+│       ├── single-write/        single system fixture → FileJSON "app" system path
+│       ├── dual-merge/          both canonical apps; counts; no dup iterm_window_id
+│       ├── dry-run-meta/        dry-run gray app meta line; no leading blank; exit 0
+│       ├── dedupe-collapse/     dual source same ids → no doubles + warn; exit 0
+│       └── filter-spaces/       --spaces after merge; kept windows retain correct app
 └── restore/
-    ├── dry-run/                 plan shows cd + resume; not stamped
+    ├── dry-run/                 plan shows cd + resume; not stamped (no app seed)
     ├── consumed/                restored_at set → error
+    ├── app-ignored/             seed with app; dry-run OK; ignores app; not stamped
     ├── color/
     │   └── force-on/            restore --dry-run --color → ANSI
     ├── space/                   ★ P2 macOS Space on restore
@@ -208,6 +271,8 @@ sessions-save/
 | `help/show-usage/` | Help mentions `save`, `restore`, `snapshot` | GREEN |
 | `help/color-flags/` | save + restore help document `--color` / `--no-color` | RED until flags documented |
 | `help/ignore-macos-space/` | save + restore help document `--ignore-macos-space` | RED until flag documented |
+| `help/spaces-flag/` | save help documents `--spaces` | GREEN |
+| `help/multi-app/` | save help mentions dual installs / app / preferred restore | RED until help documents multi-app |
 | `save/dry-run/` | Would save + critical ids; no file | GREEN (monochrome OK) |
 | `save/write/` | file version, saved_at, kinds | GREEN |
 | `save/zero/` | 0 critical; no write | GREEN |
@@ -220,7 +285,16 @@ sessions-save/
 | `save/space/write-fields/` | checkpoint JSON always has `"space"` when not ignore | RED |
 | `save/space/ignore-omit/` | `--ignore-macos-space` omits `space` and `iterm_window_id` keys | RED (unknown flag today) |
 | `save/space/resolve-fail/` | resolve fail → `"space": 0` + stderr warning | RED |
-| `restore/dry-run/` | Would restore; not stamped | GREEN |
+| `save/space/filter-keep/` | `--spaces 0` keeps space-0 window; filter.spaces + skip warn | RED |
+| `save/space/filter-drop-all/` | `--spaces 1` drops all; no write | RED |
+| `save/space/conflict-ignore/` | `--spaces` + `--ignore-macos-space` → error | RED |
+| `save/app/single-write/` | FileJSON windows include `"app": "/Applications/iTerm.app"` | RED until app field |
+| `save/app/dual-merge/` | both canonical apps; critical counts; no duplicate window ids | RED until multi-app merge |
+| `save/app/dry-run-meta/` | stdout `app  …` meta; no leading blank; exit 0; no file | RED until dry-run app meta |
+| `save/app/dedupe-collapse/` | dual same ids → one window + stderr warn; exit 0 | RED until multi-app dedupe |
+| `save/app/filter-spaces/` | `--spaces` after multi-app; kept window retains correct `app` | RED until multi-app + spaces |
+| `restore/dry-run/` | Would restore; not stamped (seed without app) | GREEN |
+| `restore/app-ignored/` | seed with `app`; dry-run works; ignores app; not stamped | GREEN (JSON ignore + restore ignores app) |
 | `restore/consumed/` | consumed error | GREEN |
 | `restore/color/force-on/` | restore `--color` ANSI | RED |
 | `restore/space/dry-run-recorded/` | seed space 2 → plan `space 2 (Desktop 3)`; not stamped | RED |
@@ -252,6 +326,10 @@ doctest test ./tests/iterm2/sessions-save/save/space
 doctest test ./tests/iterm2/sessions-save/restore/space
 # Already-running skip leaves:
 doctest test ./tests/iterm2/sessions-save/restore/already-running
+# Multi-app / app field leaves:
+doctest test ./tests/iterm2/sessions-save/save/app
+doctest test ./tests/iterm2/sessions-save/restore/app-ignored
+doctest test ./tests/iterm2/sessions-save/help/multi-app
 ```
 
 ```go
@@ -313,12 +391,32 @@ type Request struct {
 	// Zero value false keeps existing leaves unchanged.
 	IgnoreMacOSSpace bool
 
+	// Spaces maps to save --spaces LIST (empty = omit flag).
+	Spaces string
+
 	// Install critical fixture (one window: grok + mark + idle).
 	UseCriticalFixture bool
 	// Idle-only fixture (zero critical).
 	UseIdleOnlyFixture bool
 	// Two windows each with ≥1 critical tab (stream order).
 	UseTwoCriticalWindows bool
+	// Two critical windows with WindowIDs resolving to space 0 and 2.
+	UseTwoCriticalSpacesFixture bool
+
+	// --- Multi-app / SaveWindow.app (save path). Zero-value = legacy single-app. ---
+	// FixtureApp is the expected canonical app for single-source leaves (assert
+	// target). Product must set app when known (D1). Typical:
+	//   "/Applications/iTerm.app" or "~/Applications/iTerm.app"
+	FixtureApp string
+	// UseMultiAppFixture: dual-source merge topology (system + home apps,
+	// distinct iterm_window_ids). Implementer tags per-window App on merge.
+	UseMultiAppFixture bool
+	// UseMultiAppDedupeFixture: dual-source with identical iterm_window_ids
+	// (collapse → one window + stderr warning, exit 0).
+	UseMultiAppDedupeFixture bool
+	// UseMultiAppSpacesFixture: dual apps with FixedSpace 0 (system) + 2 (home)
+	// for --spaces-after-merge leaves.
+	UseMultiAppSpacesFixture bool
 
 	// ObserveStreamOrder records SawW1BeforeLastListTabs via OnListTabs probe.
 	ObserveStreamOrder bool
@@ -499,6 +597,54 @@ func installTwoCritical(t *testing.T, probe *streamProbe) {
 	iterm2.InstallPhasedFixtureCollectorForTest(t, opts)
 }
 
+const (
+	fixtureSpaceWindowID0 = uint64(1001)
+	fixtureSpaceWindowID2 = uint64(1002)
+)
+
+// Canonical app paths (D9). Home form always ~/… never /Users/….
+const (
+	fixtureAppSystem = "/Applications/iTerm.app"
+	fixtureAppHome   = "~/Applications/iTerm.app"
+)
+
+const (
+	fixtureMultiWindowIDSystem = uint64(5001)
+	fixtureMultiWindowIDHome   = uint64(5002)
+	fixtureMultiWindowIDShared = uint64(5003) // dedupe: same id from both sources
+)
+
+// installTwoCriticalSpaces installs W1@space0 and W2@space2 via FixedSpace
+// (parallel-safe; no global SpaceIndex resolver).
+func installTwoCriticalSpaces(t *testing.T) {
+	t.Helper()
+	space0, space2 := 0, 2
+	wins := twoCriticalWindows()
+	wins[0].WindowID = fixtureSpaceWindowID0
+	wins[0].Name = "On-Space-0"
+	wins[0].FixedSpace = &space0
+	wins[1].WindowID = fixtureSpaceWindowID2
+	wins[1].Name = "On-Space-2"
+	wins[1].FixedSpace = &space2
+	iterm2.InstallPhasedFixtureCollectorForTest(t, iterm2.PhasedFixtureOpts{
+		ITermRunning: true,
+		Windows:      wins,
+		BusyTTYs:     []string{"ttys001", "ttys002"},
+		BusyLeafByTTY: map[string]string{
+			"ttys002": "mark still waiting for CI",
+		},
+		CwdByTTY: map[string]string{
+			"ttys001": "/proj/a",
+			"ttys002": "/proj/b",
+		},
+		AgentResolveByTTY: map[string]iterm2.AgentResolveFixture{
+			"ttys001": {Kind: "grok", SessionID: fixtureGrokSessionID, Title: "fixture-a"},
+		},
+		Now:      time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		Hostname: "testhost",
+	})
+}
+
 func installIdleOnly(t *testing.T) {
 	t.Helper()
 	iterm2.InstallPhasedFixtureCollectorForTest(t, iterm2.PhasedFixtureOpts{
@@ -512,6 +658,109 @@ func installIdleOnly(t *testing.T) {
 		IdleTTYs: []string{"ttys001"},
 		Hostname: "testhost",
 	})
+}
+
+// installMultiAppMerge installs the dual-source merge topology: W1 system-app
+// window + W2 home-app window (distinct WindowIDs, both critical).
+//
+// Until implementer lands MultiApp capture + SnapshotWindow.App / preflight
+// tags, save emits windows without dual `"app"` values → dual-merge RED.
+// When App field lands, implementer should tag:
+//   wins[0].App = fixtureAppSystem; wins[1].App = fixtureAppHome
+// (or inject dual-source collectors that set App per source).
+func installMultiAppMerge(t *testing.T) {
+	t.Helper()
+	wins := twoCriticalWindows()
+	wins[0].WindowID = fixtureMultiWindowIDSystem
+	wins[0].Name = "From-System"
+	wins[1].WindowID = fixtureMultiWindowIDHome
+	wins[1].Name = "From-Home"
+	iterm2.InstallPhasedFixtureCollectorForTest(t, iterm2.PhasedFixtureOpts{
+		ITermRunning: true,
+		Windows:      wins,
+		BusyTTYs:     []string{"ttys001", "ttys002"},
+		BusyLeafByTTY: map[string]string{
+			"ttys002": "mark still waiting for CI",
+		},
+		CwdByTTY: map[string]string{
+			"ttys001": "/proj/system-grok",
+			"ttys002": "/proj/home-mark",
+		},
+		AgentResolveByTTY: map[string]iterm2.AgentResolveFixture{
+			"ttys001": {Kind: "grok", SessionID: fixtureGrokSessionID, Title: "system-grok"},
+		},
+		Now:      time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		Hostname: "testhost",
+	})
+}
+
+// installMultiAppDedupe installs a single critical window with a shared
+// WindowID. Dual-running second source would yield the same iterm_window_id
+// (collapse → no doubles + stderr warning, exit 0). Without multi-app inject,
+// product does not warn → dedupe-collapse RED.
+func installMultiAppDedupe(t *testing.T) {
+	t.Helper()
+	wins := criticalWindows()
+	wins[0].WindowID = fixtureMultiWindowIDShared
+	wins[0].Name = "Shared-ID"
+	iterm2.InstallPhasedFixtureCollectorForTest(t, iterm2.PhasedFixtureOpts{
+		ITermRunning: true,
+		Windows:      wins,
+		BusyTTYs:     []string{"ttys001", "ttys002"},
+		IdleTTYs:     []string{"ttys003"},
+		BusyLeafByTTY: map[string]string{
+			"ttys002": "mark still waiting for CI",
+		},
+		CwdByTTY: map[string]string{
+			"ttys001": "/proj/grok",
+			"ttys002": "/proj/mark",
+		},
+		AgentResolveByTTY: map[string]iterm2.AgentResolveFixture{
+			"ttys001": {Kind: "grok", SessionID: fixtureGrokSessionID, Title: "fixture-title"},
+		},
+		Now:      time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		Hostname: "testhost",
+	})
+}
+
+// installMultiAppSpaces installs dual-app topology with FixedSpace 0 (system)
+// and 2 (home) for --spaces-after-merge leaves.
+func installMultiAppSpaces(t *testing.T) {
+	t.Helper()
+	space0, space2 := 0, 2
+	wins := twoCriticalWindows()
+	wins[0].WindowID = fixtureMultiWindowIDSystem
+	wins[0].Name = "System-Space-0"
+	wins[0].FixedSpace = &space0
+	wins[1].WindowID = fixtureMultiWindowIDHome
+	wins[1].Name = "Home-Space-2"
+	wins[1].FixedSpace = &space2
+	iterm2.InstallPhasedFixtureCollectorForTest(t, iterm2.PhasedFixtureOpts{
+		ITermRunning: true,
+		Windows:      wins,
+		BusyTTYs:     []string{"ttys001", "ttys002"},
+		BusyLeafByTTY: map[string]string{
+			"ttys002": "mark still waiting for CI",
+		},
+		CwdByTTY: map[string]string{
+			"ttys001": "/proj/a",
+			"ttys002": "/proj/b",
+		},
+		AgentResolveByTTY: map[string]iterm2.AgentResolveFixture{
+			"ttys001": {Kind: "grok", SessionID: fixtureGrokSessionID, Title: "fixture-a"},
+		},
+		Now:      time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC),
+		Hostname: "testhost",
+	})
+}
+
+// fileJSONHasApp reports whether checkpoint JSON has "app": "<canonical>".
+func fileJSONHasApp(fileJSON, app string) bool {
+	// encoding/json emits a space after colon.
+	if strings.Contains(fileJSON, `"app": "`+app+`"`) {
+		return true
+	}
+	return strings.Contains(fileJSON, `"app":"`+app+`"`)
 }
 
 // installRestoreFailCapture makes CaptureSnapshot fail (iTerm not running).
@@ -720,6 +969,9 @@ func appendSpaceFlags(args []string, req *Request) []string {
 	if req.IgnoreMacOSSpace {
 		args = append(args, "--ignore-macos-space")
 	}
+	if req.Spaces != "" {
+		args = append(args, "--spaces", req.Spaces)
+	}
 	return args
 }
 
@@ -794,9 +1046,19 @@ func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 
 		if req.UseIdleOnlyFixture {
 			installIdleOnly(t)
+		} else if req.UseMultiAppDedupeFixture {
+			installMultiAppDedupe(t)
+		} else if req.UseMultiAppSpacesFixture {
+			installMultiAppSpaces(t)
+		} else if req.UseMultiAppFixture {
+			installMultiAppMerge(t)
+		} else if req.UseTwoCriticalSpacesFixture {
+			installTwoCriticalSpaces(t)
 		} else if req.UseTwoCriticalWindows {
 			installTwoCritical(t, probe)
 		} else if req.UseCriticalFixture {
+			// Single-app path: UseCriticalFixture (FixtureApp is assert-only until
+			// implementer tags SnapshotWindow.App / preflight asApp).
 			installCritical(t, probe)
 		}
 
