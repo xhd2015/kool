@@ -5,6 +5,10 @@
 __PROJECT_NAME__-swift/.build/
 __PROJECT_NAME__-swift/.swiftpm/
 
+# Nested / monorepo-safe (SPM + go .build under any subdir)
+**/.build/
+**/.swiftpm/
+
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
@@ -18,4 +22,7 @@ __PROJECT_NAME__-debug.app/
 __PROJECT_NAME__.dmg
 __PROJECT_NAME__.zip
 *.dmg
+*.zip
 .dmg-staging/
+**/*.dSYM/
+*.app/
