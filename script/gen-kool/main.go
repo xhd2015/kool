@@ -160,7 +160,21 @@ func generateModule(goVersion string, verbose bool) error {
 			return nil
 		}
 
-		outputPath := filepath.Join(outputDir, relPath)
+		// Boundary-only go.mod (no module line) must not be copied into generated modules.
+		// Real go.mod content lives in go.mod.tpl and is emitted as go.mod below.
+		if !d.IsDir() && filepath.Base(path) == "go.mod" {
+			if verbose {
+				fmt.Printf("  Skipping boundary go.mod %s\n", path)
+			}
+			return nil
+		}
+
+		// *.tpl -> strip .tpl so go.mod.tpl becomes go.mod in the output tree.
+		outRel := relPath
+		if strings.HasSuffix(outRel, ".tpl") {
+			outRel = strings.TrimSuffix(outRel, ".tpl")
+		}
+		outputPath := filepath.Join(outputDir, outRel)
 
 		if d.IsDir() {
 			// Create directory

@@ -1,5 +1,3 @@
-module github.com/xhd2015/kool/cmd/kool-with-{{.GoVersion}}
-
-go {{.GoModVersion}}
-
-require github.com/xhd2015/xgo v1.1.10
+// Not a Go module.
+// go.mod exists only to exclude this tree from the parent module.
+// Template content: go.mod.tpl (expanded by script/gen-kool).
