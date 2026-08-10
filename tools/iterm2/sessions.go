@@ -16,12 +16,14 @@ Usage:
   kool iterm2 sessions snapshot [options]
   kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
   kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
+  kool iterm2 sessions auto-backup [--once] [--interval DUR] [--file PATH] [--dry-run]
   kool iterm2 sessions -h|--help
 
 Commands:
   snapshot                 capture all windows/tabs/sessions for human review
   save                     checkpoint critical grok/codex/mark tabs for restore
   restore                  recreate windows and resume from the last save file
+  auto-backup              periodically checkpoint critical tabs (default every 10m)
 
 Snapshot options:
   --json                   emit JSON
@@ -35,13 +37,15 @@ Snapshot options:
   --no-tree                keep agent session id but omit process tree lines
   -h, --help               show this help
 
-Save / restore:
-  Checkpoint default: ~/.config/iterm2/sessions-save.json
+Save / restore / auto-backup:
+  Manual checkpoint default: ~/.config/iterm2/sessions-save.json
+  Auto-backup default: ~/.config/iterm2/sessions-auto.json (always overwrite)
   save keeps panes with resolved grok/codex session ids, or a live mark process.
   restore creates windows/tabs, then: cd <cwd> and grok --resume / codex resume / mark …
+  auto-backup loops (default every 10m) with --once for a single cycle; soft-fails capture.
   If the checkpoint exists and is not restored yet, save prompts [Y/n] on a TTY
   (non-TTY stdin errors). restore errors if restored_at is already set.
-  --color / --no-color force ANSI on or off for save/restore plan output.
+  --color / --no-color force ANSI on or off for save/restore/auto-backup plan output.
 
 Default format is colored CLI (when stdout is a TTY). CLI streams each window
 block as it is collected; use --no-stream to buffer. JSON/Markdown/HTML always
@@ -62,6 +66,8 @@ Examples:
   kool iterm2 sessions save
   kool iterm2 sessions restore --dry-run
   kool iterm2 sessions restore
+  kool iterm2 sessions auto-backup --once
+  kool iterm2 sessions auto-backup --interval 5m
 `
 
 const sessionsSaveHelp = `iterm2 sessions save — checkpoint critical grok/codex/mark tabs
@@ -180,6 +186,8 @@ func runSessions(args []string, stdout, stderr io.Writer) error {
 		return runSessionsSave(args[1:], stdout, stderr)
 	case "restore":
 		return runSessionsRestore(args[1:], stdout, stderr)
+	case "auto-backup":
+		return runSessionsAutoBackup(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "Error: sessions: unknown subcommand %q\n\n%s\n", args[0], strings.TrimSpace(sessionsHelp))
 		return errs.NewSilenceExitCode(1)
