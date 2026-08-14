@@ -2,11 +2,14 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/xhd2015/dot-pkgs/go-pkgs/git/fix_commit"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/git/scan_repo"
 	"github.com/xhd2015/gitops/git"
-	"github.com/xhd2015/kool/tools/git/compare_branch"
 	"github.com/xhd2015/kool/tools/git/check_merged"
+	"github.com/xhd2015/kool/tools/git/compare_branch"
 	"github.com/xhd2015/kool/tools/git/git_check_merge"
 	"github.com/xhd2015/kool/tools/git/git_show_exclude"
 	"github.com/xhd2015/kool/tools/git/git_tag_next"
@@ -18,7 +21,6 @@ import (
 	"github.com/xhd2015/kool/tools/git/staged"
 	"github.com/xhd2015/kool/tools/git/worktree"
 	"github.com/xhd2015/less-flags"
-	"github.com/xhd2015/dot-pkgs/go-pkgs/git/scan_repo"
 )
 
 const help = `
@@ -36,6 +38,7 @@ Available commands:
   tmp-exclude,tmp-ignore           temporarily add patterns to .git/info/exclude
   init-hooks                       init git hooks
   scan-repos                       discover git repositories under filesystem roots
+  fix-commit                       rewrite one commit and retarget exact-tip refs
   help                             show help message
 
 Options:
@@ -110,6 +113,8 @@ func Handle(args []string) error {
 		return compare_branch.Handle(args[1:])
 	case "scan-repos":
 		return scan_repo.RunCLI(args[1:])
+	case "fix-commit":
+		return fix_commit.RunCLI(args[1:], os.Stdout, os.Stderr)
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
