@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/xhd2015/dot-pkgs/go-pkgs/encoding/asciihex"
 	"github.com/xhd2015/kool/pkgs/terminal"
 	"github.com/xhd2015/less-flags"
 )
@@ -58,11 +59,7 @@ func HandleEncode(args []string) error {
 		fmt.Println(hex.EncodeToString([]byte(data)))
 	case "ascii_hex":
 		// i.e. !E -> \x21\x45
-		bs := []byte(data)
-		for i := 0; i < len(bs); i++ {
-			fmt.Printf("\\x%02x", bs[i])
-		}
-		fmt.Println()
+		fmt.Println(asciihex.Encode([]byte(data)))
 		return nil
 	default:
 		return fmt.Errorf("unknown algorithm: %s", alg)

@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 
+	"github.com/xhd2015/dot-pkgs/go-pkgs/encoding/asciihex"
 	"github.com/xhd2015/kool/pkgs/terminal"
 )
 
@@ -104,29 +104,9 @@ func HandleDecode(args []string) error {
 }
 
 func decodeAsciiHex(input string) (string, error) {
-	// Check if the input is well-formed (starts with \x and has valid length)
-	if len(input) < 4 || input[0] != '\\' || input[1] != 'x' {
-		return "", fmt.Errorf("invalid hex escape sequence")
+	decoded, err := asciihex.Decode(input)
+	if err != nil {
+		return "", err
 	}
-
-	var result strings.Builder
-	// Process the string in steps of 4 characters (\xHH)
-	for i := 0; i < len(input); i += 4 {
-		// Ensure we have enough characters for \xHH
-		if i+4 > len(input) || input[i] != '\\' || input[i+1] != 'x' {
-			return "", fmt.Errorf("malformed hex escape sequence at position %d", i)
-		}
-
-		// Extract the two hex digits
-		hex := input[i+2 : i+4]
-		// Parse hex to integer
-		value, err := strconv.ParseInt(hex, 16, 32)
-		if err != nil {
-			return "", fmt.Errorf("invalid hex value %s: %v", hex, err)
-		}
-		// Write the character to the result
-		result.WriteRune(rune(value))
-	}
-
-	return result.String(), nil
+	return string(decoded), nil
 }
