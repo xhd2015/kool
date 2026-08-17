@@ -381,7 +381,7 @@ func handleQuestion(args []string) error {
 	var answerQuestion func(topic *Topic)
 	answerQuestion = func(topic *Topic) {
 		if topic.Title == question {
-			fmt.Printf(topic.Description)
+			fmt.Print(topic.Description)
 		}
 		for _, subTopic := range topic.SubTopics {
 			answerQuestion(subTopic)

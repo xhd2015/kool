@@ -80,9 +80,13 @@ func TestMakeDefault(t *testing.T) {
 				types.NewVar(0, nil, "MapField", types.NewMap(types.Typ[types.String], types.Typ[types.Int])),
 			}, nil),
 			validate: func(t *testing.T, val interface{}) {
-				m, ok := val.(map[string]interface{})
+				st, ok := val.(*structType)
 				if !ok {
-					t.Errorf("expected map[string]interface{}, got %T", val)
+					t.Fatalf("expected *structType, got %T", val)
+				}
+				m := map[string]interface{}{}
+				for _, item := range st.items {
+					m[item.key] = item.val
 				}
 				if m["IntField"] != 0 {
 					t.Errorf("expected IntField to be 0, got %v", m["IntField"])

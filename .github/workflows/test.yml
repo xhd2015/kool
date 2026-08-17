@@ -18,6 +18,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
 
       # Nested modules (own go.mod) are not covered by root `go test ./...`.
       # script/gen-kool/kool-template/go.mod is a placeholder, not a module.

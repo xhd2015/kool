@@ -202,7 +202,7 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 		if err != nil {
 			return err
 		}
-		content := string(contentBytes)
+		content := stripTemplateBuildIgnore(string(contentBytes))
 
 		content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
 
@@ -215,7 +215,7 @@ func copyTemplateFile(templateFS embed.FS, src, target, projectName, moduleName 
 	if err != nil {
 		return err
 	}
-	content := string(contentBytes)
+	content := stripTemplateBuildIgnore(string(contentBytes))
 	content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
 	return os.WriteFile(target, []byte(content), 0644)
 }

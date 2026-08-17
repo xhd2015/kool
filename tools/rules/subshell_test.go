@@ -72,7 +72,7 @@ func TestEnterSubshellBasics(t *testing.T) {
 func checkScriptContent(t *testing.T, content string) {
 	// Check for key elements in the script
 	expected := []string{
-		"PS1='(kool rules)",
+		`PS1="(kool rules)`,
 		"function use",
 		"alias list='kool rule list'",
 		"alias dir='kool rule dir'",
