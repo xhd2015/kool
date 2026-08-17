@@ -13,15 +13,14 @@ BuildScript -> osascript -> iTerm2
 
 ## Preconditions
 
-- `KOOL_ITERM2_GOOS=darwin` and `KOOL_ITERM2_INSTALLED=1` env vars are set by root Run
-- A temp dir is created for the test, used as both target dir and working dir
-- `KOOL_ITERM2_SCRIPT_OUT` captures the generated AppleScript to a file
+- Root Run uses `RunForTestEnv` with `GOOS=darwin`, `Installed`, and `Osascript` hooks
+- A temp dir is created for the test and passed as the CLI dir argument
 
 ## Steps
 
 1. Build full args from Request.Args + temp dir
-2. Invoke `iterm2cmd.RunForTest` with env overrides
-3. Read captured script from `KOOL_ITERM2_SCRIPT_OUT` path
+2. Invoke `iterm2cmd.RunForTestEnv` with hooks
+3. Capture AppleScript from the `Osascript` hook
 
 ## Context
 

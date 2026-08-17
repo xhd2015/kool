@@ -10,6 +10,15 @@ func Update(dir string) error {
 	return gotoolupdate.Update(dir)
 }
 
+// UpdateIn pins the latest tag of dir into consumerDir's go.mod.
+func UpdateIn(consumerDir, dir string) error {
+	_, err := gotoolupdate.Pin(gotoolupdate.PinOptions{
+		ConsumerDir: consumerDir,
+		DepDir:      dir,
+	})
+	return err
+}
+
 // stripSubDirFromTag strips the sub-directory prefix from a tag if the module path ends with that prefix.
 func stripSubDirFromTag(tag, modulePath string) string {
 	if tag == "" {

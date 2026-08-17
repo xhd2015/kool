@@ -38,16 +38,7 @@ func TestPreCommitAutoInstallFrontendDeps(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "main.go"), "package main\nfunc main() { println(1) }\n")
 	runCmd(t, dir, "git", "add", "main.go")
 
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(origDir)
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-
-	err = preCommitCheck(false, false)
+	err := preCommitCheck(dir, false, false)
 	if err != nil {
 		t.Fatalf("preCommitCheck failed when node_modules missing: %v", err)
 	}
@@ -58,7 +49,7 @@ func TestPreCommitAutoInstallFrontendDeps(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "main.go"), "package main\nfunc main() { println(2) }\n")
 	runCmd(t, dir, "git", "add", "main.go")
 
-	err = preCommitCheck(false, false)
+	err = preCommitCheck(dir, false, false)
 	if err != nil {
 		t.Fatalf("preCommitCheck failed when node_modules exists: %v", err)
 	}

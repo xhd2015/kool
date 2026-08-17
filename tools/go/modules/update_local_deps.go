@@ -15,6 +15,10 @@ import (
 )
 
 func UpdateLocalDepsAndRender(w io.Writer, dir string, dryRun bool) error {
+	return UpdateLocalDepsAndRenderWithEnv(w, dir, dryRun, nil)
+}
+
+func UpdateLocalDepsAndRenderWithEnv(w io.Writer, dir string, dryRun bool, extraEnv []string) error {
 	absRoot, err := filepath.Abs(dir)
 	if err != nil {
 		return err
@@ -34,6 +38,7 @@ func UpdateLocalDepsAndRender(w io.Writer, dir string, dryRun bool) error {
 
 	annotations, err := updateLocalDeps(absRoot, gitRoot, updateLocalDepsOptions{
 		DryRun: dryRun,
+		Env:    extraEnv,
 	})
 	if err != nil {
 		return err
@@ -48,6 +53,7 @@ func UpdateLocalDepsAndRender(w io.Writer, dir string, dryRun bool) error {
 
 type updateLocalDepsOptions struct {
 	DryRun bool
+	Env    []string
 }
 
 type updateLocalDepsState struct {
@@ -144,23 +150,23 @@ func processModuleLocalDeps(absRoot string, gitRoot string, module Module, modul
 		}, nil
 	}
 
-	updatedDeps, err := updateModuleGoModLocalDeps(absRoot, moduleAbsDir, module, moduleByDir, state)
+	updatedDeps, err := updateModuleGoModLocalDeps(absRoot, moduleAbsDir, module, moduleByDir, state, opts.Env)
 	if err != nil {
 		return ModuleAnnotation{}, err
 	}
 
 	annotation := ModuleAnnotation{}
 	if len(updatedDeps) > 0 {
-		if err := goModTidy(moduleAbsDir); err != nil {
+		if err := goModTidy(moduleAbsDir, opts.Env); err != nil {
 			return ModuleAnnotation{}, err
 		}
 		annotation.UpdatedDeps = updatedDeps
-		if err := commitModuleChanges(gitRoot, moduleAbsDir, updatedDeps); err != nil {
+		if err := commitModuleChanges(gitRoot, moduleAbsDir, updatedDeps, opts.Env); err != nil {
 			return ModuleAnnotation{}, err
 		}
 	}
 
-	previousTag, newTag, err := tagModuleHead(moduleAbsDir)
+	previousTag, newTag, err := tagModuleHead(moduleAbsDir, opts.Env)
 	if err != nil {
 		return ModuleAnnotation{}, err
 	}
@@ -172,7 +178,7 @@ func processModuleLocalDeps(absRoot string, gitRoot string, module Module, modul
 	return annotation, nil
 }
 
-func updateModuleGoModLocalDeps(absRoot string, moduleAbsDir string, module Module, moduleByDir map[string]Module, state *updateLocalDepsState) ([]DependencyAnnotation, error) {
+func updateModuleGoModLocalDeps(absRoot string, moduleAbsDir string, module Module, moduleByDir map[string]Module, state *updateLocalDepsState, extraEnv []string) ([]DependencyAnnotation, error) {
 	updatedDeps, err := collectModuleLocalDepUpdates(absRoot, module, moduleByDir, state)
 	if err != nil {
 		return nil, err
@@ -180,12 +186,12 @@ func updateModuleGoModLocalDeps(absRoot string, moduleAbsDir string, module Modu
 
 	for _, dep := range updatedDeps {
 		if dep.OldVersion != dep.NewVersion {
-			if err := goModEditRequire(moduleAbsDir, dep.ModulePath, dep.NewVersion); err != nil {
+			if err := goModEditRequire(moduleAbsDir, dep.ModulePath, dep.NewVersion, extraEnv); err != nil {
 				return nil, err
 			}
 		}
 		if dep.RemovedReplace {
-			if err := goModEditDropReplace(moduleAbsDir, dep.ModulePath); err != nil {
+			if err := goModEditDropReplace(moduleAbsDir, dep.ModulePath, extraEnv); err != nil {
 				return nil, err
 			}
 		}
@@ -285,7 +291,7 @@ func planTagModuleHead(moduleAbsDir string, moduleDir string, plannedCommit bool
 	return previousTag, nextTag, nil
 }
 
-func tagModuleHead(moduleAbsDir string) (string, string, error) {
+func tagModuleHead(moduleAbsDir string, extraEnv []string) (string, string, error) {
 	versionPrefix, err := tag.GetVersionPrefix(moduleAbsDir)
 	if err != nil {
 		return "", "", err
@@ -306,10 +312,10 @@ func tagModuleHead(moduleAbsDir string) (string, string, error) {
 	if nextTag == "" {
 		return "", "", nil
 	}
-	if err := runGitCmd(moduleAbsDir, "tag", nextTag); err != nil {
+	if err := runGitCmd(moduleAbsDir, extraEnv, "tag", nextTag); err != nil {
 		return "", "", err
 	}
-	if err := runGitCmd(moduleAbsDir, "push", "origin", nextTag); err != nil {
+	if err := runGitCmd(moduleAbsDir, extraEnv, "push", "origin", nextTag); err != nil {
 		return "", "", err
 	}
 	return previousTag, nextTag, nil
@@ -441,14 +447,14 @@ func nextModuleTag(moduleAbsDir string, versionPrefix string) (string, string, e
 	return latestTag, nextTag, nil
 }
 
-func commitModuleChanges(gitRoot string, moduleAbsDir string, updatedDeps []DependencyAnnotation) error {
+func commitModuleChanges(gitRoot string, moduleAbsDir string, updatedDeps []DependencyAnnotation, extraEnv []string) error {
 	goModPath := filepath.Join(moduleAbsDir, "go.mod")
 	relGoModPath, err := filepath.Rel(gitRoot, goModPath)
 	if err != nil {
 		return err
 	}
 	relGoModPath = filepath.ToSlash(relGoModPath)
-	if err := runGitCmd(gitRoot, "add", "--", relGoModPath); err != nil {
+	if err := runGitCmd(gitRoot, extraEnv, "add", "--", relGoModPath); err != nil {
 		return err
 	}
 
@@ -459,11 +465,11 @@ func commitModuleChanges(gitRoot string, moduleAbsDir string, updatedDeps []Depe
 	}
 	relGoSumPath = filepath.ToSlash(relGoSumPath)
 	if pathExists(goSumPath) || gitPathTracked(gitRoot, relGoSumPath) {
-		if err := runGitCmd(gitRoot, "add", "-A", "--", relGoSumPath); err != nil {
+		if err := runGitCmd(gitRoot, extraEnv, "add", "-A", "--", relGoSumPath); err != nil {
 			return err
 		}
 	}
-	return runGitCmd(gitRoot, "commit", "-m", localDepsCommitMessage(updatedDeps))
+	return runGitCmd(gitRoot, extraEnv, "commit", "-m", localDepsCommitMessage(updatedDeps))
 }
 
 func localDepsCommitMessage(updatedDeps []DependencyAnnotation) string {
@@ -515,16 +521,16 @@ func requireCleanGitRepo(gitRoot string) error {
 	return nil
 }
 
-func goModEditRequire(dir string, modulePath string, version string) error {
-	return runCmd(dir, "go", "mod", "edit", "-require="+modulePath+"@"+version)
+func goModEditRequire(dir string, modulePath string, version string, extraEnv []string) error {
+	return runCmd(dir, extraEnv, "go", "mod", "edit", "-require="+modulePath+"@"+version)
 }
 
-func goModEditDropReplace(dir string, modulePath string) error {
-	return runCmd(dir, "go", "mod", "edit", "-dropreplace="+modulePath)
+func goModEditDropReplace(dir string, modulePath string, extraEnv []string) error {
+	return runCmd(dir, extraEnv, "go", "mod", "edit", "-dropreplace="+modulePath)
 }
 
-func goModTidy(dir string) error {
-	return runCmd(dir, "go", "mod", "tidy")
+func goModTidy(dir string, extraEnv []string) error {
+	return runCmd(dir, extraEnv, "go", "mod", "tidy")
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
@@ -543,14 +549,17 @@ func gitPathTracked(dir string, relPath string) bool {
 	return cmd.Run() == nil
 }
 
-func runGitCmd(dir string, args ...string) error {
-	return runCmd(dir, "git", args...)
+func runGitCmd(dir string, extraEnv []string, args ...string) error {
+	return runCmd(dir, extraEnv, "git", args...)
 }
 
-func runCmd(dir string, name string, args ...string) error {
+func runCmd(dir string, extraEnv []string, name string, args ...string) error {
 	fmt.Fprintln(os.Stderr, name, strings.Join(args, " "))
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

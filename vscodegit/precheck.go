@@ -2,9 +2,7 @@ package vscodegit
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -20,41 +18,12 @@ func SetCodeCommandForTest(cmd string) {
 	codeCommandOverride = &s
 }
 
-func inTestPrecheckMode() bool {
-	return execCommandHook != nil || ipcSocketPathOverride != ""
-}
-
-func ensureTestFakeCodeCLI() (string, bool) {
-	if !inTestPrecheckMode() || codeCommandOverride != nil {
-		return "", false
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", false
-	}
-	script := filepath.Join(wd, "bin", "code")
-	if _, err := os.Stat(script); err == nil {
-		return script, true
-	}
-	if err := os.MkdirAll(filepath.Dir(script), 0755); err != nil {
-		return "", false
-	}
-	body := "#!/bin/sh\ncase \"$1\" in\n--list-extensions)\n  echo 'xhd2015.open-in-new-window'\n  ;;\nesac\n"
-	if err := os.WriteFile(script, []byte(body), 0755); err != nil {
-		return "", false
-	}
-	return script, true
-}
-
 func resolveCodePath() (string, error) {
 	if codeCommandOverride != nil {
 		if *codeCommandOverride == "" {
 			return "", fmt.Errorf("code: not found in PATH")
 		}
 		return *codeCommandOverride, nil
-	}
-	if script, ok := ensureTestFakeCodeCLI(); ok {
-		return script, nil
 	}
 	path, err := exec.LookPath("code")
 	if err != nil {

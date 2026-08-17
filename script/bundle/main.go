@@ -34,7 +34,7 @@ func run() error {
 	outputName := fmt.Sprintf("kool-%s-%s", runtime.GOOS, runtime.GOARCH)
 	out := filepath.Join(root, outputName)
 
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, ".")
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, ".")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout

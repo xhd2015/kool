@@ -187,6 +187,7 @@ A directory named `session/` under this tree collides with the doctest
 
 ```go
 import (
+	"runtime"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -386,7 +387,7 @@ func ensureKoolBinary(t *testing.T, d *session.Doctest) (string, error) {
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return err
 		}
-		cmd := exec.Command("go", "build", "-o", bin, ".")
+		cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-o", bin, ".")
 		cmd.Dir = modRoot
 		out, err := cmd.CombinedOutput()
 		if err != nil {

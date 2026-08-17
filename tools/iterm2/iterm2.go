@@ -95,28 +95,38 @@ func SetGOOSForTest(goos string) {
 	lib.SetGOOSForTest(goos)
 }
 
+// TestRun injects handler-test overrides. Do not mutate process env or cwd.
+type TestRun struct {
+	TabSetDir string
+	GOOS      string
+	Installed func() bool
+	Osascript func(script string) error
+}
+
 // Handle runs the kool iterm2 subcommand.
 func Handle(args []string) error {
-	return run(args, os.Stdout, os.Stderr)
+	return run(args, os.Stdout, os.Stderr, TestRun{})
 }
 
 // RunForTest runs the handler in-process for doctest handler phase.
+// workingDir is unused; callers pass absolute paths in args.
 func RunForTest(args []string, stdout, stderr io.Writer, workingDir string) int {
-	prev, _ := os.Getwd()
-	if workingDir != "" {
-		if err := os.Chdir(workingDir); err != nil {
-			fmt.Fprintf(stderr, "chdir: %v\n", err)
-			return 1
-		}
-		defer func() { _ = os.Chdir(prev) }()
+	_ = workingDir
+	return RunForTestEnv(args, stdout, stderr, TestRun{})
+}
+
+// RunForTestEnv is RunForTest with explicit hooks (no process Setenv/Chdir).
+func RunForTestEnv(args []string, stdout, stderr io.Writer, env TestRun) int {
+	if env.GOOS != "" {
+		lib.SetGOOSForTest(env.GOOS)
 	}
-	if err := run(args, stdout, stderr); err != nil {
+	if err := run(args, stdout, stderr, env); err != nil {
 		return 1
 	}
 	return 0
 }
 
-func run(args []string, stdout, stderr io.Writer) error {
+func run(args []string, stdout, stderr io.Writer, env TestRun) error {
 	// Reserved first-arg routing for title / tab-set / sessions (before open-dir).
 	if len(args) > 0 {
 		switch args[0] {
@@ -132,7 +142,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		case "install":
 			return runInstall(args[1:], stdout, stderr)
 		case "tab-set":
-			return runTabSet(args[1:], stdout, stderr)
+			return runTabSet(args[1:], stdout, stderr, env.TabSetDir)
 		case "sessions":
 			return runSessions(args[1:], stdout, stderr)
 		case "session":
@@ -176,6 +186,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 	cfg := &lib.Config{
 		FollowUpCommands: sends,
 		SafeInputIgnore:  true,
+	}
+	if env.Installed != nil {
+		cfg.Installed = env.Installed
+	}
+	if env.Osascript != nil {
+		cfg.Osascript = env.Osascript
 	}
 	if newWindow {
 		cfg.Mode = lib.ModeForceNew

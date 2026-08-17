@@ -229,10 +229,10 @@ func TestUpdateLocalDepsOldFlagsAreRejected(t *testing.T) {
 }
 
 func TestUpdateLocalDepsAndRender(t *testing.T) {
-	dir, origin := setupLocalDepsRepo(t)
+	dir, origin, extraEnv := setupLocalDepsRepo(t)
 
 	var buf bytes.Buffer
-	if err := UpdateLocalDepsAndRender(&buf, dir, false); err != nil {
+	if err := UpdateLocalDepsAndRenderWithEnv(&buf, dir, false, extraEnv); err != nil {
 		t.Fatal(err)
 	}
 
@@ -287,7 +287,7 @@ func TestUpdateLocalDepsAndRender(t *testing.T) {
 }
 
 func TestUpdateLocalDepsAndRenderDryRun(t *testing.T) {
-	dir, origin := setupLocalDepsRepo(t)
+	dir, origin, _ := setupLocalDepsRepo(t)
 
 	rootGoModBefore := mustRead(t, filepath.Join(dir, "go.mod"))
 	cliGoModBefore := mustRead(t, filepath.Join(dir, "cli", "go.mod"))
@@ -333,10 +333,10 @@ func TestUpdateLocalDepsAndRenderDryRun(t *testing.T) {
 }
 
 func TestUpdateLocalDepsSkipsTagForUnchangedSubmoduleTree(t *testing.T) {
-	dir, origin := setupTaggedRootReadmeRepo(t)
+	dir, origin, extraEnv := setupTaggedRootReadmeRepo(t)
 
 	var buf bytes.Buffer
-	if err := UpdateLocalDepsAndRender(&buf, dir, false); err != nil {
+	if err := UpdateLocalDepsAndRenderWithEnv(&buf, dir, false, extraEnv); err != nil {
 		t.Fatal(err)
 	}
 
@@ -358,10 +358,10 @@ func TestUpdateLocalDepsSkipsTagForUnchangedSubmoduleTree(t *testing.T) {
 }
 
 func TestUpdateLocalDepsSkipsParentTagForNestedModuleChange(t *testing.T) {
-	dir, origin := setupNestedModuleChangeRepo(t)
+	dir, origin, extraEnv := setupNestedModuleChangeRepo(t)
 
 	var buf bytes.Buffer
-	if err := UpdateLocalDepsAndRender(&buf, dir, false); err != nil {
+	if err := UpdateLocalDepsAndRenderWithEnv(&buf, dir, false, extraEnv); err != nil {
 		t.Fatal(err)
 	}
 
@@ -383,10 +383,10 @@ func TestUpdateLocalDepsSkipsParentTagForNestedModuleChange(t *testing.T) {
 }
 
 func TestUpdateLocalDepsSkipsUntaggedModule(t *testing.T) {
-	dir, origin := setupUntaggedModuleRepo(t)
+	dir, origin, extraEnv := setupUntaggedModuleRepo(t)
 
 	var buf bytes.Buffer
-	if err := UpdateLocalDepsAndRender(&buf, dir, false); err != nil {
+	if err := UpdateLocalDepsAndRenderWithEnv(&buf, dir, false, extraEnv); err != nil {
 		t.Fatal(err)
 	}
 
@@ -399,7 +399,7 @@ func TestUpdateLocalDepsSkipsUntaggedModule(t *testing.T) {
 }
 
 func TestUpdateLocalDepsSkipsUntaggedModuleDryRun(t *testing.T) {
-	dir, origin := setupUntaggedModuleRepo(t)
+	dir, origin, _ := setupUntaggedModuleRepo(t)
 
 	rootGoModBefore := mustRead(t, filepath.Join(dir, "go.mod"))
 	headBefore := mustRunGitOutput(t, dir, "rev-parse", "HEAD")
@@ -426,7 +426,7 @@ func TestUpdateLocalDepsSkipsUntaggedModuleDryRun(t *testing.T) {
 	}
 }
 
-func setupUntaggedModuleRepo(t *testing.T) (string, string) {
+func setupUntaggedModuleRepo(t *testing.T) (string, string, []string) {
 	t.Helper()
 	dir := t.TempDir()
 	origin := filepath.Join(t.TempDir(), "origin.git")
@@ -439,7 +439,7 @@ func setupUntaggedModuleRepo(t *testing.T) (string, string) {
 	}
 	mustRunGit(t, origin, "init", "--bare")
 	mustRunGit(t, dir, "remote", "add", "origin", origin)
-	configGoFetchFromOrigin(t, origin)
+	extraEnv := configGoFetchFromOrigin(t, origin)
 
 	mustWrite(t, filepath.Join(dir, "go.mod"), `module example.com/root.git
 go 1.23.0
@@ -447,10 +447,10 @@ go 1.23.0
 	mustWrite(t, filepath.Join(dir, "main.go"), "package main\n")
 	mustRunGit(t, dir, "add", ".")
 	mustRunGit(t, dir, "commit", "-m", "initial")
-	return dir, origin
+	return dir, origin, extraEnv
 }
 
-func setupLocalDepsRepo(t *testing.T) (string, string) {
+func setupLocalDepsRepo(t *testing.T) (string, string, []string) {
 	t.Helper()
 	dir := t.TempDir()
 	origin := filepath.Join(t.TempDir(), "origin.git")
@@ -463,7 +463,7 @@ func setupLocalDepsRepo(t *testing.T) (string, string) {
 	}
 	mustRunGit(t, origin, "init", "--bare")
 	mustRunGit(t, dir, "remote", "add", "origin", origin)
-	configGoFetchFromOrigin(t, origin)
+	extraEnv := configGoFetchFromOrigin(t, origin)
 
 	mustWrite(t, filepath.Join(dir, "go.mod"), `module example.com/root.git
 go 1.23.0
@@ -505,10 +505,10 @@ import _ "example.com/root.git/types"
 		mustRunGit(t, dir, "tag", tag)
 	}
 	mustRunGit(t, dir, "push", "origin", "v0.0.1", "types/v0.0.1", "cli/v0.0.1")
-	return dir, origin
+	return dir, origin, extraEnv
 }
 
-func setupTaggedRootReadmeRepo(t *testing.T) (string, string) {
+func setupTaggedRootReadmeRepo(t *testing.T) (string, string, []string) {
 	t.Helper()
 	dir := t.TempDir()
 	origin := filepath.Join(t.TempDir(), "origin.git")
@@ -521,6 +521,7 @@ func setupTaggedRootReadmeRepo(t *testing.T) (string, string) {
 	}
 	mustRunGit(t, origin, "init", "--bare")
 	mustRunGit(t, dir, "remote", "add", "origin", origin)
+	extraEnv := configGoFetchFromOrigin(t, origin)
 
 	mustWrite(t, filepath.Join(dir, "go.mod"), `module example.com/root.git
 go 1.23.0
@@ -543,10 +544,10 @@ go 1.23.0
 	mustWrite(t, filepath.Join(dir, "README.md"), "update README\n")
 	mustRunGit(t, dir, "add", "README.md")
 	mustRunGit(t, dir, "commit", "-m", "update README")
-	return dir, origin
+	return dir, origin, extraEnv
 }
 
-func setupNestedModuleChangeRepo(t *testing.T) (string, string) {
+func setupNestedModuleChangeRepo(t *testing.T) (string, string, []string) {
 	t.Helper()
 	dir := t.TempDir()
 	origin := filepath.Join(t.TempDir(), "origin.git")
@@ -559,6 +560,7 @@ func setupNestedModuleChangeRepo(t *testing.T) (string, string) {
 	}
 	mustRunGit(t, origin, "init", "--bare")
 	mustRunGit(t, dir, "remote", "add", "origin", origin)
+	extraEnv := configGoFetchFromOrigin(t, origin)
 
 	mustWrite(t, filepath.Join(dir, "go.mod"), `module example.com/root.git
 go 1.23.0
@@ -576,10 +578,10 @@ go 1.23.0
 	mustWrite(t, filepath.Join(dir, "inner", "inner.go"), "package inner\n\nconst Version = 2\n")
 	mustRunGit(t, dir, "add", ".")
 	mustRunGit(t, dir, "commit", "-m", "update inner")
-	return dir, origin
+	return dir, origin, extraEnv
 }
 
-func configGoFetchFromOrigin(t *testing.T, origin string) {
+func configGoFetchFromOrigin(t *testing.T, origin string) []string {
 	t.Helper()
 	gitConfig := filepath.Join(t.TempDir(), "gitconfig")
 	originURL := "file://" + filepath.ToSlash(origin)
@@ -595,12 +597,14 @@ func configGoFetchFromOrigin(t *testing.T, origin string) {
 	insteadOf = ssh://example.com/root
 	insteadOf = git+ssh://example.com/root
 `)
-	t.Setenv("GIT_CONFIG_GLOBAL", gitConfig)
-	t.Setenv("GIT_ALLOW_PROTOCOL", "file:https:http:git:ssh")
-	t.Setenv("GOPRIVATE", "example.com")
-	t.Setenv("GONOSUMDB", "example.com")
-	t.Setenv("GOPROXY", "direct")
-	t.Setenv("GOINSECURE", "example.com")
+	return []string{
+		"GIT_CONFIG_GLOBAL=" + gitConfig,
+		"GIT_ALLOW_PROTOCOL=file:https:http:git:ssh",
+		"GOPRIVATE=example.com",
+		"GONOSUMDB=example.com",
+		"GOPROXY=direct",
+		"GOINSECURE=example.com",
+	}
 }
 
 type moduleSummary struct {

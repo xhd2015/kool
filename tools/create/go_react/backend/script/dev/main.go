@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"errors"
 	"fmt"
 	"os"
@@ -47,7 +48,7 @@ func run(args []string) int {
 
 	forwardArgs = stripLeadingDoubleDash(forwardArgs)
 	cmdArgs := append([]string{"run", "./", "--dev"}, forwardArgs...)
-	cmd := exec.Command("go", cmdArgs...)
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", cmdArgs...)
 	cmd.Dir = root
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

@@ -40,7 +40,6 @@ doctest test ./tests/go/replace
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -70,15 +69,7 @@ func Run(t *testing.T, req *Request) (*Response, error) {
 
 	switch req.Operation {
 	case "replace":
-		oldWd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		if err := os.Chdir(req.ConsumerDir); err != nil {
-			return nil, err
-		}
-		defer os.Chdir(oldWd)
-		resp.AbsDir, resp.ModulePath, resp.ReplaceErr = go_replace.Replace(req.TargetDir)
+		resp.AbsDir, resp.ModulePath, resp.ReplaceErr = go_replace.ReplaceIn(req.ConsumerDir, req.TargetDir)
 
 	case "cli":
 		cmd := exec.Command("kool", "go", "replace", req.TargetDir)

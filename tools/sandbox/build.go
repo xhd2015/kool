@@ -219,14 +219,14 @@ func main() {
 	}
 
 	// Resolve transitive deps of the replaced kool module into this temp module.
-	tidy := exec.Command("go", "mod", "tidy")
+	tidy := exec.Command(runtime.GOROOT()+"/bin/go", "mod", "tidy")
 	tidy.Dir = tmp
 	tidy.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := tidy.CombinedOutput(); err != nil {
 		return fmt.Errorf("go mod tidy sealed runner: %w\n%s", err, out)
 	}
 
-	cmd := exec.Command("go", "build", "-o", outPath, ".")
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-o", outPath, ".")
 	cmd.Dir = tmp
 	cmd.Env = append(os.Environ(),
 		"GOOS="+goos,
@@ -321,7 +321,7 @@ func findKoolModuleRoot() (string, error) {
 	}
 
 	// Prefer go list when the toolchain can resolve the main module.
-	list := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/xhd2015/kool")
+	list := exec.Command(runtime.GOROOT()+"/bin/go", "list", "-m", "-f", "{{.Dir}}", "github.com/xhd2015/kool")
 	if out, err := list.Output(); err == nil {
 		dir := strings.TrimSpace(string(out))
 		if dir != "" {

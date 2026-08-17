@@ -42,7 +42,6 @@ doctest test ./tests/go/update
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"testing"
 
@@ -69,15 +68,10 @@ func Run(t *testing.T, req *Request) (*Response, error) {
 
 	switch req.Operation {
 	case "update":
-		oldWd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		if err := os.Chdir(req.ConsumerDir); err != nil {
-			return nil, err
-		}
-		defer os.Chdir(oldWd)
-		resp.UpdateErr = go_update.Update(req.TargetDir)
+		_, resp.UpdateErr = go_update.Pin(go_update.PinOptions{
+			ConsumerDir: req.ConsumerDir,
+			DepDir:      req.TargetDir,
+		})
 
 	case "cli":
 		cmd := exec.Command("kool", "go", "update", req.TargetDir)

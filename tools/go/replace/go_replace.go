@@ -3,16 +3,22 @@ package replace
 import (
 	"fmt"
 
-	goconfig "github.com/xhd2015/kool/tools/go/config"
 	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/commands"
 	gotoolreplace "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/replace"
 	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
+	goconfig "github.com/xhd2015/kool/tools/go/config"
 )
 
 // Replace checks if the given directory exists and contains a valid Go module,
 // returns the absolute path of the directory and the module path.
+// Consumer go.mod is the process cwd (CLI). Prefer ReplaceIn in tests.
 func Replace(dir string) (absDir string, modulePath string, err error) {
 	return gotoolreplace.Replace(dir)
+}
+
+// ReplaceIn adds a replace directive in consumerDir's go.mod.
+func ReplaceIn(consumerDir, dir string) (absDir string, modulePath string, err error) {
+	return gotoolreplace.ReplaceIn(consumerDir, dir)
 }
 
 // ReplaceAll reads the config, gets the LocalModules list, and adds replace directives for dependencies.

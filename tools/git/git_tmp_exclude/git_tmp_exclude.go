@@ -22,12 +22,18 @@ Options:
 `
 
 func Handle(args []string) error {
+	return HandleIn("", args)
+}
+
+// HandleIn writes tmp-exclude patterns for the git repo at dir.
+// Empty dir uses the process cwd (CLI).
+func HandleIn(dir string, args []string) error {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Println(strings.TrimPrefix(help, "\n"))
 		return nil
 	}
 
-	excludePath, err := getExcludePath()
+	excludePath, err := getExcludePath(dir)
 	if err != nil {
 		return fmt.Errorf("failed to get exclude path: %w", err)
 	}
@@ -73,27 +79,32 @@ func Handle(args []string) error {
 	return nil
 }
 
-func getExcludePath() (string, error) {
-	gitDir, err := getGitCommonDir()
+func getExcludePath(dir string) (string, error) {
+	gitDir, err := getGitCommonDir(dir)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(gitDir, "info", "exclude"), nil
 }
 
-func getGitCommonDir() (string, error) {
+func getGitCommonDir(dir string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
+	cmd.Dir = dir
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("not a git repository: %w", err)
 	}
 	gitDir := strings.TrimSpace(string(output))
 	if !filepath.IsAbs(gitDir) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", err
+		base := dir
+		if base == "" {
+			var err error
+			base, err = os.Getwd()
+			if err != nil {
+				return "", err
+			}
 		}
-		gitDir = filepath.Join(cwd, gitDir)
+		gitDir = filepath.Join(base, gitDir)
 	}
 	return gitDir, nil
 }

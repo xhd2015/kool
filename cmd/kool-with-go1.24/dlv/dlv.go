@@ -3,6 +3,7 @@
 package dlv
 
 import (
+	"runtime"
 	"fmt"
 	"os"
 	"os/exec"
@@ -180,7 +181,7 @@ func HasMainMain(binary string) bool {
 
 func getBinaryNM(binary string) string {
 	// Run go tool nm to list symbols in the binary
-	output, err := exec.Command("go", "tool", "nm", binary).Output()
+	output, err := exec.Command(runtime.GOROOT()+"/bin/go", "tool", "nm", binary).Output()
 	if err != nil {
 		return "" // fallback to a default
 	}
@@ -203,7 +204,7 @@ func getBinaryNM(binary string) string {
 		if len(fields) > 0 {
 			// Instead of addr2line which might not be available on all platforms
 			// Try using go tool objdump with grep
-			objOutput, err := exec.Command("go", "tool", "objdump", "-s", "main.main", binary).Output()
+			objOutput, err := exec.Command(runtime.GOROOT()+"/bin/go", "tool", "objdump", "-s", "main.main", binary).Output()
 			if err == nil {
 				objLines := strings.Split(string(objOutput), "\n")
 				for _, objLine := range objLines {

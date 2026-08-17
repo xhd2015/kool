@@ -21,6 +21,7 @@ user -> kool go update <dir> -> go_update.Update -> go.mod edited in cwd
 
 ```go
 import (
+	"runtime"
 	"fmt"
 	"os"
 	"os/exec"
@@ -61,7 +62,7 @@ func mustGit(t *testing.T, dir string, args ...string) {
 
 func mustGo(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", args...)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go %s: %v\n%s", strings.Join(args, " "), err, out)

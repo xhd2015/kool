@@ -25,9 +25,7 @@ func TestTmpExclude(t *testing.T) {
 	}
 
 	t.Run("adds pattern to exclude", func(t *testing.T) {
-		if err := runInDir(testDir, func() error {
-			return Handle([]string{"*.log"})
-		}); err != nil {
+		if err := HandleIn(testDir, []string{"*.log"}); err != nil {
 			t.Fatalf("Handle failed: %v", err)
 		}
 
@@ -47,9 +45,7 @@ func TestTmpExclude(t *testing.T) {
 		markerCount := strings.Count(content, marker)
 		starLogCount := strings.Count(content, "*.log")
 
-		if err := runInDir(testDir, func() error {
-			return Handle([]string{"*.log"})
-		}); err != nil {
+		if err := HandleIn(testDir, []string{"*.log"}); err != nil {
 			t.Fatalf("Handle failed: %v", err)
 		}
 
@@ -63,9 +59,7 @@ func TestTmpExclude(t *testing.T) {
 	})
 
 	t.Run("adds multiple patterns", func(t *testing.T) {
-		if err := runInDir(testDir, func() error {
-			return Handle([]string{"*.tmp", "build/"})
-		}); err != nil {
+		if err := HandleIn(testDir, []string{"*.tmp", "build/"}); err != nil {
 			t.Fatalf("Handle failed: %v", err)
 		}
 
@@ -107,9 +101,7 @@ func TestTmpExcludeWorktree(t *testing.T) {
 	}
 
 	t.Run("writes to main repo exclude from worktree", func(t *testing.T) {
-		if err := runInDir(wtDir, func() error {
-			return Handle([]string{"*.wt-log"})
-		}); err != nil {
+		if err := HandleIn(wtDir, []string{"*.wt-log"}); err != nil {
 			t.Fatalf("Handle failed: %v", err)
 		}
 
@@ -153,9 +145,7 @@ func TestTmpExcludeMissingDir(t *testing.T) {
 	}
 
 	t.Run("creates info dir if missing", func(t *testing.T) {
-		if err := runInDir(testDir, func() error {
-			return Handle([]string{"*.build"})
-		}); err != nil {
+		if err := HandleIn(testDir, []string{"*.build"}); err != nil {
 			t.Fatalf("Handle failed: %v", err)
 		}
 
@@ -216,17 +206,4 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("failed to read %s: %v", path, err)
 	}
 	return string(data)
-}
-
-func runInDir(dir string, fn func() error) error {
-	oldDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(oldDir)
-
-	if err := os.Chdir(dir); err != nil {
-		return err
-	}
-	return fn()
 }

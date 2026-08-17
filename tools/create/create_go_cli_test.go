@@ -1,6 +1,7 @@
 package create
 
 import (
+	"runtime"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +51,7 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 		}
 	}
 
-	cmd := exec.Command("go", "test", "./...")
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", "test", "./...")
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test ./...: %v\n%s", err, output)

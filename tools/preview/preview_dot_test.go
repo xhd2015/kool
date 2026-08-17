@@ -50,7 +50,7 @@ Some text before.
 	}
 
 	koolBin := filepath.Join(tmpDir, "kool")
-	buildCmd := exec.Command("go", "build", "-o", koolBin)
+	buildCmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-o", koolBin)
 	buildCmd.Dir = projectRoot
 	if out, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to build kool: %v\n%s", err, out)

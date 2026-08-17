@@ -112,6 +112,7 @@ timeout so a missing stop flag cannot hang the suite forever.
 
 ```go
 import (
+	"runtime"
 	"bytes"
 	"context"
 	"fmt"
@@ -201,7 +202,7 @@ func ensureKoolBinary(t *testing.T) (string, error) {
 		if err := os.MkdirAll(cacheDir, 0755); err != nil {
 			return err
 		}
-		cmd := exec.Command("go", "build", "-o", bin, ".")
+		cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-o", bin, ".")
 		cmd.Dir = moduleRoot()
 		out, err := cmd.CombinedOutput()
 		if err != nil {

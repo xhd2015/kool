@@ -97,11 +97,9 @@ func TestUpdateUsesLatestRootTagInsteadOfHeadPseudoVersion(t *testing.T) {
 	initKodeAIRepo(t, target)
 	initConsumerModule(t, consumer, "github.com/xhd2015/kode-ai", "v0.0.1", target)
 
-	withDir(t, consumer, func() {
-		if err := Update(target); err != nil {
-			t.Fatal(err)
-		}
-	})
+	if err := UpdateIn(consumer, target); err != nil {
+		t.Fatal(err)
+	}
 
 	modInfo, err := resolve.GetModuleInfo(consumer)
 	if err != nil {
@@ -123,11 +121,9 @@ func TestUpdateUsesLatestSubmoduleTagInsteadOfHeadPseudoVersion(t *testing.T) {
 	initKodeAIRepo(t, target)
 	initConsumerModule(t, consumer, "github.com/xhd2015/kode-ai/types", "v0.0.1", typesDir)
 
-	withDir(t, consumer, func() {
-		if err := Update(typesDir); err != nil {
-			t.Fatal(err)
-		}
-	})
+	if err := UpdateIn(consumer, typesDir); err != nil {
+		t.Fatal(err)
+	}
 
 	modInfo, err := resolve.GetModuleInfo(consumer)
 	if err != nil {
@@ -204,21 +200,4 @@ func mustRun(t *testing.T, dir string, name string, args ...string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, output)
 	}
-}
-
-func withDir(t *testing.T, dir string, fn func()) {
-	t.Helper()
-	old, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Chdir(old); err != nil {
-			t.Fatal(err)
-		}
-	}()
-	fn()
 }

@@ -48,8 +48,6 @@ doctest test ./tools/iterm2/tests/new-window
 ```go
 import (
     "bytes"
-    "os"
-    "path/filepath"
     "strings"
     "testing"
 
@@ -81,19 +79,16 @@ func Run(t *testing.T, req *Request) (*Response, error) {
     fullArgs = append(fullArgs, tmpDir)
     fullArgs = append(fullArgs, req.Args...)
 
-    scriptOut := filepath.Join(tmpDir, "script.applescript")
-
-    t.Setenv("KOOL_ITERM2_GOOS", "darwin")
-    t.Setenv("KOOL_ITERM2_INSTALLED", "1")
-    t.Setenv("KOOL_ITERM2_SCRIPT_OUT", scriptOut)
-
+    var scriptText string
     var stdoutBuf, stderrBuf bytes.Buffer
-    exitCode := iterm2cmd.RunForTest(fullArgs, &stdoutBuf, &stderrBuf, tmpDir)
-
-    scriptText := ""
-    if data, err := os.ReadFile(scriptOut); err == nil {
-        scriptText = string(data)
-    }
+    exitCode := iterm2cmd.RunForTestEnv(fullArgs, &stdoutBuf, &stderrBuf, iterm2cmd.TestRun{
+        GOOS:      "darwin",
+        Installed: func() bool { return true },
+        Osascript: func(script string) error {
+            scriptText = script
+            return nil
+        },
+    })
 
     return &Response{
         ExitCode:   exitCode,

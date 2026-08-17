@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"runtime"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -8,7 +9,7 @@ import (
 
 // GoToolNM executes "go tool nm" on the specified binary.
 func GoToolNM(binary string) (string, error) {
-	output, err := exec.Command("go", "tool", "nm", binary).Output()
+	output, err := exec.Command(runtime.GOROOT()+"/bin/go", "tool", "nm", binary).Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute go tool nm %s: %w", binary, err)
 	}
@@ -18,7 +19,7 @@ func GoToolNM(binary string) (string, error) {
 // GoToolObjdump executes "go tool objdump" with the specified arguments.
 func GoToolObjdump(args ...string) (string, error) {
 	cmdArgs := append([]string{"tool", "objdump"}, args...)
-	output, err := exec.Command("go", cmdArgs...).Output()
+	output, err := exec.Command(runtime.GOROOT()+"/bin/go", cmdArgs...).Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to execute go tool objdump %s: %w", strings.Join(args, " "), err)
 	}

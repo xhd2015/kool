@@ -1,6 +1,7 @@
 package create
 
 import (
+	"runtime"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,7 +91,7 @@ func TestCreateMacOSAppGoDaemonIntoEmptyDir(t *testing.T) {
 		t.Fatalf("DaemonConfig.swift missing productionPort %d:\n%s", port, daemonConfigSwift)
 	}
 
-	cmd := exec.Command("go", "build", "./...")
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "./...")
 	cmd.Dir = filepath.Join(dir, "go-pkgs")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build ./...: %v\n%s", err, output)

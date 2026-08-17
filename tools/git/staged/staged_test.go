@@ -73,9 +73,7 @@ func testBackupNoStagedFiles(t *testing.T, repoDir string) {
 	backupFile := filepath.Join(repoDir, "backup.txt")
 
 	// Test backup with no staged files
-	err := runInDir(repoDir, func() error {
-		return HandleBackup(backupFile)
-	})
+	err := HandleBackup([]string{"--dir", repoDir, backupFile})
 
 	if err == nil {
 		t.Error("Expected error for no staged files, got nil")
@@ -108,9 +106,7 @@ func testBackupRegularFiles(t *testing.T, repoDir string) {
 
 	// Test backup
 	backupFile := filepath.Join(repoDir, "backup.txt")
-	err := runInDir(repoDir, func() error {
-		return HandleBackup(backupFile)
-	})
+	err := HandleBackup([]string{"--dir", repoDir, backupFile})
 
 	if err != nil {
 		t.Fatalf("Backup failed: %v", err)
@@ -158,9 +154,7 @@ func testBackupDeletedFiles(t *testing.T, repoDir string) {
 
 	// Test backup
 	backupFile := filepath.Join(repoDir, "backup.txt")
-	err := runInDir(repoDir, func() error {
-		return HandleBackup(backupFile)
-	})
+	err := HandleBackup([]string{"--dir", repoDir, backupFile})
 
 	if err != nil {
 		t.Fatalf("Backup failed: %v", err)
@@ -201,9 +195,7 @@ func testBackupRenamedFiles(t *testing.T, repoDir string) {
 
 	// Test backup
 	backupFile := filepath.Join(repoDir, "backup.txt")
-	err := runInDir(repoDir, func() error {
-		return HandleBackup(backupFile)
-	})
+	err := HandleBackup([]string{"--dir", repoDir, backupFile})
 
 	if err != nil {
 		t.Fatalf("Backup failed: %v", err)
@@ -245,9 +237,7 @@ func test() {
 	defer os.Remove(backupFile)
 
 	// Test restore
-	err := runInDir(repoDir, func() error {
-		return HandleRestore(backupFile)
-	})
+	err := HandleRestore([]string{"--dir", repoDir, backupFile})
 
 	if err != nil {
 		t.Fatalf("Restore failed: %v", err)
@@ -293,9 +283,7 @@ test content
 	}
 
 	// Test restore should fail
-	err := runInDir(repoDir, func() error {
-		return HandleRestore(backupFile)
-	})
+	err := HandleRestore([]string{"--dir", repoDir, backupFile})
 
 	if err == nil {
 		t.Error("Expected error for dirty worktree, got nil")
@@ -317,9 +305,7 @@ no headers here
 	defer os.Remove(backupFile)
 
 	// Test restore
-	err := runInDir(repoDir, func() error {
-		return HandleRestore(backupFile)
-	})
+	err := HandleRestore([]string{"--dir", repoDir, backupFile})
 
 	if err == nil {
 		t.Error("Expected error for invalid backup, got nil")
@@ -357,9 +343,7 @@ func testBackupRestoreRoundTrip(t *testing.T, repoDir string) {
 
 	// Backup to external file
 	backupFile := filepath.Join(os.TempDir(), "roundtrip-backup-test.txt")
-	err := runInDir(repoDir, func() error {
-		return HandleBackup(backupFile)
-	})
+	err := HandleBackup([]string{"--dir", repoDir, backupFile})
 	if err != nil {
 		t.Fatalf("Backup failed: %v", err)
 	}
@@ -374,9 +358,7 @@ func testBackupRestoreRoundTrip(t *testing.T, repoDir string) {
 	}
 
 	// Restore
-	err = runInDir(repoDir, func() error {
-		return HandleRestore(backupFile)
-	})
+	err = HandleRestore([]string{"--dir", repoDir, backupFile})
 	if err != nil {
 		t.Fatalf("Restore failed: %v", err)
 	}
@@ -407,20 +389,6 @@ func testBackupRestoreRoundTrip(t *testing.T, repoDir string) {
 }
 
 // Helper functions
-
-func runInDir(dir string, fn func() error) error {
-	oldDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	defer os.Chdir(oldDir)
-
-	if err := os.Chdir(dir); err != nil {
-		return err
-	}
-
-	return fn()
-}
 
 func runGitCommand(dir string, args ...string) error {
 	cmd := exec.Command("git", args...)

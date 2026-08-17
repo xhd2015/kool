@@ -42,11 +42,13 @@ func TestFirstGOPATHBinDirSkipsEmptyPathEntries(t *testing.T) {
 func TestResolveRebuildOutputPathFallsBackToGOPATH(t *testing.T) {
 	firstGOPATH := t.TempDir()
 	secondGOPATH := t.TempDir()
-	t.Setenv("PATH", t.TempDir())
-	t.Setenv("GOPATH", firstGOPATH+string(os.PathListSeparator)+secondGOPATH)
+	gopath := firstGOPATH + string(os.PathListSeparator) + secondGOPATH
+	lookPath := func(string) (string, error) {
+		return "", os.ErrNotExist
+	}
 
 	binaryName := "kool-rebuild-test-definitely-missing"
-	outputPath, err := resolveRebuildOutputPath(binaryName, false)
+	outputPath, err := resolveRebuildOutputPath(binaryName, false, lookPath, gopath)
 	if err != nil {
 		t.Fatalf("resolveRebuildOutputPath returned error: %v", err)
 	}
@@ -64,9 +66,7 @@ func TestResolveRebuildOutputPathFallsBackToGOPATH(t *testing.T) {
 }
 
 func TestResolveRebuildOutputPathForceGOPATHRequiresGOPATH(t *testing.T) {
-	t.Setenv("GOPATH", "")
-
-	_, err := resolveRebuildOutputPath("kool-rebuild-test", true)
+	_, err := resolveRebuildOutputPath("kool-rebuild-test", true, nil, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -77,9 +77,8 @@ func TestResolveRebuildOutputPathForceGOPATHRequiresGOPATH(t *testing.T) {
 
 func TestRebuildTargetBinaryNameUsesCurrentDirByDefault(t *testing.T) {
 	root := t.TempDir()
-	t.Chdir(root)
 
-	name, err := rebuildTargetBinaryName("./")
+	name, err := rebuildTargetBinaryName("./", root)
 	if err != nil {
 		t.Fatalf("rebuildTargetBinaryName returned error: %v", err)
 	}
@@ -95,9 +94,7 @@ func TestRebuildTargetBinaryNameUsesTargetDirBase(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "some", "cli"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(root)
-
-	name, err := rebuildTargetBinaryName("./some/cli")
+	name, err := rebuildTargetBinaryName("./some/cli", root)
 	if err != nil {
 		t.Fatalf("rebuildTargetBinaryName returned error: %v", err)
 	}
@@ -108,9 +105,8 @@ func TestRebuildTargetBinaryNameUsesTargetDirBase(t *testing.T) {
 
 func TestRebuildGoBuildArgsUsesPlainBuildForCurrentDir(t *testing.T) {
 	root := t.TempDir()
-	t.Chdir(root)
 
-	args, err := rebuildGoBuildArgs("./", "/tmp/bin/current")
+	args, err := rebuildGoBuildArgs("./", "/tmp/bin/current", root)
 	if err != nil {
 		t.Fatalf("rebuildGoBuildArgs returned error: %v", err)
 	}
@@ -126,9 +122,7 @@ func TestRebuildGoBuildArgsUsesGoCForTargetDir(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "some", "cli"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(root)
-
-	args, err := rebuildGoBuildArgs("./some/cli", "/tmp/bin/cli")
+	args, err := rebuildGoBuildArgs("./some/cli", "/tmp/bin/cli", root)
 	if err != nil {
 		t.Fatalf("rebuildGoBuildArgs returned error: %v", err)
 	}

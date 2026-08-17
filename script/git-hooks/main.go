@@ -67,7 +67,7 @@ func main() {
 	case "install":
 		err = install()
 	case "pre-commit":
-		err = preCommitCheck(noCommit, amend)
+		err = preCommitCheck("", noCommit, amend)
 	case "post-commit":
 		err = postCommitCheck(noCommit)
 	default:
@@ -98,8 +98,8 @@ go run ./script/git-hooks pre-commit "${flags[@]}"
 const postCommitCmdHead = "# go-script git-hooks"
 const postCommitCmd = "go run ./script/git-hooks post-commit"
 
-func preCommitCheck(noCommit bool, amend bool) error {
-	gitDir, err := git.ShowTopLevel("")
+func preCommitCheck(dir string, noCommit bool, amend bool) error {
+	gitDir, err := git.ShowTopLevel(dir)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func preCommitCheck(noCommit bool, amend bool) error {
 
 	// ensure tools/preview/viewer/react/dist/placeholder.txt exists in the commit
 	var deletedFiles []string
-	diff, err := cmd.Output("git", "diff", "--cached", "--name-status")
+	diff, err := cmd.Dir(rootDir).Output("git", "diff", "--cached", "--name-status")
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func preCommitCheck(noCommit bool, amend bool) error {
 	}
 
 	// update revision
-	revision, err := cmd.Output("git", "rev-parse", "HEAD")
+	revision, err := cmd.Dir(rootDir).Output("git", "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}

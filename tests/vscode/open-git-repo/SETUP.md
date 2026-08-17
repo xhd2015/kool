@@ -47,9 +47,6 @@ func Setup(t *testing.T, req *Request) error {
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}
-	if err := os.Chdir(req.WorkingDir); err != nil {
-		return err
-	}
 	return nil
 }
 

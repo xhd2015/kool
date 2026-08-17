@@ -36,7 +36,7 @@ config file -> update mutator -> validate -> write (or dry-run plan)
 2. Leaves write JSON fixtures under `ConfigDir` (config mode) and/or set
    `Tabs` / `Save` / `Force` / `WindowName` (ad-hoc/save) or update flags
    (`TabID`, `Rm`, `Command`, `UpdateNoSubmit`, …).
-3. Run invokes in-process `RunForTest` with `KOOL_ITERM2_TAB_SET_DIR` set.
+3. Run invokes in-process `RunForTestEnv` with `TestRun.TabSetDir` (no process env).
 
 ## Context
 

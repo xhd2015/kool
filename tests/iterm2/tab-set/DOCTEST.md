@@ -303,7 +303,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/xhd2015/doctest/session"
@@ -314,11 +313,6 @@ const (
 	// TabSetDirEnv overrides default ~/.config/iterm2/tab-set for tests.
 	TabSetDirEnv = "KOOL_ITERM2_TAB_SET_DIR"
 )
-
-// tabSetTestEnvMu serializes process env mutations in Run. doctest generates
-// t.Parallel() per leaf; concurrent os.Setenv of KOOL_ITERM2_TAB_SET_DIR would
-// otherwise race (wrong ConfigDir / home default).
-var tabSetTestEnvMu sync.Mutex
 
 // Request drives a single kool iterm2 tab-set invocation.
 type Request struct {
@@ -490,73 +484,33 @@ func filterEnvWithout(keys ...string) []string {
 	return out
 }
 
-// applyTabSetEnv sets process env for the current Run call. Caller must hold
-// tabSetTestEnvMu and restore env before releasing the lock (do not use
-// t.Cleanup — it races with other parallel tests after unlock).
-func applyTabSetEnv(t *testing.T, req *Request) (restore func()) {
-	t.Helper()
-	var restores []func()
-	if req.ConfigDir != "" {
-		prev, had := os.LookupEnv(TabSetDirEnv)
-		if err := os.Setenv(TabSetDirEnv, req.ConfigDir); err != nil {
-			t.Fatalf("set %s: %v", TabSetDirEnv, err)
-		}
-		restores = append(restores, func() {
-			if had {
-				_ = os.Setenv(TabSetDirEnv, prev)
-			} else {
-				_ = os.Unsetenv(TabSetDirEnv)
-			}
-		})
-	}
-	goos := req.GoOS
-	if goos == "" {
-		goos = "darwin"
-	}
-	prevGOOS, hadGOOS := os.LookupEnv("KOOL_ITERM2_GOOS")
-	if err := os.Setenv("KOOL_ITERM2_GOOS", goos); err != nil {
-		t.Fatalf("set KOOL_ITERM2_GOOS: %v", err)
-	}
-	restores = append(restores, func() {
-		if hadGOOS {
-			_ = os.Setenv("KOOL_ITERM2_GOOS", prevGOOS)
-		} else {
-			_ = os.Unsetenv("KOOL_ITERM2_GOOS")
-		}
-	})
-	return func() {
-		for i := len(restores) - 1; i >= 0; i-- {
-			restores[i]()
-		}
-	}
-}
-
-// Run prefers in-process tools/iterm2.RunForTest (Phase=handler).
-// Phase=cli uses the kool binary with the same argv and env.
+// Run prefers in-process tools/iterm2.RunForTestEnv (Phase=handler).
+// Phase=cli uses the kool binary with the same argv and child env.
 //
 // Product surface to pin (Classic TDD):
 //
 //	kool iterm2 tab-set <subcommand> …
-//	env KOOL_ITERM2_TAB_SET_DIR
-//	RunForTest([]string{"tab-set", …}, stdout, stderr, workingDir) int
+//	env KOOL_ITERM2_TAB_SET_DIR (CLI child only)
+//	RunForTestEnv(args, stdout, stderr, TestRun{TabSetDir, GOOS})
 func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	_ = d
 	if req.Phase == "" {
 		req.Phase = "handler"
 	}
 
-	// Serialize env for process-wide KOOL_ITERM2_* vars under t.Parallel().
-	tabSetTestEnvMu.Lock()
-	defer tabSetTestEnvMu.Unlock()
-	restore := applyTabSetEnv(t, req)
-	defer restore()
-
 	args := buildTabSetArgs(req)
 
 	switch req.Phase {
 	case "handler":
+		goos := req.GoOS
+		if goos == "" {
+			goos = "darwin"
+		}
 		var stdout, stderr bytes.Buffer
-		code := iterm2cmd.RunForTest(args, &stdout, &stderr, req.WorkingDir)
+		code := iterm2cmd.RunForTestEnv(args, &stdout, &stderr, iterm2cmd.TestRun{
+			TabSetDir: req.ConfigDir,
+			GOOS:      goos,
+		})
 		return &Response{
 			Stdout:   stdout.String(),
 			Stderr:   stderr.String(),

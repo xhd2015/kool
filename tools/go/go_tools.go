@@ -127,31 +127,41 @@ func HandleRebuild(args []string) error {
 	if len(args) == 1 {
 		targetDir = args[0]
 	}
-	name, err := rebuildTargetBinaryName(targetDir)
+	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	absBin, err := resolveRebuildOutputPath(name, gopath)
+	name, err := rebuildTargetBinaryName(targetDir, cwd)
 	if err != nil {
 		return err
 	}
-	goBuildArgs, err := rebuildGoBuildArgs(targetDir, absBin)
+	absBin, err := resolveRebuildOutputPath(name, gopath, exec.LookPath, os.Getenv("GOPATH"))
+	if err != nil {
+		return err
+	}
+	goBuildArgs, err := rebuildGoBuildArgs(targetDir, absBin, cwd)
 	if err != nil {
 		return err
 	}
 	return cmd.Debug().Run("go", goBuildArgs...)
 }
 
-func rebuildGoBuildArgs(targetDir string, outputPath string) ([]string, error) {
-	absTargetDir, err := filepath.Abs(targetDir)
+func absFrom(path, cwd string) (string, error) {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path), nil
+	}
+	if cwd != "" {
+		return filepath.Abs(filepath.Join(cwd, path))
+	}
+	return filepath.Abs(path)
+}
+
+func rebuildGoBuildArgs(targetDir string, outputPath string, cwd string) ([]string, error) {
+	absTargetDir, err := absFrom(targetDir, cwd)
 	if err != nil {
 		return nil, err
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	absCwd, err := filepath.Abs(cwd)
+	absCwd, err := absFrom(cwd, "")
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +174,11 @@ func rebuildGoBuildArgs(targetDir string, outputPath string) ([]string, error) {
 	return args, nil
 }
 
-func rebuildTargetBinaryName(targetDir string) (string, error) {
+func rebuildTargetBinaryName(targetDir string, cwd string) (string, error) {
 	if targetDir == "" {
 		return "", fmt.Errorf("target dir is empty")
 	}
-	absTargetDir, err := filepath.Abs(targetDir)
+	absTargetDir, err := absFrom(targetDir, cwd)
 	if err != nil {
 		return "", err
 	}
@@ -179,12 +189,15 @@ func rebuildTargetBinaryName(targetDir string) (string, error) {
 	return name, nil
 }
 
-func resolveRebuildOutputPath(name string, forceGOPATH bool) (string, error) {
+func resolveRebuildOutputPath(name string, forceGOPATH bool, lookPath func(string) (string, error), gopath string) (string, error) {
 	name = executableName(name)
 	if forceGOPATH {
-		return rebuildGOPATHOutputPath(name)
+		return rebuildGOPATHOutputPath(name, gopath)
 	}
-	bin, err := exec.LookPath(name)
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
+	bin, err := lookPath(name)
 	if err == nil {
 		absBin, err := filepath.Abs(bin)
 		if err != nil {
@@ -193,15 +206,15 @@ func resolveRebuildOutputPath(name string, forceGOPATH bool) (string, error) {
 		return absBin, nil
 	}
 
-	gopathBin, gopathErr := rebuildGOPATHOutputPath(name)
+	gopathBin, gopathErr := rebuildGOPATHOutputPath(name, gopath)
 	if gopathErr == nil {
 		return gopathBin, nil
 	}
 	return "", fmt.Errorf("%s not found in PATH and cannot install to GOPATH: %w", name, gopathErr)
 }
 
-func rebuildGOPATHOutputPath(name string) (string, error) {
-	binDir, err := firstGOPATHBinDir(os.Getenv("GOPATH"))
+func rebuildGOPATHOutputPath(name string, gopath string) (string, error) {
+	binDir, err := firstGOPATHBinDir(gopath)
 	if err != nil {
 		return "", err
 	}

@@ -127,9 +127,9 @@ Examples:
 
 // tabSetFile is the on-disk version-1 schema.
 type tabSetFile struct {
-	Version    int          `json:"version"`
-	WindowName string       `json:"window_name"`
-	Tabs       []tabSetTab  `json:"tabs"`
+	Version    int         `json:"version"`
+	WindowName string      `json:"window_name"`
+	Tabs       []tabSetTab `json:"tabs"`
 }
 
 type tabSetTab struct {
@@ -147,7 +147,10 @@ type loadedTabSet struct {
 	Tabs       []lib.TabSpec
 }
 
-func tabSetConfigDir() string {
+func tabSetConfigDir(override string) string {
+	if d := strings.TrimSpace(override); d != "" {
+		return d
+	}
 	if d := strings.TrimSpace(os.Getenv(tabSetDirEnv)); d != "" {
 		return d
 	}
@@ -158,7 +161,7 @@ func tabSetConfigDir() string {
 	return filepath.Join(home, ".config", "iterm2", "tab-set")
 }
 
-func runTabSet(args []string, stdout, stderr io.Writer) error {
+func runTabSet(args []string, stdout, stderr io.Writer, configDir string) error {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, strings.TrimSpace(tabSetHelp)+"\n")
 		return nil
@@ -174,29 +177,29 @@ func runTabSet(args []string, stdout, stderr io.Writer) error {
 	rest := args[1:]
 	switch cmd {
 	case "list":
-		return tabSetList(rest, stdout, stderr)
+		return tabSetList(rest, stdout, stderr, configDir)
 	case "show":
-		return tabSetShow(rest, stdout, stderr)
+		return tabSetShow(rest, stdout, stderr, configDir)
 	case "run":
-		return tabSetRun(rest, stdout, stderr)
+		return tabSetRun(rest, stdout, stderr, configDir)
 	case "update":
-		return tabSetUpdate(rest, stdout, stderr)
+		return tabSetUpdate(rest, stdout, stderr, configDir)
 	case "status":
-		return tabSetStatus(rest, stdout, stderr)
+		return tabSetStatus(rest, stdout, stderr, configDir)
 	case "stop":
-		return tabSetStop(rest, stdout, stderr)
+		return tabSetStop(rest, stdout, stderr, configDir)
 	default:
 		fmt.Fprintf(stderr, "tab-set: unknown subcommand %q\n\n%s\n", cmd, strings.TrimSpace(tabSetHelp))
 		return errs.NewSilenceExitCode(1)
 	}
 }
 
-func tabSetList(args []string, stdout, stderr io.Writer) error {
+func tabSetList(args []string, stdout, stderr io.Writer, configDir string) error {
 	if err := rejectExtra(args, "list"); err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
-	dir := tabSetConfigDir()
+	dir := tabSetConfigDir(configDir)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -223,7 +226,7 @@ func tabSetList(args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 	for _, name := range names {
-		loaded, lerr := loadTabSet(name)
+		loaded, lerr := loadTabSet(name, configDir)
 		if lerr != nil {
 			fmt.Fprintf(stdout, "%s  (invalid: %v)\n", name, lerr)
 			continue
@@ -233,7 +236,7 @@ func tabSetList(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func tabSetShow(args []string, stdout, stderr io.Writer) error {
+func tabSetShow(args []string, stdout, stderr io.Writer, configDir string) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, "tab-set show: missing set name\n")
 		return errs.NewSilenceExitCode(1)
@@ -243,7 +246,7 @@ func tabSetShow(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
-	loaded, err := loadTabSet(name)
+	loaded, err := loadTabSet(name, configDir)
 	if err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
@@ -277,7 +280,7 @@ func printTabSetDetails(w io.Writer, loaded *loadedTabSet) {
 }
 
 // tabSetUpdate mutates named config JSON only (never RunTabSet / iTerm).
-func tabSetUpdate(args []string, stdout, stderr io.Writer) error {
+func tabSetUpdate(args []string, stdout, stderr io.Writer, configDir string) error {
 	var (
 		tabID      string
 		rm         bool
@@ -358,7 +361,7 @@ func tabSetUpdate(args []string, stdout, stderr io.Writer) error {
 	}
 	setName := remain[0]
 
-	file, path, err := readTabSetFile(setName)
+	file, path, err := readTabSetFile(setName, configDir)
 	if err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
@@ -512,15 +515,15 @@ func tabSetUpdate(args []string, stdout, stderr io.Writer) error {
 }
 
 // readTabSetFile loads and lightly validates version-1 JSON for update mutations.
-func readTabSetFile(name string) (*tabSetFile, string, error) {
+func readTabSetFile(name string, configDir string) (*tabSetFile, string, error) {
 	if name == "" {
 		return nil, "", fmt.Errorf("tab-set update: missing set name")
 	}
-	path := filepath.Join(tabSetConfigDir(), name+".json")
+	path := filepath.Join(tabSetConfigDir(configDir), name+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, "", fmt.Errorf("tab-set %q not found (looked in %s)", name, tabSetConfigDir())
+			return nil, "", fmt.Errorf("tab-set %q not found (looked in %s)", name, tabSetConfigDir(configDir))
 		}
 		return nil, "", fmt.Errorf("tab-set %q: %w", name, err)
 	}
@@ -550,7 +553,7 @@ func findTabIndex(file *tabSetFile, tabID string) int {
 	return -1
 }
 
-func tabSetRun(args []string, stdout, stderr io.Writer) error {
+func tabSetRun(args []string, stdout, stderr io.Writer, configDir string) error {
 	var dryRun bool
 	var newWindow bool
 	var noNewWindow bool
@@ -615,13 +618,13 @@ func tabSetRun(args []string, stdout, stderr io.Writer) error {
 			Tabs:       parsed,
 		}
 		if save {
-			return tabSetSave(loaded, force, dryRun, stdout, stderr)
+			return tabSetSave(loaded, force, dryRun, stdout, stderr, configDir)
 		}
 		return tabSetRunLoaded(loaded, dryRun, newWindow, noNewWindow, stdout, stderr)
 	}
 
 	// Config mode: load <name>.json (--window-name applies only in ad-hoc mode).
-	loaded, err := loadTabSet(name)
+	loaded, err := loadTabSet(name, configDir)
 	if err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
@@ -770,8 +773,8 @@ func parseBoolProp(key, val string) (bool, error) {
 	}
 }
 
-func tabSetSave(loaded *loadedTabSet, force, dryRun bool, stdout, stderr io.Writer) error {
-	dir := tabSetConfigDir()
+func tabSetSave(loaded *loadedTabSet, force, dryRun bool, stdout, stderr io.Writer, configDir string) error {
+	dir := tabSetConfigDir(configDir)
 	path := filepath.Join(dir, loaded.Name+".json")
 
 	newFile := loadedToTabSetFile(loaded)
@@ -1051,7 +1054,7 @@ func printRunResult(w io.Writer, setName string, result *lib.TabSetRunResult) {
 	}
 }
 
-func tabSetStatus(args []string, stdout, stderr io.Writer) error {
+func tabSetStatus(args []string, stdout, stderr io.Writer, configDir string) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, "tab-set status: missing set name\n")
 		return errs.NewSilenceExitCode(1)
@@ -1061,7 +1064,7 @@ func tabSetStatus(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
-	loaded, err := loadTabSet(name)
+	loaded, err := loadTabSet(name, configDir)
 	if err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
@@ -1085,7 +1088,7 @@ func tabSetStatus(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func tabSetStop(args []string, stdout, stderr io.Writer) error {
+func tabSetStop(args []string, stdout, stderr io.Writer, configDir string) error {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, "tab-set stop: missing set name\n")
 		return errs.NewSilenceExitCode(1)
@@ -1096,7 +1099,7 @@ func tabSetStop(args []string, stdout, stderr io.Writer) error {
 		return errs.NewSilenceExitCode(1)
 	}
 	// Ensure config exists (consistent UX with show/run).
-	if _, err := loadTabSet(name); err != nil {
+	if _, err := loadTabSet(name, configDir); err != nil {
 		fmt.Fprint(stderr, err.Error()+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
@@ -1113,15 +1116,15 @@ func tabSetStop(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func loadTabSet(name string) (*loadedTabSet, error) {
+func loadTabSet(name string, configDir string) (*loadedTabSet, error) {
 	if name == "" {
 		return nil, fmt.Errorf("tab-set: missing set name")
 	}
-	path := filepath.Join(tabSetConfigDir(), name+".json")
+	path := filepath.Join(tabSetConfigDir(configDir), name+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("tab-set %q not found (looked in %s)", name, tabSetConfigDir())
+			return nil, fmt.Errorf("tab-set %q not found (looked in %s)", name, tabSetConfigDir(configDir))
 		}
 		return nil, fmt.Errorf("tab-set %q: %w", name, err)
 	}

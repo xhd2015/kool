@@ -8,6 +8,7 @@
 package main
 
 import (
+	"runtime"
 	"fmt"
 	"os"
 	"os/exec"
@@ -31,7 +32,7 @@ func run() error {
 	fmt.Printf("module root: %s\n", root)
 
 	out := filepath.Join(root, outputName)
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, ".")
+	cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, ".")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",
