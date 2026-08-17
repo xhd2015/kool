@@ -1,0 +1,107 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      COVERPKG: github.com/xhd2015/kool/...
+      COVERMODE: set
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Nested modules (own go.mod) are not covered by root `go test ./...`.
+      # script/gen-kool/kool-template/go.mod is a placeholder, not a module.
+      - name: Go test cmd/kool-with-go1.18
+        run: go -C cmd/kool-with-go1.18 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.19
+        run: go -C cmd/kool-with-go1.19 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.24
+        run: go -C cmd/kool-with-go1.24 test -count=1 ./...
+      - name: Go test cmd/kool-with-go1.25
+        run: go -C cmd/kool-with-go1.25 test -count=1 ./...
+      - name: Go test tools/create/server_go_db_template
+        run: go -C tools/create/server_go_db_template test -count=1 ./...
+
+      - name: Go test
+        run: |
+          go test -count=1 \
+            -covermode="$COVERMODE" \
+            -coverpkg="$COVERPKG" \
+            -coverprofile=coverage-gotest.out \
+            ./...
+
+      - name: Install doctest
+        # Consumer project: released CLI, not this module.
+        run: go install github.com/xhd2015/doctest/cmd/doctest@latest
+
+      # Layer model: discovery = in-process mass; label e2e = full integration only.
+      # Each stage writes its own coverprofile — same path overwrites (no merge).
+      - name: Doctest discovery (in-process mass)
+        run: |
+          doctest test --label '!e2e' -count=1 \
+            -cover -covermode="$COVERMODE" \
+            -coverpkg="$COVERPKG" \
+            -coverprofile=coverage-doctest-discovery.out \
+            ./...
+
+      - name: Doctest e2e (full integration)
+        run: |
+          doctest test --label e2e -count=1 \
+            -cover -covermode="$COVERMODE" \
+            -coverpkg="$COVERPKG" \
+            -coverprofile=coverage-doctest-e2e.out \
+            ./...
+
+      - name: Install xgo (coverage merge)
+        run: |
+          curl -fsSL https://github.com/xhd2015/xgo/raw/master/script/install/install.sh \
+            | env INSTALL_TO_BIN=true bash
+          xgo version
+
+      - name: Merge coverage and report
+        run: |
+          set -euo pipefail
+          profiles=()
+          for f in coverage-gotest.out coverage-doctest-discovery.out coverage-doctest-e2e.out; do
+            if [[ -s "$f" ]]; then
+              profiles+=("$f")
+              echo "include $f ($(wc -c <"$f") bytes)"
+            else
+              echo "skip missing/empty $f"
+            fi
+          done
+          if [[ ${#profiles[@]} -eq 0 ]]; then
+            echo "No coverage profiles found" >&2
+            exit 1
+          fi
+          xgo tool coverage merge -o coverage.out "${profiles[@]}"
+          go tool cover -func=coverage.out | tee coverage-func.txt
+          {
+            echo "## Coverage (merged)"
+            echo ""
+            echo "Sources: ${profiles[*]}"
+            echo ""
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          if-no-files-found: ignore
+          path: |
+            coverage.out
+            coverage-func.txt
+            coverage-gotest.out
+            coverage-doctest-discovery.out
+            coverage-doctest-e2e.out
