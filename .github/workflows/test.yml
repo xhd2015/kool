@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+env:
+  GOFLAGS: -buildvcs=false
+
 jobs:
   test:
     runs-on: ubuntu-latest
