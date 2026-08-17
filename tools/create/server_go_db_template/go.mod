@@ -10,7 +10,6 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/xhd2015/arc-orm v0.0.16
 	github.com/xhd2015/less-flags v1.0.0
-	github.com/xhd2015/less-gen v0.0.19
 	github.com/xhd2015/xgo v1.1.7
 	go.uber.org/zap v1.27.0
 	go.uber.org/zap/exp v0.3.0
@@ -48,6 +47,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/xhd2015/less-gen v0.0.19 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.7.0 // indirect
