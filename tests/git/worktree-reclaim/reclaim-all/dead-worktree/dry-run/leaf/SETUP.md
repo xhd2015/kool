@@ -14,9 +14,11 @@ reclaim handler -> dry-run: would reclaim <path> (dead) -> git worktree list unc
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if !req.DryRun || req.WorktreePath == "" {
 		t.Fatal("expected dead-worktree dry-run setup from ancestors")
 	}

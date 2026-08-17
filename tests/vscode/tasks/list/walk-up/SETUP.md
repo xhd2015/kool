@@ -17,9 +17,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeMultiTaskFixture(t, req.WorkingDir)
 	nested := filepath.Join(req.WorkingDir, "pkg", "nested")
 	if err := os.MkdirAll(nested, 0755); err != nil {

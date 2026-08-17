@@ -145,6 +145,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 
 	cf "github.com/xhd2015/kool/tools/cloudflare"
 	"github.com/xhd2015/kool/pkgs/errs"
@@ -257,7 +258,8 @@ func mapExit(err error) (int, string) {
 
 // Run invokes tools/cloudflare.HandleWith with injectable StartSession/WaitSignal.
 // Never calls real cloudflared.
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	t.Helper()
 
 	var stdout, stderr bytes.Buffer

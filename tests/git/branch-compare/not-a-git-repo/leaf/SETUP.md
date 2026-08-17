@@ -13,9 +13,11 @@ compare_branch.Handle(refA=main, refB=main, dir=nonGitDir) -> error
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.RefA = "main"
 	req.RefB = "main"
 	return nil

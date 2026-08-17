@@ -13,7 +13,8 @@ ValidateDirPath -> BuildOpenURI -> vscode://.../open?path=...
 - Query: `path` must be URL-encoded absolute filesystem path; `replace=true` only when flagged
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "build-uri"
 	return nil
 }

@@ -15,7 +15,14 @@ root + sub-dir/go.mod -> kool go modules --list --dir <root> -> stdout:
 2. Add `sub-dir/go.mod` (`some.com/root/sub`) to `req.RootDir`.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+import (
+	"path/filepath"
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeModule(t, filepath.Join(req.RootDir, "sub-dir"), "some.com/root/sub")
 	return nil
 }

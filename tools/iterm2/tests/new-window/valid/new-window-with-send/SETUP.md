@@ -20,7 +20,8 @@ kool iterm2 <dir> -n --send "echo hi" -> ModeForceNew -> new window + write text
 - --send should generate `write text` commands in the script
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"-n", "--send", "echo hi"}
     return nil
 }

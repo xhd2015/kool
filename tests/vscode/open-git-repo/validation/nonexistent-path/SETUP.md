@@ -11,7 +11,8 @@ validateGitRepoPath(nonexistent) -> error
 1. Run CLI with a path that does not exist.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	req.RepoPath = "/tmp/kool-open-git-repo-does-not-exist-xyz"
 	return nil

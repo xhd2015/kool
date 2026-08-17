@@ -16,9 +16,11 @@ OpenDirOptions(Json, IpcOnly=false) -> IPC fail -> exec(vscode://...) -> JSON fa
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "json-uri-fallback")
 	req.DirPath = dir
 	req.Json = true

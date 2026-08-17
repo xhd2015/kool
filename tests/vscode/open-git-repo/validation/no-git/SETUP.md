@@ -16,9 +16,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	dirPath := filepath.Join(req.WorkingDir, "plain-dir")
 	if err := os.MkdirAll(dirPath, 0755); err != nil {

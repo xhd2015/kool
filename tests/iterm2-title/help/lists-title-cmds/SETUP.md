@@ -12,9 +12,13 @@ kool iterm2 --help
 1. Help=true from parent; no session required.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Help = true
 	req.InSession = false
 	return nil

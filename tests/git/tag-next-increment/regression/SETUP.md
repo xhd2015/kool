@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.Tag != "" && strings.HasSuffix(req.Tag, ".0") {
 		return fmt.Errorf("regression grouping: tag %q ends with .0, belongs under zero-patch/", req.Tag)
 	}

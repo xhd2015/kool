@@ -13,7 +13,8 @@ OpenDirOptions(Json) -> stdout {"ipc_handled":...,"fallback":"uri"?}
 - Default (non-`--ipc-only`) mode may still URI-fallback; JSON documents that path.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "json"
 	req.GoOS = "darwin"
 	req.Json = true

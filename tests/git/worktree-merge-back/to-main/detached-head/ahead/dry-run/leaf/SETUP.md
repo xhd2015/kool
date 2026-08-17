@@ -13,9 +13,11 @@ user -> merge-back --dry-run -> planned commands only
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.DryRun = true
 	req.Remove = false
 	req.ConfirmFromStdin = false

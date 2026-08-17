@@ -21,9 +21,11 @@ caller -> IncrementTag(tag) -> next tag string or error
 import (
 	"fmt"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.Tag != "" {
 		return fmt.Errorf("root setup: Tag must be unset before leaf Setup, got %q", req.Tag)
 	}

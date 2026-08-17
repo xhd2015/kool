@@ -28,11 +28,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 const nestedModulePath = "github.com/example/dot-pkgs/go-pkgs"
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	_, err := exec.LookPath("go")
 	if err != nil {
 		return fmt.Errorf("go not found in PATH: %w", err)

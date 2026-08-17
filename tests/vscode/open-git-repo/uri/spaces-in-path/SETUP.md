@@ -15,9 +15,11 @@ buildGitOpenRepoURI("/tmp/my repo") -> path=%2Ftmp%2Fmy%20repo
 import (
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	repoDir := filepath.Join(req.WorkingDir, "my repo")
 	if err := osMkdir(repoDir); err != nil {
 		return err

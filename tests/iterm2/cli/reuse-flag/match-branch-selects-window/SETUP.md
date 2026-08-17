@@ -7,9 +7,13 @@ kool iterm2 -r <dir> -> match branch: select matchingWindow -> select tab/sessio
 ```
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Send = nil
 	return nil
 }

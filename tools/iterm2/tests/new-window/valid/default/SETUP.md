@@ -20,7 +20,8 @@ kool iterm2 <dir> -> ModeSmart -> scan sessions -> tab or window
 - See valid SETUP.md
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     if req.Args == nil {
         req.Args = []string{}
     }

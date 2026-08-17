@@ -99,11 +99,23 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 
 	vscodegit "github.com/xhd2015/kool/vscodegit"
 )
+
+var ipcSockSeq int64
+
+func mockIPCSocketPath(t *testing.T) string {
+	t.Helper()
+	n := atomic.AddInt64(&ipcSockSeq, 1)
+	path := filepath.Join("/tmp", fmt.Sprintf("kvs-g-%d-%d.sock", os.Getpid(), n))
+	t.Cleanup(func() { _ = os.Remove(path) })
+	return path
+}
 
 type Request struct {
 	Phase           string
@@ -142,8 +154,8 @@ type gitIPCServerState struct {
 	failFirst    int
 }
 
-func resolveKoolBinary() (string, error) {
-	moduleRoot := filepath.Join(DOCTEST_ROOT, "..", "..", "..")
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	moduleRoot := filepath.Join(d.DOCTEST_ROOT, "..", "..", "..")
 	candidates := []string{
 		filepath.Join(moduleRoot, "kool"),
 		filepath.Join(moduleRoot, "bin", "kool"),
@@ -169,14 +181,13 @@ func configurePrecheckForCLI(t *testing.T, req *Request, cmd *exec.Cmd) {
 	}
 }
 
-func installPrecheckHooks(t *testing.T, req *Request) {
+func installPrecheckHooks(t *testing.T, req *Request) func() {
+	_ = t
 	if req.CodeCommand != "" {
 		vscodegit.SetCodeCommandForTest(req.CodeCommand)
-		t.Cleanup(func() { vscodegit.SetCodeCommandForTest("") })
 	}
 	if !req.CodeInPath {
 		vscodegit.SetCodeCommandForTest("")
-		t.Cleanup(func() { vscodegit.SetCodeCommandForTest("") })
 	} else if req.CodeCommand == "" && req.Phase != "validate" && req.Phase != "build-uri" && req.Phase != "cli" {
 		binDir := filepath.Join(req.WorkingDir, "bin")
 		_ = os.MkdirAll(binDir, 0755)
@@ -184,8 +195,8 @@ func installPrecheckHooks(t *testing.T, req *Request) {
 		body := "#!/bin/sh\ncase \"$1\" in\n--list-extensions)\n  echo 'xhd2015.open-in-new-window'\n  ;;\nesac\n"
 		_ = os.WriteFile(script, []byte(body), 0755)
 		vscodegit.SetCodeCommandForTest(script)
-		t.Cleanup(func() { vscodegit.SetCodeCommandForTest("") })
 	}
+	return func() { vscodegit.SetCodeCommandForTest("") }
 }
 
 func handleGitIPCConn(conn net.Conn, state *gitIPCServerState) {
@@ -242,8 +253,8 @@ func startGitMockIPCServer(t *testing.T, socketPath string, failFirst int) *gitI
 	return state
 }
 
-func runCLI(t *testing.T, req *Request) (*Response, error) {
-	koolBin, err := resolveKoolBinary()
+func runCLI(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	koolBin, err := resolveKoolBinary(d)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +320,10 @@ func runBuildURI(t *testing.T, req *Request) (*Response, error) {
 }
 
 func runPrecheck(t *testing.T, req *Request) (*Response, error) {
-	installPrecheckHooks(t, req)
+	vscodegit.LockHooksForTest()
+	defer vscodegit.UnlockHooksForTest()
+	restore := installPrecheckHooks(t, req)
+	defer restore()
 	resp := &Response{}
 	if err := vscodegit.EnsureCodeCLI(); err != nil {
 		resp.PrecheckErr = err.Error()
@@ -323,6 +337,8 @@ func runPrecheck(t *testing.T, req *Request) (*Response, error) {
 }
 
 func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
+	vscodegit.LockHooksForTest()
+	defer vscodegit.UnlockHooksForTest()
 	cwd := req.WorkingDir
 	if cwd == "" {
 		var err error
@@ -341,21 +357,22 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 		execArgs = append([]string{}, arg...)
 		return exec.Command("true")
 	})
-	t.Cleanup(func() { vscodegit.SetExecCommandHook(nil) })
+	defer vscodegit.SetExecCommandHook(nil)
 
 	if req.GoOS != "" {
 		vscodegit.SetGOOSForTest(req.GoOS)
-		t.Cleanup(func() { vscodegit.SetGOOSForTest("") })
 	}
+	defer vscodegit.SetGOOSForTest("")
 
-	installPrecheckHooks(t, req)
+	restorePrecheck := installPrecheckHooks(t, req)
+	defer restorePrecheck()
 
 	socketPath := req.IPCSocketPath
 	if socketPath == "" {
-		socketPath = filepath.Join(t.TempDir(), "ipc.sock")
+		socketPath = mockIPCSocketPath(t)
 	}
 	vscodegit.SetIPC_SOCKETPathForTest(socketPath)
-	t.Cleanup(func() { vscodegit.SetIPC_SOCKETPathForTest("") })
+	defer vscodegit.SetIPC_SOCKETPathForTest("")
 
 	// Legacy exec phase: preserve pre-IPC behavior by forcing fallback path.
 	ipcAlwaysFail := req.IPCAlwaysFail
@@ -370,7 +387,7 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 
 	var stderrBuf bytes.Buffer
 	vscodegit.SetStderrWriterForTest(&stderrBuf)
-	t.Cleanup(func() { vscodegit.SetStderrWriterForTest(nil) })
+	defer vscodegit.SetStderrWriterForTest(nil)
 
 	err := vscodegit.OpenGitRepo(req.RepoPath, cwd)
 	resp := &Response{
@@ -399,10 +416,10 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	switch req.Phase {
 	case "cli":
-		return runCLI(t, req)
+		return runCLI(t, d, req)
 	case "validate":
 		return runValidate(t, req)
 	case "build-uri":

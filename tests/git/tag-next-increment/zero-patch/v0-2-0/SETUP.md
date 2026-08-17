@@ -13,9 +13,11 @@ IncrementTag("v0.2.0") -> "v0.2.1"
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Tag = "v0.2.0"
 	return nil
 }

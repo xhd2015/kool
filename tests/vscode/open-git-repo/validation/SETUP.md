@@ -11,7 +11,8 @@ kool vscode open-git-repo <path> -> validateGitRepoPath -> (error, no open)
 - All validation failures must exit non-zero with clear stderr and never invoke OS opener.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	return nil
 }

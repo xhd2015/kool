@@ -134,13 +134,27 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 
 	vscodegit "github.com/xhd2015/kool/vscodegit"
 )
 
 const koolVscodeIPCSocketEnv = "KOOL_VSCODE_IPC_SOCKET"
+
+// vscodegit hooks (exec, IPC socket, code CLI) are process-global; serialize in-process Runs.
+var ipcSockSeq int64
+
+// mockIPCSocketPath is short enough for AF_UNIX sun_path (macOS 104 bytes).
+func mockIPCSocketPath(t *testing.T) string {
+	t.Helper()
+	n := atomic.AddInt64(&ipcSockSeq, 1)
+	path := filepath.Join("/tmp", fmt.Sprintf("kvs-%d-%d.sock", os.Getpid(), n))
+	t.Cleanup(func() { _ = os.Remove(path) })
+	return path
+}
 
 type Request struct {
 	Phase           string
@@ -194,8 +208,8 @@ type ipcServerState struct {
 	alwaysReject bool
 }
 
-func resolveKoolBinary() (string, error) {
-	moduleRoot := filepath.Join(DOCTEST_ROOT, "..", "..", "..")
+func resolveKoolBinary(d *session.Doctest) (string, error) {
+	moduleRoot := filepath.Join(d.DOCTEST_ROOT, "..", "..", "..")
 	candidates := []string{
 		filepath.Join(moduleRoot, "kool"),
 		filepath.Join(moduleRoot, "bin", "kool"),
@@ -248,15 +262,13 @@ func attachOpenJSON(t *testing.T, resp *Response) {
 }
 
 func installPrecheckHooks(t *testing.T, req *Request) func() {
+	_ = t
 	if req.CodeCommand != "" {
 		vscodegit.SetCodeCommandForTest(req.CodeCommand)
-		t.Cleanup(func() { vscodegit.SetCodeCommandForTest("") })
-	}
-	if !req.CodeInPath {
+	} else if !req.CodeInPath {
 		vscodegit.SetCodeCommandForTest("")
-		t.Cleanup(func() { vscodegit.SetCodeCommandForTest("") })
 	}
-	return func() {}
+	return func() { vscodegit.SetCodeCommandForTest("") }
 }
 
 func handleIPCConn(conn net.Conn, state *ipcServerState) {
@@ -315,8 +327,8 @@ func startMockIPCServer(t *testing.T, socketPath string, failFirst int) *ipcServ
 	return state
 }
 
-func runCLI(t *testing.T, req *Request) (*Response, error) {
-	koolBin, err := resolveKoolBinary()
+func runCLI(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	koolBin, err := resolveKoolBinary(d)
 	if err != nil {
 		return nil, err
 	}
@@ -391,6 +403,8 @@ func runBuildURI(t *testing.T, req *Request) (*Response, error) {
 }
 
 func runPrecheck(t *testing.T, req *Request) (*Response, error) {
+	vscodegit.LockHooksForTest()
+	defer vscodegit.UnlockHooksForTest()
 	restore := installPrecheckHooks(t, req)
 	defer restore()
 
@@ -407,6 +421,8 @@ func runPrecheck(t *testing.T, req *Request) (*Response, error) {
 }
 
 func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
+	vscodegit.LockHooksForTest()
+	defer vscodegit.UnlockHooksForTest()
 	cwd := req.WorkingDir
 	if cwd == "" {
 		var err error
@@ -425,22 +441,22 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 		execArgs = append([]string{}, arg...)
 		return exec.Command("true")
 	})
-	t.Cleanup(func() { vscodegit.SetExecCommandHook(nil) })
+	defer vscodegit.SetExecCommandHook(nil)
 
 	if req.GoOS != "" {
 		vscodegit.SetGOOSForTest(req.GoOS)
-		t.Cleanup(func() { vscodegit.SetGOOSForTest("") })
 	}
+	defer vscodegit.SetGOOSForTest("")
 
 	restorePrecheck := installPrecheckHooks(t, req)
 	defer restorePrecheck()
 
 	socketPath := req.IPCSocketPath
 	if socketPath == "" {
-		socketPath = filepath.Join(t.TempDir(), "ipc.sock")
+		socketPath = mockIPCSocketPath(t)
 	}
 	vscodegit.SetIPC_SOCKETPathForTest(socketPath)
-	t.Cleanup(func() { vscodegit.SetIPC_SOCKETPathForTest("") })
+	defer vscodegit.SetIPC_SOCKETPathForTest("")
 
 	var server *ipcServerState
 	if !req.IPCAlwaysFail {
@@ -449,13 +465,13 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 
 	var stderrBuf bytes.Buffer
 	vscodegit.SetStderrWriterForTest(&stderrBuf)
-	t.Cleanup(func() { vscodegit.SetStderrWriterForTest(nil) })
+	defer vscodegit.SetStderrWriterForTest(nil)
 
 	var stdoutBuf bytes.Buffer
 	emitJSON := req.Json || req.Phase == "json"
 	if emitJSON {
 		vscodegit.SetStdoutWriterForTest(&stdoutBuf)
-		t.Cleanup(func() { vscodegit.SetStdoutWriterForTest(nil) })
+		defer vscodegit.SetStdoutWriterForTest(nil)
 	}
 
 	opts := vscodegit.OpenOptions{
@@ -505,10 +521,10 @@ func runOrchestrate(t *testing.T, req *Request) (*Response, error) {
 	return resp, nil
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	switch req.Phase {
 	case "cli":
-		resp, err := runCLI(t, req)
+		resp, err := runCLI(t, d, req)
 		if err != nil {
 			return nil, err
 		}

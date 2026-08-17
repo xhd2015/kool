@@ -12,9 +12,13 @@ kool for-every --max-failure 2 --max-runs 10 10ms sh -c 'echo fail-line; exit 1'
 1. Always-fail; max-failure 2; high max-runs safety.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.MaxFailure = intPtr(2)
 	req.AllowFailure = false
 	req.MaxRuns = intPtr(10)

@@ -265,6 +265,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 // Request drives a single kool vscode tasks invocation (P1 + P2 + live mock).
@@ -399,7 +400,8 @@ func filterEnvWithout(keys ...string) []string {
 //	KOOL_VSCODE_TASKS_ITERM2_MOCK=1
 //	KOOL_VSCODE_TASKS_ITERM2_MOCK_OUT=<path>
 //	KOOL_VSCODE_TASKS_ITERM2_MOCK_ERR=1
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	if req.Phase == "" {
 		req.Phase = "cli"
 	}

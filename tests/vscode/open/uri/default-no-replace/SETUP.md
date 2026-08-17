@@ -14,9 +14,11 @@ ValidateDirPath -> BuildOpenURI(replace=false) -> no replace= in query
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "uri-default-target")
 	req.DirPath = dir
 	req.Replace = false

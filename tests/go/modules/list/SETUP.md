@@ -29,7 +29,8 @@ func initListRoot(t *testing.T) string {
 	return ws
 }
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	// shared root workspace; leaves add scenario-specific sub-dirs to req.RootDir
 	req.RootDir = initListRoot(t)
 	return nil

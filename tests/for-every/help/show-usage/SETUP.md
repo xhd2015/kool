@@ -13,9 +13,13 @@ kool for-every --help
 1. Help already true from parent; no further request fields required.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	// Help=true inherited; ensure we do not accidentally set a command.
 	req.Command = ""
 	req.Duration = ""

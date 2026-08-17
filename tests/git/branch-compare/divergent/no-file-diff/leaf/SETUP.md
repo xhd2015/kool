@@ -21,9 +21,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := req.Dir
 	runGit := func(args ...string) {
 		cmd := exec.Command("git", args...)

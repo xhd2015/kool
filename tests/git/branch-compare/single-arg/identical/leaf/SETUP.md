@@ -16,9 +16,11 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	cmd := exec.Command("git", "branch", "--show-current")
 	cmd.Dir = req.Dir
 	out, err := cmd.Output()

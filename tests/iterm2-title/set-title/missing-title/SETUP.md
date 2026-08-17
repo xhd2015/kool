@@ -14,9 +14,13 @@ kool iterm2 set-title
 2. Leave `TitleSet=false` (no title positional).
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.InSession = true
 	req.TitleSet = false
 	return nil

@@ -15,9 +15,13 @@ run "Both Steps" --backend=iterm2 --dry-run
 2. enableITerm2Mock so Assert can prove mock out file was **not** written.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeTasksJSON(t, req.WorkingDir, echoCompositeJSONC)
 	req.Dir = req.WorkingDir
 	req.Query = "Both Steps"

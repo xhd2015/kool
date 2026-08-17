@@ -13,7 +13,8 @@ OpenDir -> IPC client {"op":"open","path":"/abs/dir"} -> VS Code extension
 - Tests override socket path via `SetIPC_SOCKETPathForTest`.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "ipc"
 	req.GoOS = "darwin"
 	installExtensionListedPrecheck(t, req)

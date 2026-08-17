@@ -16,9 +16,11 @@ merge-back handler -> git status (dirty) -> uncommitted changes error
 import (
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	mainRepo := initMainRepo(t)
 	wtPath := addLinkedWorktree(t, mainRepo, "wt-dirty", "feature")
 	writeFile(t, filepath.Join(wtPath, "dirty.txt"), "uncommitted\n")

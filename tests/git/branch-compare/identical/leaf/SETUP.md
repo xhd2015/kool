@@ -15,9 +15,11 @@ compare_branch.Handle(refA=main, refB=v1) -> identical report
 import (
 	"os/exec"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	cmd := exec.Command("git", "tag", "v1")
 	cmd.Dir = req.Dir
 	out, err := cmd.CombinedOutput()

@@ -13,9 +13,13 @@ user -> kool for-every --help
 1. Fix Help=true for descendants.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Help = true
 	return nil
 }

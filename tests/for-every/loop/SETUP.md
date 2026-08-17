@@ -16,10 +16,12 @@ user -> kool for-every[-<dur>] --max-runs N | --max-failure N | --allow-failure 
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Help = false
 	if req.Duration == "" {
 		req.Duration = "10ms"

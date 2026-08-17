@@ -17,11 +17,13 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 var fullCommitHash = regexp.MustCompile(`[0-9a-f]{40}`)
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
+	_ = d
 	if err != nil {
 		t.Fatalf("unexpected error running kool: %v", err)
 	}

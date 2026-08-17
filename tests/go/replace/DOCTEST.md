@@ -43,6 +43,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 
 	go_replace "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/replace"
 	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
@@ -64,7 +65,8 @@ type Response struct {
 	HasReplace bool
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	resp := &Response{}
 
 	switch req.Operation {

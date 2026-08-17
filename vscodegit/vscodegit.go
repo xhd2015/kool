@@ -10,7 +10,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
+
+// testHooksMu serializes tests that mutate process-global vscodegit hooks.
+var testHooksMu sync.Mutex
+
+// LockHooksForTest serializes hook mutation + use across parallel doctest trees.
+func LockHooksForTest() { testHooksMu.Lock() }
+
+// UnlockHooksForTest releases LockHooksForTest.
+func UnlockHooksForTest() { testHooksMu.Unlock() }
 
 const ipcFallbackHint = "Note: extension not reachable via IPC; opening via vscode:// URI."
 

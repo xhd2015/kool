@@ -13,9 +13,13 @@ kool iterm2 get-title --window + ITERM_SESSION_ID
 1. In-session; `Window=true`.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.InSession = true
 	req.Window = true
 	return nil

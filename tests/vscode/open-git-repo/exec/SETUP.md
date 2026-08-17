@@ -11,7 +11,8 @@ OpenGitRepo -> buildGitOpenRepoURI -> OS opener(exec mock)
 - Tests inject exec hook to capture opener command without launching VS Code.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "exec"
 	req.GoOS = "darwin"
 	return nil

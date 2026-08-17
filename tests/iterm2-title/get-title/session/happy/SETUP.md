@@ -14,9 +14,13 @@ kool iterm2 get-title
 1. Mock osascript stdout `Tab Alpha` (no trailing newline in mock; CLI adds `\n`).
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.OsascriptStdout = "Tab Alpha"
 	return nil
 }

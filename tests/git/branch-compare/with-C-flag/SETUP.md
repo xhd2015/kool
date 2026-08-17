@@ -14,9 +14,11 @@ user -> kool git compare-branch main main -C <dir> -> compare_branch.Handle
 import (
 	"os"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir, err := os.MkdirTemp("", "kool-branch-compare-C-*")
 	if err != nil {
 		return err

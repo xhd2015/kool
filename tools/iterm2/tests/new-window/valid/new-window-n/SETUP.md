@@ -21,7 +21,8 @@ kool iterm2 <dir> -n -> ModeForceNew -> new window always
 - Must skip session scanning entirely
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"-n"}
     return nil
 }

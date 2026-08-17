@@ -13,9 +13,13 @@ user -> kool cloudflare [--help | serve --help]
 1. Mark help branch; StartSession must not be called (AllowStart remains false).
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.AllowStart = false
 	return nil
 }

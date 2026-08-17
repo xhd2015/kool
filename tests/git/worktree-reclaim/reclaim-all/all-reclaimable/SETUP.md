@@ -15,6 +15,7 @@ reclaim handler -> remove all linked worktrees
 import (
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 func setupMergedWorktree(t *testing.T, mainRepo, wtName, branch string) string {
@@ -27,7 +28,8 @@ func setupMergedWorktree(t *testing.T, mainRepo, wtName, branch string) string {
 	return wtPath
 }
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	mainRepo := initMainRepo(t)
 	wtA := setupMergedWorktree(t, mainRepo, "wt-a", "feature-a")
 	_ = setupMergedWorktree(t, mainRepo, "wt-b", "feature-b")

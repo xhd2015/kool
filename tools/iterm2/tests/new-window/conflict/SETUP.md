@@ -22,7 +22,8 @@ kool iterm2 -n -r <dir> -> CLI handler -> error, no script
 - The error message should mention the conflict (mutually exclusive)
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     if req.Args == nil {
         req.Args = []string{}
     }

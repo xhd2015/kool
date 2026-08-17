@@ -22,9 +22,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	workDir, err := os.MkdirTemp("", "kool-branch-compare-single-C-*")
 	if err != nil {
 		return err

@@ -14,12 +14,15 @@ kool vscode open --replace <dir> -> OpenDir(replace=true) -> ok
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "replace-cli-target")
 	req.DirPath = dir
 	req.Replace = true
+	installCLIMockIPC(t, req)
 	return nil
 }
 ```

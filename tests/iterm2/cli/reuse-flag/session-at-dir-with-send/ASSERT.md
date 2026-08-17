@@ -11,9 +11,11 @@
 import (
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
+	_ = d
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,10 +29,10 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 	if !scriptHasReusePathScan(s) {
 		t.Fatalf("missing path scan: %q", s)
 	}
-	if !strings.Contains(s, `write text "grok"`) {
+	if !strings.Contains(s, writeTextCmd("grok")) {
 		t.Fatalf("script should still emit grok for miss branch: %q", s)
 	}
-	matchBranchMustNotContain(t, s, `write text "grok"`)
-	matchBranchMustNotContain(t, s, `write text ("cd " & quoted form of targetDir)`)
+	matchBranchMustNotContain(t, s, writeTextCmd("grok"))
+	matchBranchMustNotContain(t, s, writeTextCd())
 }
 ```

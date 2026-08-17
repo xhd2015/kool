@@ -15,9 +15,11 @@ OpenDir -> IPC (fail) -> stderr hint -> OS opener(vscode:// URI)
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "fallback-target")
 	req.DirPath = dir
 	req.IPCAlwaysFail = true

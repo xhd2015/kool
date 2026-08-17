@@ -11,9 +11,11 @@
 import (
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
+	_ = d
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +29,8 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 	if !scriptHasReusePathScan(s) {
 		t.Fatalf("missing path scan: %q", s)
 	}
-	elseBranchMustContain(t, s, `write text "grok"`)
-	matchBranchMustNotContain(t, s, `write text "grok"`)
+	elseBranchMustContain(t, s, writeTextCmd("grok"))
+	matchBranchMustNotContain(t, s, writeTextCmd("grok"))
 	if strings.Contains(s, "current session of current tab of current window") {
 		t.Fatal("reuse -r must not use legacy current-session cd target")
 	}

@@ -11,7 +11,8 @@ kool vscode open -> stderr usage error
 1. Run `kool vscode open` with no arguments.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.DirPath = ""
 	return nil
 }

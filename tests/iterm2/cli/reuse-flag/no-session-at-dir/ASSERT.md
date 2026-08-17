@@ -12,9 +12,11 @@
 import (
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
+	_ = d
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +34,7 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 		t.Fatal("reuse -r must not cd in arbitrary current session")
 	}
 	elseBranchMustContain(t, s, "create window with default profile")
-	elseBranchMustContain(t, s, `write text ("cd " & quoted form of targetDir)`)
+	elseBranchMustContain(t, s, writeTextCd())
 	matchBranchMustNotContain(t, s, "create tab with default profile")
 }
 ```

@@ -13,7 +13,8 @@ validateGitRepoPath -> buildGitOpenRepoURI -> vscode://.../git-open?path=...
 - Query: `path` must be URL-encoded absolute filesystem path
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "build-uri"
 	return nil
 }

@@ -7,9 +7,13 @@ kool iterm2 -r <dir> --send grok -> match branch: focus only (no write text "gro
 ```
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Send = []string{"grok"}
 	return nil
 }

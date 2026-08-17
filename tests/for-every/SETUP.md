@@ -17,9 +17,9 @@ user -> kool for-every[-<dur>] [OPTIONS] <cmd> …
 
 ## Preconditions
 
-- Module root is `DOCTEST_ROOT/../..` (this tree lives at `tests/for-every/`).
+- Module root is `d.DOCTEST_ROOT/../..` (this tree lives at `tests/for-every/`).
 - `go` is on PATH; `Run` session-builds `kool` into
-  `$TMPDIR/kool-for-every-doctest-<DOCTEST_SESSION_ID>/kool` under a file lock.
+  `$TMPDIR/kool-for-every-doctest-<d.DOCTEST_SESSION_ID>/kool` under a file lock.
 - Loop leaves **must** pass `--max-runs` and/or failure stop flags so the child
   cannot run forever. `Run` also applies a wall-clock process timeout (default 15s).
 - Prefer short intervals (`10ms`) in loop tests.
@@ -32,7 +32,7 @@ user -> kool for-every[-<dur>] [OPTIONS] <cmd> …
 
 ## Context
 
-- Shared session cache: `$TMPDIR/kool-for-every-doctest-<DOCTEST_SESSION_ID>/`
+- Shared session cache: `$TMPDIR/kool-for-every-doctest-<d.DOCTEST_SESSION_ID>/`
   (`kool` binary + `binaries.ready` + `build.lock`).
 - No durable product storage; per-leaf temp dirs only.
 - Helper `intPtr` is available for optional int flags.
@@ -41,10 +41,12 @@ user -> kool for-every[-<dur>] [OPTIONS] <cmd> …
 import (
 	"os"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}

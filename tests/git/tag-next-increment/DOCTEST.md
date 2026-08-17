@@ -52,6 +52,7 @@ doctest test ./tests/git/tag-next-increment
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 
 	git_tag_next "github.com/xhd2015/kool/tools/git/git_tag_next"
 )
@@ -65,7 +66,8 @@ type Response struct {
 	Err     error
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	nextTag, err := git_tag_next.IncrementTag(req.Tag)
 	return &Response{NextTag: nextTag, Err: err}, nil
 }

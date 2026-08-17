@@ -15,10 +15,12 @@ user -> kool for-every … (bad duration | missing command | bad flags)
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Help = false
 	// Validation must fail fast; keep a tight wall clock.
 	if req.ProcessTimeout > 5*time.Second || req.ProcessTimeout <= 0 {

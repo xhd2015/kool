@@ -15,9 +15,11 @@ reclaim handler -> stat path -> error
 import (
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	mainRepo := initMainRepo(t)
 	req.MainRepo = mainRepo
 	req.Path = filepath.Join(filepath.Dir(mainRepo), "does-not-exist")

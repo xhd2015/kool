@@ -11,7 +11,8 @@ kool vscode open <path> -> ValidateDirPath -> (error, no precheck)
 - All validation failures must exit non-zero with clear stderr and never invoke precheck, IPC, or OS opener.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	return nil
 }

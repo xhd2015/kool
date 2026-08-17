@@ -44,6 +44,7 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 
 	go_update "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/update"
 	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/resolve"
@@ -63,7 +64,8 @@ type Response struct {
 	ModuleVersion string // require version after update
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	resp := &Response{}
 
 	switch req.Operation {

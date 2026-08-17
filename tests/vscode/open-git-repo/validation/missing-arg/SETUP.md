@@ -11,7 +11,8 @@ kool vscode open-git-repo -> stderr usage error
 1. Run `kool vscode open-git-repo` with no arguments.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	req.RepoPath = ""
 	return nil

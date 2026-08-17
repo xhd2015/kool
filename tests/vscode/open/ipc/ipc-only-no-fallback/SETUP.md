@@ -16,9 +16,11 @@ OpenDirOptions(IpcOnly) -> IPC fail -> error (no exec, no hint)
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "ipc-only-fail")
 	req.DirPath = dir
 	req.IpcOnly = true

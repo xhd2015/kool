@@ -13,9 +13,13 @@ kool for-every --max-failure 2 --max-runs 5 10ms sh -c '…counter…'
 1. Counter file in WorkingDir; fail when n%2==1; max-failure 2; max-runs 5.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.MaxFailure = intPtr(2)
 	req.AllowFailure = false
 	req.MaxRuns = intPtr(5)

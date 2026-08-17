@@ -15,9 +15,13 @@ run <label> --backend=iterm2       -> RunTabSet (or mock env in CI)
 2. Leaves set Query, DryRun, Backend, window flags, fixtures, mock env.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Subcommand = "run"
 	return nil
 }

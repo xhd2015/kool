@@ -20,7 +20,8 @@ kool iterm2 <dir> --new-window -> ModeForceNew (via alias)
 - --new-window is the long form of -n
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"--new-window"}
     return nil
 }

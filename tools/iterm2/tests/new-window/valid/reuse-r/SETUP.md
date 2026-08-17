@@ -20,7 +20,8 @@ kool iterm2 <dir> -r -> ModeReuseCurrent -> scan sessions -> focus existing
 - None
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"-r"}
     return nil
 }

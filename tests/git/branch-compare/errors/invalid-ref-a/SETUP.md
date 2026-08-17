@@ -14,9 +14,11 @@ compare_branch.Handle(refA=nonexistent-branch, refB=main) -> error
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.RefA = "nonexistent-branch"
 	req.RefB = "main"
 	return nil

@@ -122,6 +122,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 	"time"
 )
 
@@ -161,12 +162,12 @@ type Response struct {
 	ExitCode int
 }
 
-func moduleRoot() string {
-	return filepath.Clean(filepath.Join(DOCTEST_ROOT, "..", ".."))
+func moduleRoot(doctestRoot string) string {
+	return filepath.Clean(filepath.Join(doctestRoot, "..", ".."))
 }
 
-func sessionCacheDir() string {
-	return filepath.Join(os.TempDir(), "kool-for-every-doctest-"+DOCTEST_SESSION_ID)
+func sessionCacheDir(sessionID string) string {
+	return filepath.Join(os.TempDir(), "kool-for-every-doctest-"+sessionID)
 }
 
 func withFileLock(t *testing.T, lockPath string, fn func() error) error {
@@ -187,9 +188,10 @@ func withFileLock(t *testing.T, lockPath string, fn func() error) error {
 }
 
 // ensureKoolBinary builds kool once per doctest session into the session cache.
-func ensureKoolBinary(t *testing.T) (string, error) {
+// One-process mode: use d.DOCTEST_ROOT / d.DOCTEST_SESSION_ID (no bare free ids).
+func ensureKoolBinary(t *testing.T, d *session.Doctest) (string, error) {
 	t.Helper()
-	cacheDir := sessionCacheDir()
+	cacheDir := sessionCacheDir(d.DOCTEST_SESSION_ID)
 	lock := filepath.Join(cacheDir, "build.lock")
 	ready := filepath.Join(cacheDir, "binaries.ready")
 	bin := filepath.Join(cacheDir, "kool")
@@ -203,7 +205,7 @@ func ensureKoolBinary(t *testing.T) (string, error) {
 			return err
 		}
 		cmd := exec.Command(runtime.GOROOT()+"/bin/go", "build", "-o", bin, ".")
-		cmd.Dir = moduleRoot()
+		cmd.Dir = moduleRoot(d.DOCTEST_ROOT)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("go build kool: %w\n%s", err, out)
@@ -251,9 +253,9 @@ func buildArgs(req *Request) []string {
 }
 
 // Run executes kool for-every…, captures stdout/stderr/exit, and never hangs forever.
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 	t.Helper()
-	koolBin, err := ensureKoolBinary(t)
+	koolBin, err := ensureKoolBinary(t, d)
 	if err != nil {
 		return nil, err
 	}

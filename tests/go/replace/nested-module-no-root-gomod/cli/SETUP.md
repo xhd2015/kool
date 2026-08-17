@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if _, err := exec.LookPath("kool"); err != nil {
 		return fmt.Errorf("kool not found in PATH, build it first: %w", err)
 	}

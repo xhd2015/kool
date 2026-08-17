@@ -12,9 +12,13 @@ kool for-every --allow-failure --max-runs 5 10ms sh -c 'echo fail-once; exit 1'
 1. Always-fail child; allow-failure; high max-runs safety net.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.AllowFailure = true
 	req.MaxFailure = nil
 	req.MaxRuns = intPtr(5) // safety; policy must stop at first failure

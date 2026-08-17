@@ -11,9 +11,13 @@ Cycle A <-> Cycle B -> run "Cycle A" --dry-run -> Error cycle
 1. cycleJSONC; Query=`Cycle A`.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeTasksJSON(t, req.WorkingDir, cycleJSONC)
 	req.Dir = req.WorkingDir
 	req.Query = "Cycle A"

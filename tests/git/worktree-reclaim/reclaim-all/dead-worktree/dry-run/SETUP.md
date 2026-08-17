@@ -10,9 +10,11 @@ user -> kool git worktree reclaim --all --dry-run -> dry-run: would reclaim <pat
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorktreePath == "" || !req.All {
 		t.Fatal("expected dead-worktree reclaim-all setup from ancestors")
 	}

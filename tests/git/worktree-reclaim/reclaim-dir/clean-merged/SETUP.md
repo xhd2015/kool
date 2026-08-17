@@ -18,9 +18,11 @@ reclaim handler -> git status (clean) + compare HEAD -> reclaimable
 import (
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	mainRepo := initMainRepo(t)
 	wtPath := addLinkedWorktree(t, mainRepo, "wt-feature", "feature")
 

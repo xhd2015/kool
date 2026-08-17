@@ -38,6 +38,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 func expectedOpenURI(absPath string, replace bool) string {
@@ -49,7 +50,8 @@ func expectedOpenURI(absPath string, replace bool) string {
 	return uri
 }
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}
@@ -121,7 +123,7 @@ func installExtensionListedPrecheck(t *testing.T, req *Request) {
 
 func installCLIMockIPC(t *testing.T, req *Request) {
 	t.Helper()
-	socketPath := filepath.Join(req.WorkingDir, "ipc-cli.sock")
+	socketPath := mockIPCSocketPath(t)
 	if req.IPCSocketPath != "" {
 		socketPath = req.IPCSocketPath
 	}

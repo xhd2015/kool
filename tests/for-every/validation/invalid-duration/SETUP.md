@@ -13,9 +13,13 @@ user -> kool for-every <bad-duration> …
 1. Spaced form with a command present so the failure is duration, not missing command.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Glued = false
 	req.Command = "true"
 	req.MaxRuns = intPtr(1)

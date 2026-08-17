@@ -20,7 +20,8 @@ kool iterm2 --new-window --reuse <dir> -> error
 - Testing long form of both flags
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"--new-window", "--reuse"}
     return nil
 }

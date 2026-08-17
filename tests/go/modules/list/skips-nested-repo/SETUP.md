@@ -17,7 +17,14 @@ root + ext/go.mod + ext/.git(separate repo, untracked by root) -> stdout:
    `.git` inside `ext/`, NOT a submodule of root).
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+import (
+	"path/filepath"
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	ext := filepath.Join(req.RootDir, "ext")
 	writeModule(t, ext, "some.com/ext")
 	initGitRepo(t, ext) // separate .git inside ext/, NOT a submodule of root

@@ -10,9 +10,11 @@ user (cwd=wt) -> kool git worktree reclaim --all -> reclaimed
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.Cwd != req.WorktreePath {
 		t.Fatalf("expected Cwd inside linked worktree, cwd=%q wt=%q", req.Cwd, req.WorktreePath)
 	}

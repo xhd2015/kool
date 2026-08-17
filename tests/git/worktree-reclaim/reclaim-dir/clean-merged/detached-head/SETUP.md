@@ -14,9 +14,11 @@ reclaim handler -> compare detached HEAD commit against main HEAD -> reclaimable
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorktreePath == "" || !pathExists(t, req.WorktreePath) {
 		t.Fatalf("expected merged worktree from ancestor setup")
 	}

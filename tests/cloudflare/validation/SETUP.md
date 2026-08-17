@@ -13,9 +13,13 @@ user -> kool cloudflare … (no subcommand | unknown | missing flags)
 1. Mark validation-only: AllowStart stays false.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.AllowStart = false
 	req.HelpAtRoot = false
 	req.HelpServe = false

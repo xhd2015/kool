@@ -8,7 +8,8 @@
 2. Set operation to library update
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Operation = "update"
 	return nil
 }

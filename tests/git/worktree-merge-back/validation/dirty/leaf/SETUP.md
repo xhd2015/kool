@@ -9,9 +9,11 @@ user (cwd=dirty wt) -> merge-back handler -> uncommitted changes error
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorktreePath == "" || !pathExists(t, req.WorktreePath) {
 		t.Fatal("expected dirty worktree from ancestor setup")
 	}

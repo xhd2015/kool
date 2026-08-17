@@ -70,6 +70,7 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 type Request struct {
@@ -90,7 +91,8 @@ type Response struct {
 	ExitCode int
 }
 
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	args := []string{"git", "worktree", "reclaim"}
 	if req.All {
 		args = append(args, "--all")

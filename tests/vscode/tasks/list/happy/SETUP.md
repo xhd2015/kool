@@ -12,9 +12,13 @@ tasks.json with // comments, trailing commas, shell/process/composite
 1. Write multi-task fixture; Dir=WorkingDir.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeMultiTaskFixture(t, req.WorkingDir)
 	req.Dir = req.WorkingDir
 	return nil

@@ -50,6 +50,7 @@ import (
     "bytes"
     "strings"
     "testing"
+    "github.com/xhd2015/doctest/session"
 
     iterm2cmd "github.com/xhd2015/kool/tools/iterm2"
 )
@@ -72,7 +73,8 @@ type Response struct {
 }
 
 // Run executes the iterm2 CLI handler with mocked library dependencies.
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+    _ = d
     tmpDir := t.TempDir()
 
     fullArgs := make([]string, 0, len(req.Args)+1)

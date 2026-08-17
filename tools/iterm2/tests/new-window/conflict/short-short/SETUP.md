@@ -20,7 +20,8 @@ kool iterm2 -n -r <dir> -> error
 - Order shouldn't matter, but testing -n before -r
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"-n", "-r"}
     return nil
 }

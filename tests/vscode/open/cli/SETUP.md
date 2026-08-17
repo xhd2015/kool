@@ -12,7 +12,8 @@ kool vscode open --replace <dir> -> ValidateDirPath -> IPC/URI with replace
 - Flag may appear before the directory path argument.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	installExtensionListedPrecheck(t, req)
 	return nil

@@ -15,7 +15,14 @@ root + testdata/x/go.mod -> kool go modules --list --dir <root> -> stdout:
 2. Add `testdata/x/go.mod` (`some.com/root/testdata-x`) to `req.RootDir`.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+import (
+	"path/filepath"
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
+
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	writeModule(t, filepath.Join(req.RootDir, "testdata", "x"), "some.com/root/testdata-x")
 	return nil
 }

@@ -20,7 +20,8 @@ kool iterm2 -n --reuse-window <dir> -> error
 - --reuse-window is a new alias, should conflict with -n just like -r
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"-n", "--reuse-window"}
     return nil
 }

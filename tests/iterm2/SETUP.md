@@ -33,9 +33,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}
@@ -57,5 +59,15 @@ func initValidDir(t *testing.T, base, name string) string {
 		t.Fatal(err)
 	}
 	return dir
+}
+
+// writeTextCmd matches shell/iterm2 SafeInputIgnore write text "cmd" lines (Ctrl-U prefix).
+func writeTextCmd(cmd string) string {
+	return `write text ((ASCII character 21) & "` + cmd + `")`
+}
+
+// writeTextCd matches the Ctrl-U-prefixed cd line emitted for session commands.
+func writeTextCd() string {
+	return `write text ((ASCII character 21) & "cd " & quoted form of targetDir)`
 }
 ```

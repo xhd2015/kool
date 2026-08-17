@@ -12,9 +12,13 @@ kool for-every --max-runs 3 10ms sh -c 'echo fail-line; exit 1'
 1. Always-failing child that still prints a marker line; max-runs 3; no failure flags.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.MaxRuns = intPtr(3)
 	req.AllowFailure = false
 	req.MaxFailure = nil

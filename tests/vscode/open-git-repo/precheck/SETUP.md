@@ -11,7 +11,8 @@ ValidateGitRepoPath -> EnsureCodeCLI -> EnsureExtensionListed -> IPC
 - Precheck failures block IPC and OS opener.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	return nil
 }

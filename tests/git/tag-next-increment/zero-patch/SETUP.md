@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.Tag != "" && !strings.HasSuffix(req.Tag, ".0") {
 		return fmt.Errorf("zero-patch grouping: tag %q does not end with .0", req.Tag)
 	}

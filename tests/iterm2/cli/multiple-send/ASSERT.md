@@ -10,9 +10,11 @@
 import (
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Assert(t *testing.T, req *Request, resp *Response, err error) {
+func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err error) {
+	_ = d
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,8 +22,8 @@ func Assert(t *testing.T, req *Request, resp *Response, err error) {
 		t.Fatalf("exit=%d stderr=%s", resp.ExitCode, resp.Stderr)
 	}
 	s := resp.CapturedScript
-	iGrok := strings.Index(s, `write text "grok"`)
-	iCodex := strings.Index(s, `write text "codex"`)
+	iGrok := strings.Index(s, writeTextCmd("grok"))
+	iCodex := strings.Index(s, writeTextCmd("codex"))
 	if iGrok < 0 || iCodex < 0 {
 		t.Fatalf("script=%q", s)
 	}

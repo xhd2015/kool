@@ -66,6 +66,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 type Request struct {
@@ -82,7 +83,8 @@ type Response struct {
 // Run execs `kool go modules --list --dir <req.RootDir>` and captures stdout/stderr/exit.
 // Requires `kool` on PATH, rebuilt with the local replace directive pointing at the new
 // (unpublished) scan package. Leaves assert on resp.Stdout line set.
-func Run(t *testing.T, req *Request) (*Response, error) {
+func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
+	_ = d
 	resp := &Response{}
 
 	if _, err := exec.LookPath("kool"); err != nil {

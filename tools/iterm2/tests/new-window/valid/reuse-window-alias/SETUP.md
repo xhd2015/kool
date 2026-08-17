@@ -20,7 +20,8 @@ kool iterm2 <dir> --reuse-window -> ModeReuseCurrent (via alias)
 - --reuse-window is a new alias for -r/--reuse, identical behavior
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+    _ = d
     req.Args = []string{"--reuse-window"}
     return nil
 }

@@ -18,9 +18,13 @@ StartSession error → non-zero; stderr surfaces error
 2. Leaves set Domain/URL/Tunnel and optional StartSessionErr.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Subcommand = "serve"
 	req.AllowStart = true
 	req.HelpAtRoot = false

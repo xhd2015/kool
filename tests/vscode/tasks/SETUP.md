@@ -67,6 +67,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
 // multiTaskJSONC: shell + process + composite + comments + trailing commas.
@@ -250,7 +251,8 @@ type iterm2MockCall struct {
 	} `json:"spec"`
 }
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	if req.WorkingDir == "" {
 		req.WorkingDir = t.TempDir()
 	}

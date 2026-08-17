@@ -11,7 +11,8 @@ ValidateDirPath(nonexistent) -> error
 1. Run CLI with a path that does not exist.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.DirPath = "/tmp/kool-vscode-open-does-not-exist-xyz"
 	return nil
 }

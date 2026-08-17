@@ -17,16 +17,17 @@ kool <- stdout {"ipc_handled":true,"path":"..."}
 
 ```go
 import (
-	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	dir := initValidDir(t, req.WorkingDir, "ipc-json-ok")
 	req.DirPath = dir
 	req.IpcOnly = true
 	req.Json = true
-	socketPath := filepath.Join(req.WorkingDir, "mock-ipc.sock")
+	socketPath := mockIPCSocketPath(t)
 	startMockIPCServer(t, socketPath, 0)
 	req.IPCSocketPath = socketPath
 	return nil

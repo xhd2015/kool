@@ -15,9 +15,13 @@ kool iterm2 set-title new-session-title
 2. New title `new-session-title`.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Title = "new-session-title"
 	req.TitleSet = true
 	req.OsascriptStdout = "old-session-title"

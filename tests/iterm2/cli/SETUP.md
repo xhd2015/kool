@@ -10,9 +10,11 @@ kool iterm2 <dir> [--send ...] -> exit 0 -> script file contains cd + follow-ups
 import (
 	"strings"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "cli"
 	req.InstalledEnv = "1"
 	return nil

@@ -12,7 +12,8 @@ OpenGitRepo -> IPC client {"op":"git-open","path":"/abs/repo"} -> VS Code extens
 - OS opener must not run when IPC succeeds.
 
 ```go
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Phase = "ipc"
 	req.GoOS = "darwin"
 	installExtensionListedPrecheck(t, req)

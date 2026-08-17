@@ -13,9 +13,13 @@ empty temp workspace (no .vscode/tasks.json)
 2. Optional --dir = WorkingDir.
 
 ```go
-import "testing"
+import (
+	"testing"
+	"github.com/xhd2015/doctest/session"
+)
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	req.Dir = req.WorkingDir
 	return nil
 }

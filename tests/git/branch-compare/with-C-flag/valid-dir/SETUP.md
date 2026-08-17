@@ -18,9 +18,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	repoDir := filepath.Join(req.Dir, "repo")
 	err := os.MkdirAll(repoDir, 0755)
 	if err != nil {

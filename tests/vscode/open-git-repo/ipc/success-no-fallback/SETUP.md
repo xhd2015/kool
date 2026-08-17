@@ -15,9 +15,11 @@ OpenGitRepo -> IPC {"op":"git-open"} -> ok:true
 ```go
 import (
 	"testing"
+	"github.com/xhd2015/doctest/session"
 )
 
-func Setup(t *testing.T, req *Request) error {
+func Setup(t *testing.T, d *session.Doctest, req *Request) error {
+	_ = d
 	repoDir := initValidGitRepo(t, req.WorkingDir, "ipc-repo")
 	req.RepoPath = repoDir
 	return nil
