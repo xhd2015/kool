@@ -49,6 +49,10 @@ jobs:
         # Consumer project: released CLI, not this module.
         run: go install github.com/xhd2015/doctest/cmd/doctest@latest
 
+      # CLI trees LookPath("kool") / resolveKoolBinary; CI has no prebuilt binary.
+      - name: Install kool CLI
+        run: go install .
+
       # Layer model: discovery = in-process mass; label e2e = full integration only.
       # Each stage writes its own coverprofile — same path overwrites (no merge).
       - name: Doctest discovery (in-process mass)

@@ -15,6 +15,7 @@ func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	_ = d
 	req.Phase = "exec"
 	req.GoOS = "darwin"
+	installExtensionListedPrecheck(t, req)
 	return nil
 }
 ```

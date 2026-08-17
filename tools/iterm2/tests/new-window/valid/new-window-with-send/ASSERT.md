@@ -2,7 +2,7 @@
 
 - ExitCode is 0
 - Script contains `create window with default profile`
-- Script contains `write text "echo hi"` (follow-up command)
+- Script contains Ctrl-U-prefixed `write text` for `echo hi`
 - Script does NOT contain `set matchingWindow`
 
 ```go
@@ -26,7 +26,7 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
     if !strings.Contains(resp.ScriptText, "create window with default profile") {
         t.Fatal("should create a new window")
     }
-    if !strings.Contains(resp.ScriptText, `write text "echo hi"`) {
+    if !strings.Contains(resp.ScriptText, `write text ((ASCII character 21) & "echo hi")`) {
         t.Fatalf("should include follow-up command 'echo hi', got script: %s", resp.ScriptText)
     }
     if strings.Contains(resp.ScriptText, "set matchingWindow") {
