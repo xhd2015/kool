@@ -1,16 +1,17 @@
 # Scenario
 
-**Feature**: merge-back rejects dirty linked worktree
+**Feature**: merge-back --rm rejects a dirty linked worktree
 
 ```
-# uncommitted changes block merge-back
-merge-back handler -> git status (dirty) -> uncommitted changes error
+# uncommitted changes block --rm (worktree would be deleted)
+merge-back --rm -> git status (dirty) -> uncommitted changes error
 ```
 
 ## Steps
 
 1. Create main repo and linked worktree on branch `feature`
 2. Write an uncommitted file in the worktree
+3. Set `--rm` — dirty is only an error when the worktree would be removed
 
 ```go
 import (
@@ -29,6 +30,7 @@ func Setup(t *testing.T, d *session.Doctest, req *Request) error {
 	req.WorktreePath = wtPath
 	req.BranchName = "feature"
 	req.Cwd = wtPath
+	req.Remove = true
 	return nil
 }
 ```

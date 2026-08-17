@@ -27,6 +27,7 @@ merge-back handler -> git compare/rebase/merge -> optional worktree remove + bra
 - Default target is the main repository; `--to` accepts main repo or sibling worktree under the same main repo
 - Ahead and diverged paths require TTY confirmation or `--confirm-from-stdin`; non-TTY without that flag errors before mutations
 - Already-included without `--rm` is a no-op success; `--rm` removes worktree and deletes branch without merge prompt
+- Dirty source is rejected only with `--rm` (worktree would be deleted)
 - `--dry-run` prints planned `git -C` commands and never mutates
 
 ```go

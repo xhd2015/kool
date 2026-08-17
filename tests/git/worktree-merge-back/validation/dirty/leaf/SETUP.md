@@ -1,9 +1,9 @@
 # Scenario
 
-**Feature**: run merge-back on dirty worktree
+**Feature**: run merge-back --rm on dirty worktree
 
 ```
-user (cwd=dirty wt) -> merge-back handler -> uncommitted changes error
+user (cwd=dirty wt) -> merge-back --rm -> uncommitted changes error
 ```
 
 ```go

@@ -16,7 +16,7 @@ The **user** runs `kool git worktree merge-back` from inside a linked worktree (
 outcome
 ├── validation/                         # preflight rejects invalid invocation
 │   ├── not-a-worktree/leaf             # cwd is main repo → error
-│   ├── dirty/leaf                      # uncommitted changes → error
+│   ├── dirty/leaf                      # uncommitted + --rm → error
 │   ├── same-target/leaf                # --to same path as source → error
 │   └── foreign-target/leaf             # --to worktree from different main repo → error
 ├── to-main/                            # default target = main repo
@@ -50,7 +50,7 @@ outcome
 | # | Path | Description |
 |---|------|-------------|
 | 1 | validation/not-a-worktree/leaf | Main repo cwd rejected as not a linked worktree |
-| 2 | validation/dirty/leaf | Uncommitted changes cause error; worktree unchanged |
+| 2 | validation/dirty/leaf | Uncommitted + `--rm` errors; worktree unchanged |
 | 3 | validation/same-target/leaf | `--to` same as source worktree is rejected |
 | 4 | validation/foreign-target/leaf | `--to` worktree from foreign main repo is rejected |
 | 5 | to-main/already-included/noop/leaf | Already-included branch is no-op; worktree kept |
