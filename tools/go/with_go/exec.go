@@ -6,37 +6,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/xhd2015/dot-pkgs/go-pkgs/gotool/withgo"
 	"github.com/xhd2015/kool/tools/go/run"
 )
 
 func ResolveGoroot(goVersion string) (string, error) {
-	switch goVersion {
-	case "go1.25":
-		goVersion = "go1.25.0"
-	case "go1.24":
-		goVersion = "go1.24.1"
-	case "go1.23":
-		goVersion = "go1.23.6"
-	case "go1.22":
-		goVersion = "go1.22.12"
-	case "go1.21":
-		goVersion = "go1.21.13"
-	case "go1.20":
-		goVersion = "go1.20.14"
-	case "go1.19":
-		goVersion = "go1.19.13"
-	case "go1.18":
-		goVersion = "go1.18.10"
-	case "go1.17":
-		goVersion = "go1.17.13"
-	case "go1.16":
-		goVersion = "go1.16.15"
-	case "go1.15":
-		goVersion = "go1.15.15"
-	case "go1.14":
-		goVersion = "go1.14.15"
+	return ResolveGorootWith(goVersion, withgo.ResolveOptions{Download: true})
+}
+
+func ResolveGorootWith(goVersion string, opts withgo.ResolveOptions) (string, error) {
+	if opts.InstallDir == "" {
+		dir, err := withgo.DefaultInstallDir()
+		if err != nil {
+			return "", err
+		}
+		opts.InstallDir = dir
 	}
-	return InstallGo(goVersion, "")
+	return withgo.ResolveGoroot(goVersion, opts)
 }
 
 func ExecGoroot(goroot string, args []string, extraEnvs []string) error {
