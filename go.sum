@@ -55,6 +55,8 @@ github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIK
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/xhd2015/agent-pro v0.0.112 h1:7fLSfZmXzqW/SbNfLEzRmTKgtidRpIKejzuJQxS9LxA=
 github.com/xhd2015/agent-pro v0.0.112/go.mod h1:iSihi7MkX5ZZtUamuxxYBQT8vjMt4lHrjr+hmngptPg=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.129 h1:2Fe9V5VmcHEhtigVsim3UmZ0lkeRdPjLPlDEXSKoKAs=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.129/go.mod h1:eelZPb7I/hdpxmdCflzfphdiYriUVGaI1PNkUwUII9A=
 github.com/xhd2015/gitops v0.0.31 h1:dyiUIHzxeTCrG6dySEvfS5TpzooDxM8tXR+qlWDb+LQ=
 github.com/xhd2015/gitops v0.0.31/go.mod h1:KS8y6tZ3FG+myEaR+H6MvoR099YrP/ADIHZX9ROpZo8=
 github.com/xhd2015/go-coverage v1.0.41 h1:JjUcE93IMz0KHmdCYUKq9JN/EDC/5k0OEhsMAeVvL88=
@@ -133,5 +135,3 @@ gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
 gopkg.in/yaml.v2 v2.4.0/go.mod h1:RDklbk79AGWmwhnvt/jBztapEOGDOx6ZbXqjP6csGnQ=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.125 h1:MfxxdJUE18U9OrZWpSPjJ14rneUS7APrJogAWQOtNrU=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.125/go.mod h1:eelZPb7I/hdpxmdCflzfphdiYriUVGaI1PNkUwUII9A=

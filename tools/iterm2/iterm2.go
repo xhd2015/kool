@@ -173,7 +173,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	dir := remain[0]
-	cfg := &lib.Config{FollowUpCommands: sends}
+	cfg := &lib.Config{
+		FollowUpCommands: sends,
+		SafeInputIgnore:  true,
+	}
 	if newWindow {
 		cfg.Mode = lib.ModeForceNew
 	} else if reuse {
