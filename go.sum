@@ -55,8 +55,8 @@ github.com/smartystreets/goconvey v1.6.4 h1:fv0U8FUIMPNf1L9lnHLvLhgicrIVChEkdzIK
 github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/xhd2015/agent-pro v0.0.112 h1:7fLSfZmXzqW/SbNfLEzRmTKgtidRpIKejzuJQxS9LxA=
 github.com/xhd2015/agent-pro v0.0.112/go.mod h1:iSihi7MkX5ZZtUamuxxYBQT8vjMt4lHrjr+hmngptPg=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.129 h1:2Fe9V5VmcHEhtigVsim3UmZ0lkeRdPjLPlDEXSKoKAs=
-github.com/xhd2015/dot-pkgs/go-pkgs v0.0.129/go.mod h1:eelZPb7I/hdpxmdCflzfphdiYriUVGaI1PNkUwUII9A=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.131 h1:ycVqwDC8Pi90avkpF+YLMMryCsHhV5Mhy6y16HkIT3w=
+github.com/xhd2015/dot-pkgs/go-pkgs v0.0.131/go.mod h1:Xy5PwoTMhMnQGYE5Azuyb5m4jgb8IgHoNZLeSreWvoA=
 github.com/xhd2015/gitops v0.0.31 h1:dyiUIHzxeTCrG6dySEvfS5TpzooDxM8tXR+qlWDb+LQ=
 github.com/xhd2015/gitops v0.0.31/go.mod h1:KS8y6tZ3FG+myEaR+H6MvoR099YrP/ADIHZX9ROpZo8=
 github.com/xhd2015/go-coverage v1.0.41 h1:JjUcE93IMz0KHmdCYUKq9JN/EDC/5k0OEhsMAeVvL88=
@@ -72,8 +72,8 @@ github.com/xhd2015/less-gen v0.0.19/go.mod h1:Ym5HW/yfVnf2mgSo48QsuHAKnMTPv/u7oq
 github.com/xhd2015/lls v0.0.9 h1:jE1jAbkrcRXCl2ZSLbO9SZfAfqDa52gNXPBRzzQaCrs=
 github.com/xhd2015/lls v0.0.9/go.mod h1:+apFkQgvVXgO4S8/+ljANKZZzM3LDk78nPTgAYTPNCY=
 github.com/xhd2015/xgo v1.0.40/go.mod h1:LJxlcYSaXo/9YpsnB3yHh9NHe7BRettYCytaNGWY2BE=
-github.com/xhd2015/xgo v1.2.0 h1:DT5mAx73ANIUFDx3Lz+QcKrCVoLV0B7HxCvchGMxJq0=
-github.com/xhd2015/xgo v1.2.0/go.mod h1:LJxlcYSaXo/9YpsnB3yHh9NHe7BRettYCytaNGWY2BE=
+github.com/xhd2015/xgo v1.2.8 h1:ZCaVxd9ESnebg99zYfMawqEySkKBxvkdcMJvb5T38YM=
+github.com/xhd2015/xgo v1.2.8/go.mod h1:LJxlcYSaXo/9YpsnB3yHh9NHe7BRettYCytaNGWY2BE=
 github.com/yuin/goldmark v1.4.1/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/yuin/goldmark v1.7.11 h1:ZCxLyDMtz0nT2HFfsYG8WZ47Trip2+JyLysKcMYE5bo=

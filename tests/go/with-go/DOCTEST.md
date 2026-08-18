@@ -4,11 +4,9 @@ L2 in-process doctests for `github.com/xhd2015/kool/tools/go/with_go`.
 `Run` calls `HandleWith`, `ResolveGorootWith`, `ListWith`, and `ExecGoroot`.
 No `kool` binary, no network, no `go run download-go`.
 
-**Classic TDD:** the injectable wrap (`HandleWith`, `ResolveGorootWith`,
-`ListWith`) does not exist yet. The suite is **compile-RED** until the
-implementer lands those funcs. Existing `Handle` / `ResolveGoroot` /
-`InstallGo` (`go run download-go`) are the old surface — leaves must not
-call only those old signatures.
+`HandleWith` / `ResolveGorootWith` / `ListWith` wrap `gotool/withgo`.
+Leaves call those injectable funcs, not only `Handle` / `ResolveGoroot` /
+`InstallGo`.
 
 # DSN (Domain Specific Notion)
 
@@ -102,9 +100,9 @@ doctest vet ./tests/go/with-go
 doctest test ./tests/go/with-go
 ```
 
-Classic TDD: `doctest vet` must pass; `doctest test` is **compile-RED**
-until `HandleWith` / `ResolveGorootWith` / `ListWith` exist. Do not add
-a `go.mod` replace here — the implementer does that.
+`doctest vet` and `doctest test` should both pass. The module pins
+`github.com/xhd2015/dot-pkgs/go-pkgs` at `v0.0.131` (the tag that added
+`gotool/withgo`). No `go.mod` replace is required.
 
 ```go
 import (

@@ -13,9 +13,8 @@ goroot + args -> ExecGoroot -> child GOROOT=$abs PATH=$abs/bin:$PATH
 
 ## Preconditions
 
-- Package `github.com/xhd2015/kool/tools/go/with_go` is the SUT. Injectable
-  `HandleWith` / `ResolveGorootWith` / `ListWith` do not exist yet — leaves
-  stay compile-RED until they land.
+- Package `github.com/xhd2015/kool/tools/go/with_go` is the SUT.
+  Leaves call injectable `HandleWith` / `ResolveGorootWith` / `ListWith`.
 - Parallel-safe: no `os.Chdir` / `t.Chdir` / `os.Setenv` / `t.Setenv` /
   process stdio rewrite. InstallDir is always `t.TempDir()`. Resolve/handle
   leaves inject a recording `Install` hook — never real download network.
