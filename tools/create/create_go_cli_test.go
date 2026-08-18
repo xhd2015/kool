@@ -24,11 +24,30 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 		"go.mod",
 		"go.sum",
 		"main.go",
+		"install.sh",
 		filepath.Join("run", "run.go"),
+		filepath.Join("script", "install", "main.go"),
+		filepath.Join("script", "build", "main.go"),
+		filepath.Join("script", "bundle", "main.go"),
+		filepath.Join("script", "bundle", "for-linux", "main.go"),
+		filepath.Join("script", "github", "release", "main.go"),
+		filepath.Join("script", "github", "lib", "build_release.go"),
 	} {
 		if _, err := os.Stat(filepath.Join(dir, file)); err != nil {
 			t.Fatalf("expected %s: %v", file, err)
 		}
+	}
+
+	installSH := mustReadCreateTest(t, filepath.Join(dir, "install.sh"))
+	if !strings.Contains(installSH, "git-hooks") {
+		t.Fatalf("install.sh missing project name substitution:\n%s", installSH)
+	}
+	if strings.Contains(installSH, "__PROJECT_NAME__") {
+		t.Fatalf("install.sh still has unsubstituted __PROJECT_NAME__")
+	}
+	buildGo := mustReadCreateTest(t, filepath.Join(dir, "script", "build", "main.go"))
+	if !strings.Contains(buildGo, "bin/git-hooks") {
+		t.Fatalf("script/build/main.go missing binary name:\n%s", buildGo)
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		t.Fatalf("expected git repository to be initialized: %v", err)

@@ -104,6 +104,16 @@ func Handle(args []string) error {
 		srcFS = electronAppTemplateFS
 		srcRoot = "electron_app_template"
 	}
+	// Placeholders for Go templates (server); frontend/electron rarely use them.
+	// Prefer a real GitHub module path when available; otherwise project basename
+	// so install.sh / release stubs do not inherit the embedded template module.
+	projectBase := filepath.Base(projectName)
+	modulePath, _ := suggestGoModPath(targetPath)
+	if modulePath == "" {
+		modulePath = projectBase
+	}
+	placeholders := standardPlaceholders(projectBase, modulePath)
+
 	// Copy template files to new project
 	err = fs.WalkDir(srcFS, srcRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -133,7 +143,12 @@ func Handle(args []string) error {
 			return fmt.Errorf("failed to read embedded file %s: %v", path, err)
 		}
 
-		if err := os.WriteFile(targetFilePath, content, 0644); err != nil {
+		out := applyPlaceholders(string(content), placeholders)
+		mode := os.FileMode(0644)
+		if strings.HasSuffix(relPath, ".sh") {
+			mode = 0755
+		}
+		if err := os.WriteFile(targetFilePath, []byte(out), mode); err != nil {
 			return fmt.Errorf("failed to write file %s: %v", targetFilePath, err)
 		}
 

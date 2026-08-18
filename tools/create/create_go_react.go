@@ -206,7 +206,11 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 
 		content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
 
-		return os.WriteFile(targetFilePath, []byte(content), 0644)
+		mode := os.FileMode(0644)
+		if strings.HasSuffix(relPath, ".sh") {
+			mode = 0755
+		}
+		return os.WriteFile(targetFilePath, []byte(content), mode)
 	})
 }
 
