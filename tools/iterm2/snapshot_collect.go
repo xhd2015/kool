@@ -266,12 +266,14 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 
 // CaptureSnapshot builds a full live snapshot of iTerm2 sessions.
 func CaptureSnapshot() (*Snapshot, []string, error) {
-	return activeCollector().CaptureWith(CaptureOpts{})
+	return CaptureSnapshotWith(CaptureOpts{})
 }
 
 // CaptureSnapshotWith builds a snapshot with capture options (e.g. NoEnrich).
+// Live capture queries every running iTerm2 install (multi-app merge);
+// fixture collectors single-pass.
 func CaptureSnapshotWith(opts CaptureOpts) (*Snapshot, []string, error) {
-	return activeCollector().CaptureWith(opts)
+	return CaptureSnapshotStream(opts, nil)
 }
 
 // Capture runs phased hierarchy collection + process enrichment.

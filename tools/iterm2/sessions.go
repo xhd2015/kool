@@ -276,10 +276,9 @@ func runSessionsSnapshot(args []string, stdout, stderr io.Writer) error {
 func runSessionsSnapshotStream(stdout, stderr io.Writer, noColor, noTree bool, capOpts CaptureOpts) error {
 	opt := RenderOptions{Format: FormatCLI, NoColor: noColor, NoTree: noTree}
 	color := opt.useColor()
-	c := activeCollector()
-	snap, warnings, err := c.capture(func(win SnapshotWindow) error {
+	snap, warnings, err := CaptureSnapshotStream(capOpts, func(win SnapshotWindow) error {
 		return renderCLIWindow(stdout, win, color, noTree)
-	}, capOpts)
+	})
 	if err != nil {
 		WriteError(stderr, strings.TrimPrefix(err.Error(), "Error: "))
 		return errs.NewSilenceExitCode(1)

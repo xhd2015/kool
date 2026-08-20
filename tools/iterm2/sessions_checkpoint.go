@@ -915,7 +915,7 @@ func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ig
 		}, capOpts)
 	} else {
 		// Live multi-app + space-first: collect all keepers, sort by space, then print.
-		_, warnings, err = CaptureSnapshotForSaveStream(capOpts, func(win SnapshotWindow) error {
+		_, warnings, err = CaptureSnapshotStream(capOpts, func(win SnapshotWindow) error {
 			collectCritical(win, false)
 			return nil
 		})

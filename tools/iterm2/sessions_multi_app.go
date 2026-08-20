@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	lib "github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2"
 )
 
 // Canonical iTerm2 install paths recorded in SaveWindow.app (D9).
@@ -203,44 +205,15 @@ func liveMultiAppPreflight() MultiAppPreflight {
 	return MultiAppPreflight{AsApp: asApp, RunningApps: running}
 }
 
-// discoverRunningITermApps returns canonical apps with a live iTerm2 process.
-// Uses `ps` so non-standard home paths (e.g. iTerm.app.bak-*) still map to home.
+// discoverRunningITermApps returns canonical apps with a live iTerm2 process
+// or present on disk. Delegates discovery to dot-pkgs.RunningITermApps (ps scan
+// + predefined paths), then maps each raw path through canonicalITermAppPath.
 func discoverRunningITermApps() []string {
-	out, err := exec.Command("ps", "-axo", "args=").Output()
-	if err != nil {
-		// Fallback: pgrep exact candidates.
-		return discoverRunningITermAppsPgrep()
-	}
+	rawApps := lib.RunningITermApps()
 	seen := map[string]struct{}{}
 	var apps []string
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || !strings.Contains(line, "iTerm") {
-			continue
-		}
-		// Executable path is first token of args.
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
-			continue
-		}
-		exe := fields[0]
-		if !strings.HasSuffix(exe, "/Contents/MacOS/iTerm2") && !strings.HasSuffix(exe, "/MacOS/iTerm2") {
-			continue
-		}
-		// Map …/Something.iTerm.app… or …/iTerm.app… → canonical.
-		c := canonicalITermAppPath(filepath.Dir(filepath.Dir(filepath.Dir(exe)))) // up to .app
-		// Dir thrice: MacOS → Contents → .app
-		if c == "" {
-			// Try walking up to find *iTerm*.app
-			p := exe
-			for i := 0; i < 6 && p != "/" && p != "."; i++ {
-				if strings.Contains(strings.ToLower(filepath.Base(p)), "iterm") && strings.HasSuffix(strings.ToLower(p), ".app") {
-					c = canonicalITermAppPath(p)
-					break
-				}
-				p = filepath.Dir(p)
-			}
-		}
+	for _, raw := range rawApps {
+		c := canonicalITermAppPath(raw)
 		if c == "" {
 			continue
 		}
@@ -468,12 +441,14 @@ func resolveSameAppWindowTarget(recordedApp string, disk restoreAppDisk) Restore
 // Fixture collectors already carry dual App tags in one snapshot — single pass.
 // opts.SpaceAllow enables space-first deep-capture filter (save --spaces).
 func CaptureSnapshotForSave(opts CaptureOpts) (*Snapshot, []string, error) {
-	return CaptureSnapshotForSaveStream(opts, nil)
+	return CaptureSnapshotStream(opts, nil)
 }
 
-// CaptureSnapshotForSaveStream is CaptureSnapshotForSave with an optional
-// per-window callback after each deep-captured window is ready (streaming dry-run).
-func CaptureSnapshotForSaveStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
+// CaptureSnapshotStream captures a multi-app snapshot with an optional
+// per-window streaming callback. Fixture collectors single-pass; live
+// collectors query each running iTerm2 install and merge (dedupe by WindowID).
+// Shared by sessions snapshot, session status, save, and auto-backup.
+func CaptureSnapshotStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
 	c := activeCollector()
 	// Fixture / test inject: single collector already has all windows.
 	if c.fixtureEnabled {

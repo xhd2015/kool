@@ -426,6 +426,13 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
 
+	// Inject empty fixture so the already-running scan (CaptureSnapshotWith)
+	// does not hit live AppleScript (slow, non-deterministic).
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
+		ITermRunning: true,
+		Hostname:     "testhost",
+	})
+
 	var stdout, stderr bytes.Buffer
 	if err := runSessions([]string{"restore", "--dry-run"}, &stdout, &stderr); err != nil {
 		t.Fatalf("%v %s", err, stderr.String())
@@ -646,6 +653,12 @@ func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
 
+	// Inject empty fixture so the already-running scan does not hit live AppleScript.
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
+		ITermRunning: true,
+		Hostname:     "testhost",
+	})
+
 	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
 	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
 
@@ -707,6 +720,12 @@ func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
 	prevPath := sessionsSavePathForTest
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+
+	// Inject empty fixture so the already-running scan does not hit live AppleScript.
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
+		ITermRunning: true,
+		Hostname:     "testhost",
+	})
 
 	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
 	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
