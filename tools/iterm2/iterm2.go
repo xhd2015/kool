@@ -20,6 +20,7 @@ iterm2 install [--dry-run] [--download-dir DIR] [--download-only] [--via-open]
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
+iterm2 contents <session-id> [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
 when running inside iTerm2 (ITERM_SESSION_ID set), manage named tab-set layouts,
@@ -62,6 +63,7 @@ Sessions snapshot / save / restore / auto-backup / status:
   sessions auto-backup [--once] [--interval DUR] [--file PATH]
                                    periodically checkpoint critical tabs (default 10m)
   session <id> status [options]    live status for one session (id = iTerm unique ID)
+  contents <session-id>            print visible pane text (no focus; home then system app)
 
 Options:
   -h, --help                       show this help message
@@ -88,6 +90,8 @@ Examples:
   kool iterm2 sessions restore
   kool iterm2 sessions auto-backup --once
   kool iterm2 session D922B298 status
+  kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2
+  kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2 --json
 `
 
 // SetGOOSForTest overrides platform detection for handler tests.
@@ -101,6 +105,8 @@ type TestRun struct {
 	GOOS      string
 	Installed func() bool
 	Osascript func(script string) error
+	// Contents overrides lib.Contents (tests).
+	Contents func(sessionID string, cfg *lib.ContentsConfig) (lib.ContentsResult, error)
 }
 
 // Handle runs the kool iterm2 subcommand.
@@ -147,6 +153,8 @@ func run(args []string, stdout, stderr io.Writer, env TestRun) error {
 			return runSessions(args[1:], stdout, stderr)
 		case "session":
 			return runSession(args[1:], stdout, stderr)
+		case "contents":
+			return runContents(args[1:], stdout, stderr, env)
 		}
 	}
 
