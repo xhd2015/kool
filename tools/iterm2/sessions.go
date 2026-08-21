@@ -135,6 +135,9 @@ live grok/codex sessions or mark messages. A live restore aborts if this safety
 scan fails; dry-run warns and shows the unfiltered saved layout.
 On full success, restored_at is written so the checkpoint cannot be applied twice.
 By default each window is placed on its recorded macOS Space (Switch/Create).
+If already on that Desktop, Switch is skipped. If Switch fails after retries
+(Mission Control AX flake), restore warns and continues on the current Desktop
+instead of aborting.
 Create target: by default one global install (prefer home when both exist);
 --same-app uses each window's recorded app.
 

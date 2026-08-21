@@ -434,14 +434,8 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 	prevPath := sessionsSavePathForTest
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+	// Empty fixture so the already-running scan does not hit live AppleScript.
 	installEmptyLiveCollectorForRestoreTest(t)
-
-	// Inject empty fixture so the already-running scan (CaptureSnapshotWith)
-	// does not hit live AppleScript (slow, non-deterministic).
-	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
-		ITermRunning: true,
-		Hostname:     "testhost",
-	})
 
 	var stdout, stderr bytes.Buffer
 	if err := runSessions([]string{"restore", "--dry-run"}, &stdout, &stderr); err != nil {
@@ -460,9 +454,11 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 		t.Fatal("dry-run must not stamp")
 	}
 
-	// real restore with mocked AS + Space backend (no live Mission Control)
+	// real restore with mocked AS + Space backend (no live Mission Control / CGS)
 	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
 	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
+	SetCurrentSpaceIndexForTest(func() (int, error) { return 0, nil }) // ckpt space 0 → skip Switch
+	t.Cleanup(func() { SetCurrentSpaceIndexForTest(nil) })
 
 	var scripts []string
 	prevAS := sessionsRunRestoreAS
@@ -678,14 +674,10 @@ func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
 
-	// Inject empty fixture so the already-running scan does not hit live AppleScript.
-	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
-		ITermRunning: true,
-		Hostname:     "testhost",
-	})
-
 	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
 	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
+	SetCurrentSpaceIndexForTest(func() (int, error) { return 0, nil })
+	t.Cleanup(func() { SetCurrentSpaceIndexForTest(nil) })
 
 	warnLine := `could not set window title "Bounding walk.jsonl Size… - grok": Can't set name of window`
 	prevAS := sessionsRunRestoreAS
@@ -747,14 +739,10 @@ func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
 
-	// Inject empty fixture so the already-running scan does not hit live AppleScript.
-	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
-		ITermRunning: true,
-		Hostname:     "testhost",
-	})
-
 	SetSpaceBackendForTest(&space.MockBackend{Desktops: []int{1}})
 	t.Cleanup(func() { SetSpaceBackendForTest(nil) })
+	SetCurrentSpaceIndexForTest(func() (int, error) { return 0, nil })
+	t.Cleanup(func() { SetCurrentSpaceIndexForTest(nil) })
 
 	prevAS := sessionsRunRestoreAS
 	sessionsRunRestoreAS = func(script string) (string, error) {
