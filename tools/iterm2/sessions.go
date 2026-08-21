@@ -1,11 +1,14 @@
 package iterm2
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
+	lib "github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2"
 	"github.com/xhd2015/kool/pkgs/errs"
 	lessflags "github.com/xhd2015/less-flags"
 )
@@ -149,10 +152,11 @@ Examples:
   kool iterm2 sessions restore --same-app
 `
 
-const sessionHelp = `iterm2 session — inspect a single iTerm2 session
+const sessionHelp = `iterm2 session — inspect or drive a single iTerm2 session
 
 Usage:
   kool iterm2 session <session-id> status [options]
+  kool iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
   kool iterm2 session -h|--help
 
 Session id:
@@ -162,6 +166,7 @@ Session id:
 
 Commands:
   status                   re-query live status for the session
+  send                     type text into the session (AppleScript write text)
 
 Status options:
   --json                   emit JSON
@@ -173,10 +178,19 @@ Status options:
   --no-tree                keep agent session id but omit process tree lines
   -h, --help               show this help
 
+Send options:
+  --focus                  switch to the session's window/tab before writing
+  --no-submit              write without newline (stage; user presses Enter)
+  --no-ctrl-u              do not prefix Ctrl-U (default prefixes Ctrl-U)
+  -h, --help               show this help
+
 Examples:
   kool iterm2 session D922B298-25FB-41FA-BAF8-7AC7A1D56758 status
   kool iterm2 session D922B298 status --json
   kool iterm2 session ttys003 status
+  kool iterm2 session D922B298 send "echo hi"
+  kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
+  kool iterm2 session D922B298 send --focus "ls"
 `
 
 func runSessions(args []string, stdout, stderr io.Writer) error {
@@ -303,7 +317,7 @@ func runSessionsSnapshotStream(stdout, stderr io.Writer, noColor, noTree bool, c
 	return nil
 }
 
-func runSession(args []string, stdout, stderr io.Writer) error {
+func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 	if len(args) == 0 {
 		fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
 		return nil
@@ -316,7 +330,7 @@ func runSession(args []string, stdout, stderr io.Writer) error {
 	sessionRef := args[0]
 	rest := args[1:]
 	if len(rest) == 0 {
-		fmt.Fprint(stderr, "Error: session: missing command (expected status)\n\n"+strings.TrimSpace(sessionHelp)+"\n")
+		fmt.Fprint(stderr, "Error: session: missing command (expected status or send)\n\n"+strings.TrimSpace(sessionHelp)+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
 	cmd := rest[0]
@@ -324,6 +338,8 @@ func runSession(args []string, stdout, stderr io.Writer) error {
 	switch cmd {
 	case "status":
 		return runSessionStatus(sessionRef, cmdArgs, stdout, stderr)
+	case "send":
+		return runSessionSend(sessionRef, cmdArgs, stdout, stderr, env)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
 		return nil
@@ -406,4 +422,118 @@ func runSessionStatus(sessionRef string, args []string, stdout, stderr io.Writer
 		return errs.NewSilenceExitCode(1)
 	}
 	return nil
+}
+
+func runSessionSend(sessionRef string, args []string, stdout, stderr io.Writer, env TestRun) error {
+	var focus, noSubmit, noCtrlU bool
+	remain, err := lessflags.Bool("--focus", &focus).
+		Bool("--no-submit", &noSubmit).
+		Bool("--no-ctrl-u", &noCtrlU).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
+	if err != nil {
+		if err == lessflags.ErrHelp {
+			fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
+			return nil
+		}
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) == 0 {
+		WriteError(stderr, "session send: missing text")
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) > 1 {
+		WriteError(stderr, fmt.Sprintf("session send: unexpected arguments: %s", strings.Join(remain[1:], " ")))
+		return errs.NewSilenceExitCode(1)
+	}
+	text := remain[0]
+
+	targetID, err := resolveSendSessionID(sessionRef, env)
+	if err != nil {
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	opts := lib.SendTextOptions{
+		Focus:    focus,
+		NoSubmit: noSubmit,
+		NoCtrlU:  noCtrlU,
+	}
+	sendFn := env.SendText
+	if sendFn == nil {
+		sendFn = lib.SendText
+	}
+	if err := sendFn(targetID, text, opts, nil); err != nil {
+		msg := err.Error()
+		if errors.Is(err, lib.ErrSessionNotFound) || strings.Contains(strings.ToLower(msg), "session not found") {
+			WriteError(stderr, fmt.Sprintf("session not found: %s", sessionRef))
+			return errs.NewSilenceExitCode(1)
+		}
+		WriteError(stderr, strings.TrimPrefix(msg, "Error: "))
+		return errs.NewSilenceExitCode(1)
+	}
+
+	display := strings.TrimSpace(sessionRef)
+	if display == "" {
+		display = shortID(targetID)
+	}
+	fmt.Fprintf(stdout, "sent to session %s\n", display)
+	return nil
+}
+
+// resolveSendSessionID maps a user session ref to a full unique ID for SendText.
+// Full UUIDs skip any live scan (fast path). Prefix/tty use light ListSessions.
+// Numeric PID falls back to CaptureSnapshot (rare; ListSessions has no PIDs).
+func resolveSendSessionID(sessionRef string, env TestRun) (string, error) {
+	ref := strings.TrimSpace(sessionRef)
+	if ref == "" {
+		return "", errors.New("session send: missing session-id")
+	}
+	uuid := lib.SessionUUID(ref)
+	if lib.IsFullSessionUUID(uuid) {
+		return uuid, nil
+	}
+
+	listFn := env.ListSessions
+	if listFn == nil && env.CurrentStatus != nil && env.CurrentStatus.ListSessions != nil {
+		listFn = env.CurrentStatus.ListSessions
+	}
+	if listFn == nil {
+		listFn = lib.ListSessions
+	}
+	refs, err := listFn()
+	if err != nil {
+		return "", errors.New(strings.TrimPrefix(err.Error(), "Error: "))
+	}
+	matches := lib.FindSessionRefsByRef(refs, ref)
+	if len(matches) == 1 {
+		id := strings.TrimSpace(matches[0].SessionID)
+		if id == "" {
+			return "", fmt.Errorf("session not found: %s", ref)
+		}
+		return id, nil
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("ambiguous session id %q (matched %d); use full unique id", ref, len(matches))
+	}
+
+	// PID-only refs need the heavy snapshot (session list has no PIDs).
+	if _, err := strconv.Atoi(ref); err == nil {
+		snap, _, err := CaptureSnapshotWith(CaptureOpts{NoEnrich: true})
+		if err != nil {
+			return "", errors.New(strings.TrimPrefix(err.Error(), "Error: "))
+		}
+		sm := FindSessionsByRef(snap, ref)
+		if len(sm) == 0 {
+			return "", fmt.Errorf("session not found: %s", ref)
+		}
+		if len(sm) > 1 {
+			return "", fmt.Errorf("ambiguous session id %q (matched %d); use full unique id", ref, len(sm))
+		}
+		return sm[0].ID, nil
+	}
+
+	return "", fmt.Errorf("session not found: %s", ref)
 }

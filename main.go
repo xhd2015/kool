@@ -90,10 +90,12 @@ VSCode:
   iterm2 <dir> [--send <cmd>]...     open directory in iTerm2 (macOS; smart window/tab reuse)
   iterm2 set-title|get-title [--window]  get/set iTerm2 session or window title
   iterm2 focus <dir> [--index N]    focus an existing iTerm2 directory session
+  iterm2 window|tab status           parent window (all tabs, * current) / tab status
   iterm2 install [--dry-run] [--download-dir DIR] [--download-only]  official iTerm2 install (no brew)
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
   iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
   iterm2 session <id> status         live status for one session (id = iTerm unique ID)
+  iterm2 session <id> send <text>    type text into a session (--focus/--no-submit/--no-ctrl-u)
   codex install [--dry-run] [--check-update]  ensure OpenAI Codex CLI is installed/updated
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 

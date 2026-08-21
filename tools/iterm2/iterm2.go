@@ -17,14 +17,18 @@ iterm2 set-title [--window] <title>
 iterm2 get-title [--window]
 iterm2 focus <dir> [--index N]
 iterm2 install [--dry-run] [--download-dir DIR] [--download-only] [--via-open]
+iterm2 window status
+iterm2 tab status
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
+iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
 iterm2 contents <session-id> [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
-when running inside iTerm2 (ITERM_SESSION_ID set), manage named tab-set layouts,
-install official iTerm2 (no Homebrew), or snapshot / save / restore live sessions.
+when running inside iTerm2 (ITERM_SESSION_ID set), show the parent window/tab
+status for this process, manage named tab-set layouts, install official iTerm2
+(no Homebrew), or snapshot / save / restore live sessions.
 
 Open directory:
   dir                              directory to open (required)
@@ -38,6 +42,10 @@ Title commands (require ITERM_SESSION_ID):
 
 Focus command:
   focus <dir> [--index N]          focus one existing exact directory match; never creates a session
+
+Parent window / tab status (this process's iTerm2 window/tab):
+  window status                    list all tabs in the parent window; * marks current tab
+  tab status                       show the parent tab summary (window, tab, session, tty)
 
 Install official iTerm2 (zip from iterm2.com → ~/Applications by default):
   install [flags]                  resolve/download/install latest stable
@@ -63,6 +71,7 @@ Sessions snapshot / save / restore / auto-backup / status:
   sessions auto-backup [--once] [--interval DUR] [--file PATH]
                                    periodically checkpoint critical tabs (default 10m)
   session <id> status [options]    live status for one session (id = iTerm unique ID)
+  session <id> send [flags] <text> type text into a session (default: no focus, Ctrl-U on)
   contents <session-id>            print visible pane text (no focus; home then system app)
 
 Options:
@@ -78,6 +87,8 @@ Examples:
   kool iterm2 set-title --window "Project Window"
   kool iterm2 get-title
   kool iterm2 get-title --window
+  kool iterm2 window status
+  kool iterm2 tab status
   kool iterm2 tab-set list
   kool iterm2 tab-set run bots --dry-run
   kool iterm2 install --dry-run
@@ -90,6 +101,8 @@ Examples:
   kool iterm2 sessions restore
   kool iterm2 sessions auto-backup --once
   kool iterm2 session D922B298 status
+  kool iterm2 session D922B298 send "echo hi"
+  kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2 --json
 `
@@ -107,6 +120,16 @@ type TestRun struct {
 	Osascript func(script string) error
 	// Contents overrides lib.Contents (tests).
 	Contents func(sessionID string, cfg *lib.ContentsConfig) (lib.ContentsResult, error)
+	// SendText overrides lib.SendText (tests).
+	SendText func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error
+	// ListSessions overrides lib.ListSessions for send resolve (tests).
+	ListSessions func() ([]lib.SessionRef, error)
+	// CurrentStatus overrides resolve probes for window/tab status (tests).
+	CurrentStatus *lib.CurrentStatusConfig
+}
+
+func (env TestRun) currentStatusConfig() *lib.CurrentStatusConfig {
+	return env.CurrentStatus
 }
 
 // Handle runs the kool iterm2 subcommand.
@@ -147,12 +170,16 @@ func run(args []string, stdout, stderr io.Writer, env TestRun) error {
 			return nil
 		case "install":
 			return runInstall(args[1:], stdout, stderr)
+		case "window":
+			return runWindow(args[1:], stdout, stderr, env)
+		case "tab":
+			return runTab(args[1:], stdout, stderr, env)
 		case "tab-set":
 			return runTabSet(args[1:], stdout, stderr, env.TabSetDir)
 		case "sessions":
 			return runSessions(args[1:], stdout, stderr)
 		case "session":
-			return runSession(args[1:], stdout, stderr)
+			return runSession(args[1:], stdout, stderr, env)
 		case "contents":
 			return runContents(args[1:], stdout, stderr, env)
 		}

@@ -26,6 +26,8 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 iterm2
 --send
 -r
+window status
+tab status
 </contains>
 `)
 }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	lib "github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2"
 )
 
 func installFakeSnapshot(t *testing.T) {
@@ -104,7 +106,7 @@ func TestSessionsSnapshotFormatConflict(t *testing.T) {
 func TestSessionStatusByPrefix(t *testing.T) {
 	installFakeSnapshot(t)
 	var stdout, stderr bytes.Buffer
-	if err := runSession([]string{"11111111", "status", "--no-color"}, &stdout, &stderr); err != nil {
+	if err := runSession([]string{"11111111", "status", "--no-color"}, &stdout, &stderr, TestRun{}); err != nil {
 		t.Fatalf("%v %s", err, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "11111111-2222-3333-4444-555555555555") {
@@ -118,7 +120,7 @@ func TestSessionStatusByPrefix(t *testing.T) {
 func TestSessionStatusNotFound(t *testing.T) {
 	installFakeSnapshot(t)
 	var stdout, stderr bytes.Buffer
-	err := runSession([]string{"deadbeef", "status"}, &stdout, &stderr)
+	err := runSession([]string{"deadbeef", "status"}, &stdout, &stderr, TestRun{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -129,10 +131,115 @@ func TestSessionStatusNotFound(t *testing.T) {
 
 func TestSessionHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if err := runSession([]string{"-h"}, &stdout, &stderr); err != nil {
+	if err := runSession([]string{"-h"}, &stdout, &stderr, TestRun{}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "status") {
-		t.Fatal(stdout.String())
+	out := stdout.String()
+	for _, want := range []string{"status", "send", "--no-submit", "--no-ctrl-u", "--focus"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("help missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func sendListFixture() []lib.SessionRef {
+	return []lib.SessionRef{
+		{WindowID: "1", TabIndex: 1, SessionID: "11111111-2222-3333-4444-555555555555", TTY: "/dev/ttys010", Name: "a"},
+		{WindowID: "1", TabIndex: 2, SessionID: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", TTY: "/dev/ttys011", Name: "b"},
+	}
+}
+
+func TestSessionSendSuccess(t *testing.T) {
+	var gotID, gotText string
+	var gotOpts lib.SendTextOptions
+	var listed bool
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"11111111", "send", "--no-submit", "--no-ctrl-u", "echo hi"}, &stdout, &stderr, TestRun{
+		ListSessions: func() ([]lib.SessionRef, error) {
+			listed = true
+			return sendListFixture(), nil
+		},
+		SendText: func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+			gotID, gotText, gotOpts = sessionID, text, opts
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	if !listed {
+		t.Fatal("prefix resolve should use ListSessions")
+	}
+	if gotID != "11111111-2222-3333-4444-555555555555" {
+		t.Fatalf("id=%q", gotID)
+	}
+	if gotText != "echo hi" {
+		t.Fatalf("text=%q", gotText)
+	}
+	if !gotOpts.NoSubmit || !gotOpts.NoCtrlU || gotOpts.Focus {
+		t.Fatalf("opts=%+v", gotOpts)
+	}
+	if stdout.String() != "sent to session 11111111\n" {
+		t.Fatalf("stdout=%q", stdout.String())
+	}
+}
+
+func TestSessionSendFullUUIDSkipsList(t *testing.T) {
+	var gotID string
+	var listed bool
+	var stdout, stderr bytes.Buffer
+	full := "11111111-2222-3333-4444-555555555555"
+	err := runSession([]string{full, "send", "--focus", "ls"}, &stdout, &stderr, TestRun{
+		ListSessions: func() ([]lib.SessionRef, error) {
+			listed = true
+			return sendListFixture(), nil
+		},
+		SendText: func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+			gotID = sessionID
+			if !opts.Focus || opts.NoSubmit || opts.NoCtrlU {
+				t.Fatalf("opts=%+v", opts)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	if listed {
+		t.Fatal("full UUID must skip ListSessions")
+	}
+	if gotID != full {
+		t.Fatalf("id=%q", gotID)
+	}
+	if stdout.String() != "sent to session "+full+"\n" {
+		t.Fatalf("stdout=%q", stdout.String())
+	}
+}
+
+func TestSessionSendMissingText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"11111111", "send"}, &stdout, &stderr, TestRun{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "missing text") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendNotFound(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"deadbeef", "send", "hi"}, &stdout, &stderr, TestRun{
+		ListSessions: func() ([]lib.SessionRef, error) { return sendListFixture(), nil },
+		SendText: func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+			t.Fatal("SendText should not be called")
+			return nil
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "not found") {
+		t.Fatal(stderr.String())
 	}
 }
