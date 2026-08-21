@@ -24,6 +24,9 @@ type SnapshotCollector struct {
 	ListProcs func(ttyShort string) ([]rawProc, error)
 	// ListCwds returns cwd paths keyed by pid for the given pids.
 	ListCwds func(pids []int) (map[int]string, error)
+	// ListTTYProcs returns one process listing for the requested terminal devices.
+	// The restore-only live critical scan uses it instead of one ps call per pane.
+	ListTTYProcs func(ttyShorts []string) ([]liveTTYProc, error)
 	// ITermRunning reports whether iTerm2 appears to be running.
 	ITermRunning func() bool
 	// Now is the clock (defaults to time.Now).
@@ -645,58 +648,54 @@ end tell
 }
 
 func listTabsAndSessionsAppleScript(windowIndex int, appTell string) string {
-	// Iterate windows by 1-based ordinal matching ListWindows numbering.
+	// Use numeric indexes throughout. Nested `repeat with t in tabs of w` object
+	// references are unstable for path-targeted iTerm instances and can resolve
+	// as invalid indexes while windows or tabs are active.
 	return fmt.Sprintf(`
 tell application %s
   set out to ""
-  set wi to 0
   set target to %d
-  repeat with w in windows
-    set wi to wi + 1
-    if wi is target then
-      set ti to 0
-      repeat with t in tabs of w
-        set ti to ti + 1
+  set windowCount to count of windows
+  if target is less than or equal to windowCount then
+    set tabCount to count of tabs of window target
+    repeat with ti from 1 to tabCount
+      try
+        set tname to name of current session of tab ti of window target
+      on error
+        set tname to ""
+      end try
+      set out to out & "###T###" & ti & "###" & tname & linefeed
+      set sessionCount to count of sessions of tab ti of window target
+      repeat with si from 1 to sessionCount
         try
-          set tname to name of current session of t
+          set nm to name of session si of tab ti of window target
         on error
-          set tname to ""
+          set nm to "?"
         end try
-        set out to out & "###T###" & ti & "###" & tname & linefeed
-        set si to 0
-        repeat with s in sessions of t
-          set si to si + 1
-          try
-            set nm to name of s
-          on error
-            set nm to "?"
-          end try
-          try
-            set ttyn to tty of s
-          on error
-            set ttyn to ""
-          end try
-          try
-            set prof to profile name of s
-          on error
-            set prof to ""
-          end try
-          try
-            set proc to is processing of s
-          on error
-            set proc to false
-          end try
-          try
-            set uid to unique ID of s
-          on error
-            set uid to ""
-          end try
-          set out to out & "###S###" & si & "###" & ttyn & "###" & proc & "###" & prof & "###" & uid & "###" & nm & linefeed
-        end repeat
+        try
+          set ttyn to tty of session si of tab ti of window target
+        on error
+          set ttyn to ""
+        end try
+        try
+          set prof to profile name of session si of tab ti of window target
+        on error
+          set prof to ""
+        end try
+        try
+          set proc to is processing of session si of tab ti of window target
+        on error
+          set proc to false
+        end try
+        try
+          set uid to unique ID of session si of tab ti of window target
+        on error
+          set uid to ""
+        end try
+        set out to out & "###S###" & si & "###" & ttyn & "###" & proc & "###" & prof & "###" & uid & "###" & nm & linefeed
       end repeat
-      exit repeat
-    end if
-  end repeat
+    end repeat
+  end if
   return out
 end tell
 `, appleScriptAppLiteral(appTell), windowIndex)
@@ -799,6 +798,50 @@ func defaultRunAppleScript(script string) (string, error) {
 }
 
 var psLineRe = regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d+\s+\d+:\d+:\d+\s+\d+)\s+(.*)$`)
+
+type liveTTYProc struct {
+	rawProc
+	TTY string
+}
+
+func defaultListTTYProcs(ttyShorts []string) ([]liveTTYProc, error) {
+	if len(ttyShorts) == 0 {
+		return nil, nil
+	}
+	cmd := exec.Command("ps", "-t", strings.Join(ttyShorts, ","), "-o", "pid=,ppid=,tty=,stat=,command=")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &bytes.Buffer{}
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	var out []liveTTYProc
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 5 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		ppid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+		out = append(out, liveTTYProc{
+			rawProc: rawProc{
+				PID:     pid,
+				PPID:    ppid,
+				Stat:    fields[3],
+				Command: strings.Join(fields[4:], " "),
+			},
+			TTY: fields[2],
+		})
+	}
+	return out, nil
+}
 
 func defaultListProcs(ttyShort string) ([]rawProc, error) {
 	cmd := exec.Command("ps", "-t", ttyShort, "-o", "pid=,ppid=,stat=,etime=,rss=,lstart=,command=")

@@ -23,8 +23,9 @@ the implementer lands those behaviors. Existing dry-run / write / restore /
 help leaves stay contracted and should remain **GREEN** on monochrome
 buffered output (zero-value Request defaults — no Space / already-running /
 multi-app / RestoreAppDisk fixture flags). After already-running lands,
-restore always attempts a live capture; capture fail is soft so prior leaves
-without fixtures stay GREEN. Extra dry-run meta lines (`restore target`,
+restore always attempts a live capture. Dry-run keeps capture failure soft so
+it can show an unknown/unfiltered plan; live restore fails safely rather than
+risk duplicates. Extra dry-run meta lines (`restore target`,
 `recorded app`) are additive: prior leaves that only assert Would restore /
 resume cmds stay GREEN if product always prints them.
 
@@ -36,7 +37,7 @@ resume cmds stay GREEN if product always prints them.
 - **kool CLI / handler** — `tools/iterm2` routes `sessions save` / `sessions restore`;
   flags `--dry-run`, `--file`, **`--color`**, **`--no-color`**,
   **`--ignore-macos-space`**, save-only **`--spaces LIST`**, restore-only
-  **`--same-app`**, `-h/--help`.
+  **`--same-app`**, restore-only **`--force`**, `-h/--help`.
 - **SnapshotCollector** — injectable via `InstallPhasedFixtureCollectorForTest`;
   phased `ListWindows` / `ListTabsAndSessions` + enrich + agent resolve.
   Fixtures may carry per-window **WindowID** (iTerm/CG window number) and
@@ -75,13 +76,18 @@ resume cmds stay GREEN if product always prints them.
   **`restore target  <path>`** → each window (space meta; under default,
   **`recorded app  <path>`** only when it differs from restore target; under
   `--same-app`, per-window **`app  <path>`** create target) / tab → footer.
+  Every saved tab remains visible: unmatched tabs say `would restore`; matches
+  say `already running — would skip`, retain both `cd` and resume lines, and an
+  all-skipped window says it would not be created. Command tokens are green.
   No Switch/Create/AS side effects for placement on dry-run.
-- **Already-running scanner** — after valid unconsumed checkpoint load (dry-run
-  and live), capture live snapshot (enrich on), index critical panes by
-  agent `kind`+`session_id` and mark exact `message`. Checkpoint tabs that hit
-  a live pane are **skipped** (no create/resume); stderr warning per hit
-  (first live hit only). Header counts = would-create only; skip count in meta
-  when `skipped > 0`. Capture fail → soft warning, 0 hits, restore all.
+- **Already-running scanner** — after checkpoint load (dry-run and live), capture
+  every running iTerm install (enrich on), index every
+  critical pane by iTerm session UUID plus agent `kind`+`session_id` or mark
+  exact `message`. Match one live pane to at most one checkpoint tab. Hits are
+  **skipped** from execution but remain visible in the saved-layout plan;
+  stderr warns per hit. Header counts = would-create only; skip count in meta
+  when `skipped > 0`. Capture fail → dry-run warns and shows the unfiltered
+  plan; live restore aborts without creating tabs or stamping `restored_at`.
 - **Color resolver** — same policy as snapshot / go-best-practice cli/color:
   `--color` && `--no-color` → error; `--color` force on; `--no-color` force
   off; else `NO_COLOR` non-empty → off; else stdout TTY.
@@ -180,21 +186,22 @@ Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
 
 | Rule | Behavior |
 |------|----------|
-| Match key | agent: `kind` + `session_id`; mark: exact `message` |
-| On hit | **skip** tab (no create/resume); warn on stderr |
+| Match key | same semantic identity: agent `kind` + `session_id`; mark exact `message`; matching iTerm UUID chooses the exact live pane first |
+| On hit | **skip** tab from execution; keep it in the displayed saved layout; warn on stderr |
 | Warning shape | `tab "<name>" (kind id) is already running at space N (Desktop N+1), pid P` (name optional; space soft) |
-| Multi-hit | first live hit only |
-| Dry-run | full plan: skip markers + would-restore for remaining; not stamped; header = would-create counts; skip meta when skipped>0 |
+| Multi-hit | one-to-one consumption: one live pane skips at most one checkpoint tab |
+| Dry-run | full saved layout with `already running — would skip` / `would restore`; not stamped; header = would-create counts |
 | Live | AS only non-skipped tabs; all-skipped windows omitted; all remaining 0 → still stamp `restored_at`, exit 0, no AS create |
-| Capture fail | soft warn; treat as 0 hits; restore all |
-| Flags / schema | no new CLI flags or checkpoint JSON fields |
+| Capture fail | dry-run warns and shows the unfiltered plan; live restore aborts unmodified |
+| Flags / schema | Restore-only `--force` bypasses the consumed-file guard but keeps live duplicate checks; no checkpoint JSON fields added |
 
 ### File lifecycle
 
 - `saved_at` set on write; `restored_at` null until restore succeeds
 - save when pending + non-TTY → error
 - save when already restored → overwrite without prompt
-- restore when `restored_at` set → error (consumed)
+- restore when `restored_at` set → error (consumed), unless `--force`
+  is supplied; `--force` still scans and skips already-running tabs
 - all tabs skipped on live restore → still stamp `restored_at` (E1)
 - **No ANSI in checkpoint JSON**
 
@@ -202,7 +209,7 @@ Expected product seams (parallel-safe; `t.Cleanup`; no `Setenv`/`Chdir`):
 
 | Token | Use |
 |-------|-----|
-| Green | `Would save`, `Would restore`, `Saved`, `Restored` |
+| Green | `Would save`, `Would restore`, `Saved`, `Restored`, and restore command tokens (`cd`, `grok`, `codex`, `mark`) |
 | Bold | `W{n}`, `new window` |
 | Green kinds | `grok`, `codex` |
 | Yellow kind | `mark` |
@@ -231,7 +238,8 @@ critical content, stdout must already contain `W1` (stream probe).
   - `SaveWindow.Space` / `SaveWindow.ItermWindowID` (JSON `space` / `iterm_window_id`)
   - test hook to inject Space index resolver (fixed index / error)
   - test hook to inject Space Backend + restore AppleScript for live placement
-  - already-running scan after checkpoint load (dry-run + live); soft capture fail
+  - already-running scan across every iTerm install after checkpoint load;
+    dry-run soft capture failure, live fail-safe capture failure
   - **`SetRestoreAppDiskForTest`** for home/system install existence (restore
     prefer-home / `--same-app` fallback); see Implementer inject above
   - restore create/tell uses path `tell application "/…/iTerm.app"` (or expanded
@@ -308,7 +316,8 @@ sessions-save/
         ├── dry-run-codex/       codex key match (not confused with grok)
         ├── live-partial-skip/   warn; AS only remaining; restored_at; summary skip count
         ├── live-all-skip/       stamp; 0 restored; no create-window AS
-        └── scan-fail/           capture soft-fail → full plan / no skip; dry-run OK
+        ├── scan-fail/           dry-run capture fail → warning + full plan / no skip
+        └── live-scan-fail/      live capture fail → abort; no AS; not stamped
 ```
 
 ## Test Index
@@ -365,7 +374,8 @@ sessions-save/
 | `restore/already-running/dry-run-codex/` | codex kind+session_id hit → warn+skip | RED |
 | `restore/already-running/live-partial-skip/` | live skip one; AS only remaining; stamp + skip summary | RED |
 | `restore/already-running/live-all-skip/` | all skip; stamp; no create-window AS | RED |
-| `restore/already-running/scan-fail/` | capture fail soft-warn; full plan no skip | RED |
+| `restore/already-running/scan-fail/` | dry-run capture fail soft-warns; full plan, no skip | RED |
+| unit: live scan failure | live capture fail aborts without AS or `restored_at` | GREEN |
 
 \* miss may look GREEN if product never warns without a hit; asserts require
 explicit would-restore action markers / no skip meta once format lands — RED until

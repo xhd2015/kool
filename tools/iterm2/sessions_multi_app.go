@@ -437,20 +437,16 @@ func resolveSameAppWindowTarget(recordedApp string, disk restoreAppDisk) Restore
 	return fb
 }
 
-// CaptureSnapshotForSave captures all multi-app sources when live (not fixture).
-// Fixture collectors already carry dual App tags in one snapshot — single pass.
-// opts.SpaceAllow enables space-first deep-capture filter (save --spaces).
-func CaptureSnapshotForSave(opts CaptureOpts) (*Snapshot, []string, error) {
-	return CaptureSnapshotStream(opts, nil)
+// CaptureSnapshotAcrossApps captures all running iTerm application surfaces.
+// Fixture collectors already carry all windows in one snapshot and use one pass.
+func CaptureSnapshotAcrossApps(opts CaptureOpts) (*Snapshot, []string, error) {
+	return CaptureSnapshotAcrossAppsStream(opts, nil)
 }
 
-// CaptureSnapshotStream captures a multi-app snapshot with an optional
-// per-window streaming callback. Fixture collectors single-pass; live
-// collectors query each running iTerm2 install and merge (dedupe by WindowID).
-// Shared by sessions snapshot, session status, save, and auto-backup.
-func CaptureSnapshotStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
+// CaptureSnapshotAcrossAppsStream is CaptureSnapshotAcrossApps with an optional
+// callback after each deep-captured window is ready.
+func CaptureSnapshotAcrossAppsStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
 	c := activeCollector()
-	// Fixture / test inject: single collector already has all windows.
 	if c.fixtureEnabled {
 		return c.capture(onWindowReady, opts)
 	}
@@ -458,11 +454,43 @@ func CaptureSnapshotStream(opts CaptureOpts, onWindowReady func(win SnapshotWind
 	return captureLiveMultiApp(c, opts, pf, onWindowReady)
 }
 
+// CaptureSnapshotStream is the shared streaming multi-app capture entrypoint
+// (sessions snapshot, status, save, auto-backup). Same as AcrossAppsStream.
+func CaptureSnapshotStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
+	return CaptureSnapshotAcrossAppsStream(opts, onWindowReady)
+}
+
+// CaptureSnapshotAcrossAppsStrict captures every running iTerm surface and
+// fails if any surface cannot be inspected.
+func CaptureSnapshotAcrossAppsStrict(opts CaptureOpts) (*Snapshot, []string, error) {
+	c := activeCollector()
+	if c.fixtureEnabled {
+		return c.capture(nil, opts)
+	}
+	pf := resolveMultiAppPreflight()
+	return captureLiveMultiAppWithPolicy(c, opts, pf, nil, true)
+}
+
+// CaptureSnapshotForSave captures all multi-app sources when live (not fixture).
+// opts.SpaceAllow enables space-first deep-capture filtering for save.
+func CaptureSnapshotForSave(opts CaptureOpts) (*Snapshot, []string, error) {
+	return CaptureSnapshotAcrossApps(opts)
+}
+
+// CaptureSnapshotForSaveStream preserves the save-specific streaming API.
+func CaptureSnapshotForSaveStream(opts CaptureOpts, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
+	return CaptureSnapshotAcrossAppsStream(opts, onWindowReady)
+}
+
 // captureLiveMultiApp runs AppleScript against bare iTerm2 + path-tells for
 // other running installs, merges windows (dedupe by WindowID), stamps App.
 // Space-first (opts.SpaceAllow) skips deep capture on non-matching Desktops.
 // onWindowReady is invoked as each deep-captured window completes (stream).
 func captureLiveMultiApp(base *SnapshotCollector, opts CaptureOpts, pf MultiAppPreflight, onWindowReady func(win SnapshotWindow) error) (*Snapshot, []string, error) {
+	return captureLiveMultiAppWithPolicy(base, opts, pf, onWindowReady, false)
+}
+
+func captureLiveMultiAppWithPolicy(base *SnapshotCollector, opts CaptureOpts, pf MultiAppPreflight, onWindowReady func(win SnapshotWindow) error, strictSecondary bool) (*Snapshot, []string, error) {
 	if base == nil {
 		base = defaultCollector()
 	}
@@ -521,12 +549,14 @@ func captureLiveMultiApp(base *SnapshotCollector, opts CaptureOpts, pf MultiAppP
 		allWarn = append(allWarn, warns...)
 		totalSpaceSkipped += srcSkipped
 		if err != nil {
-			// First source (bare) is fatal; secondary path failures soft-warn.
 			if si == 0 {
 				if opts.SpaceSkipped != nil {
 					*opts.SpaceSkipped = totalSpaceSkipped
 				}
 				return nil, allWarn, err
+			}
+			if strictSecondary {
+				return nil, allWarn, fmt.Errorf("Error: failed to capture %s: %w", src.App, err)
 			}
 			allWarn = append(allWarn, "warning: failed to capture "+src.App+": "+err.Error())
 			continue

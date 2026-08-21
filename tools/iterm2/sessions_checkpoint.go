@@ -14,6 +14,7 @@ import (
 
 	"github.com/xhd2015/kool/pkgs/errs"
 	"github.com/xhd2015/kool/pkgs/terminal"
+	lessflags "github.com/xhd2015/less-flags"
 	"golang.org/x/term"
 )
 
@@ -22,16 +23,19 @@ const (
 	sessionsSaveSource  = "kool-iterm2-sessions-save"
 )
 
+// errHelpRequested is returned by parsers that defer help rendering to callers.
+var errHelpRequested = fmt.Errorf("help")
+
 // SaveDocument is the checkpoint written by sessions save / read by restore.
 type SaveDocument struct {
-	Version    int               `json:"version"`
-	SavedAt    string            `json:"saved_at"`
-	RestoredAt *string           `json:"restored_at"` // null until restore succeeds
-	Host       string            `json:"host"`
-	Source     string            `json:"source"`
-	Filter     *SaveFilter       `json:"filter,omitempty"` // present when save used --spaces
-	Summary    SaveSummary       `json:"summary"`
-	Windows    []SaveWindow      `json:"windows"`
+	Version    int          `json:"version"`
+	SavedAt    string       `json:"saved_at"`
+	RestoredAt *string      `json:"restored_at"` // null until restore succeeds
+	Host       string       `json:"host"`
+	Source     string       `json:"source"`
+	Filter     *SaveFilter  `json:"filter,omitempty"` // present when save used --spaces
+	Summary    SaveSummary  `json:"summary"`
+	Windows    []SaveWindow `json:"windows"`
 }
 
 // SaveFilter records save-time constraints applied when building the checkpoint.
@@ -53,7 +57,7 @@ type SaveSummary struct {
 type SaveWindow struct {
 	SourceIndex   int       `json:"source_index"`
 	Name          string    `json:"name,omitempty"`
-	App           string    `json:"app,omitempty"` // canonical install; restore prefer-home or --same-app
+	App           string    `json:"app,omitempty"`             // canonical install; restore prefer-home or --same-app
 	Space         int       `json:"space"`                     // 0-based Desktop; always emitted when not ignore
 	ItermWindowID int64     `json:"iterm_window_id,omitempty"` // info only at save; restore never uses it
 	Tabs          []SaveTab `json:"tabs"`
@@ -699,11 +703,18 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 	var fileFlag string
 	var forceColor, forceNoColor bool
 	var ignoreMacOSSpace bool
-	var spacesRaw string
-	var spacesSet bool
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, &spacesRaw, &spacesSet, nil, sessionsSaveHelp)
+	var spacesRaw *string
+	remain, err := lessflags.Bool("--dry-run", &dryRun).
+		String("-f,--file", &fileFlag).
+		Bool("--color", &forceColor).
+		Bool("--no-color", &forceNoColor).
+		Bool("--ignore-macos-space", &ignoreMacOSSpace).
+		String("--spaces", &spacesRaw).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
 	if err != nil {
-		if err == errHelpRequested {
+		if err == lessflags.ErrHelp {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsSaveHelp)+"\n")
 			return nil
 		}
@@ -714,13 +725,13 @@ func runSessionsSave(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "Error: sessions save: unexpected arguments: %s\n", strings.Join(remain, " "))
 		return errs.NewSilenceExitCode(1)
 	}
-	if spacesSet && ignoreMacOSSpace {
+	if spacesRaw != nil && ignoreMacOSSpace {
 		WriteError(stderr, "--spaces cannot be used with --ignore-macos-space")
 		return errs.NewSilenceExitCode(1)
 	}
 	var spacesAllow []int
-	if spacesSet {
-		spacesAllow, err = parseSpacesList(spacesRaw)
+	if spacesRaw != nil {
+		spacesAllow, err = parseSpacesList(*spacesRaw)
 		if err != nil {
 			WriteError(stderr, err.Error())
 			return errs.NewSilenceExitCode(1)
@@ -991,11 +1002,32 @@ func runSessionsSaveDryRun(stdout, stderr io.Writer, path string, color bool, ig
 
 // liveCriticalHit is one live critical pane used for already-running match.
 type liveCriticalHit struct {
-	Kind  string // grok | codex | mark
-	ID    string // session_id or mark message
-	Name  string
-	PID   int
-	Space int // 0-based Desktop index (soft: 0 when unresolved)
+	Kind        string // grok | codex | mark
+	ID          string // session_id or mark message
+	SemanticKey string
+	Name        string
+	PID         int
+	Space       int // 0-based Desktop index (soft: 0 when unresolved)
+	SpaceKnown  bool
+	WindowID    uint64
+	ITermID     string
+}
+
+// liveCriticalIndex retains every live hit so matching can consume each pane
+// at most once. A hit is reachable by both its iTerm UUID and semantic identity.
+type liveCriticalIndex struct {
+	hits       []liveCriticalHit
+	byITerm    map[string][]int
+	bySemantic map[string][]int
+	used       map[int]bool
+}
+
+func newLiveCriticalIndex() *liveCriticalIndex {
+	return &liveCriticalIndex{
+		byITerm:    map[string][]int{},
+		bySemantic: map[string][]int{},
+		used:       map[int]bool{},
+	}
 }
 
 // criticalMatchKey returns the already-running lookup key for a save tab.
@@ -1056,10 +1088,10 @@ func pidForLiveCritical(s *SnapshotSession, st *SaveTab) int {
 	return 0
 }
 
-// indexLiveCritical walks a live snapshot and indexes first-hit critical panes
-// by kind+session_id / mark message (D3, D5, D8).
-func indexLiveCritical(snap *Snapshot) map[string]liveCriticalHit {
-	idx := make(map[string]liveCriticalHit)
+// indexLiveCritical walks a live snapshot and indexes every critical pane by
+// iTerm session UUID and kind+session_id / mark message.
+func indexLiveCritical(snap *Snapshot) *liveCriticalIndex {
+	idx := newLiveCriticalIndex()
 	if snap == nil {
 		return idx
 	}
@@ -1072,25 +1104,61 @@ func indexLiveCritical(snap *Snapshot) map[string]liveCriticalHit {
 				if st == nil {
 					continue
 				}
-				key := criticalMatchKey(*st)
-				if key == "" {
+				semanticKey := criticalMatchKey(*st)
+				itermKey := normalizeITermSessionID(s.ID)
+				if semanticKey == "" && itermKey == "" {
 					continue
 				}
-				if _, exists := idx[key]; exists {
-					continue // first live hit only
-				}
 				name := firstNonEmpty(st.Name, firstNonEmpty(s.Name, tab.Name))
-				idx[key] = liveCriticalHit{
-					Kind:  st.Kind,
-					ID:    criticalIdentity(*st),
-					Name:  name,
-					PID:   pidForLiveCritical(s, st),
-					Space: spaceIdx,
-				}
+				idx.add(liveCriticalHit{
+					Kind:        st.Kind,
+					ID:          criticalIdentity(*st),
+					SemanticKey: semanticKey,
+					Name:        name,
+					PID:         pidForLiveCritical(s, st),
+					Space:       spaceIdx,
+					SpaceKnown:  true,
+					WindowID:    win.WindowID,
+					ITermID:     s.ID,
+				}, s.ID)
 			}
 		}
 	}
 	return idx
+}
+
+func normalizeITermSessionID(id string) string {
+	return strings.ToLower(strings.TrimSpace(id))
+}
+
+func (idx *liveCriticalIndex) take(tab SaveTab) (liveCriticalHit, bool) {
+	if idx == nil {
+		return liveCriticalHit{}, false
+	}
+	semanticKey := criticalMatchKey(tab)
+	if semanticKey == "" {
+		return liveCriticalHit{}, false
+	}
+	if itermKey := normalizeITermSessionID(tab.ItermSessionID); itermKey != "" {
+		if hit, ok := idx.takeMatching(idx.byITerm[itermKey], semanticKey); ok {
+			return hit, true
+		}
+	}
+	return idx.takeMatching(idx.bySemantic[semanticKey], semanticKey)
+}
+
+func (idx *liveCriticalIndex) takeMatching(candidates []int, semanticKey string) (liveCriticalHit, bool) {
+	for _, hitIndex := range candidates {
+		if hitIndex < 0 || hitIndex >= len(idx.hits) || idx.used[hitIndex] {
+			continue
+		}
+		if idx.hits[hitIndex].SemanticKey != semanticKey {
+			continue
+		}
+		idx.used[hitIndex] = true
+		return idx.hits[hitIndex], true
+	}
+	return liveCriticalHit{}, false
 }
 
 // formatAlreadyRunningWarning matches D4:
@@ -1118,8 +1186,8 @@ func formatAlreadyRunningWarning(tab SaveTab, hit liveCriticalHit) string {
 }
 
 // matchCheckpointSkips marks checkpoint tabs that are already live.
-// Emits already-running warnings on hit. Returns tabSkipped[wi][ti] and skip count.
-func matchCheckpointSkips(doc *SaveDocument, live map[string]liveCriticalHit, stderr io.Writer) (tabSkipped [][]bool, skipped int) {
+// Each live pane can satisfy at most one checkpoint tab.
+func matchCheckpointSkips(doc *SaveDocument, live *liveCriticalIndex, stderr io.Writer) (tabSkipped [][]bool, skipped int) {
 	if doc == nil {
 		return nil, 0
 	}
@@ -1127,16 +1195,16 @@ func matchCheckpointSkips(doc *SaveDocument, live map[string]liveCriticalHit, st
 	for wi, win := range doc.Windows {
 		tabSkipped[wi] = make([]bool, len(win.Tabs))
 		for ti, tab := range win.Tabs {
-			key := criticalMatchKey(tab)
-			if key == "" {
-				continue
-			}
-			hit, ok := live[key]
+			hit, ok := live.take(tab)
 			if !ok {
 				continue
 			}
 			tabSkipped[wi][ti] = true
 			skipped++
+			if !hit.SpaceKnown && hit.WindowID != 0 {
+				hit.Space, _, _ = resolveSpaceForWindow(SnapshotWindow{WindowID: hit.WindowID})
+				hit.SpaceKnown = true
+			}
 			WriteWarning(stderr, formatAlreadyRunningWarning(tab, hit))
 		}
 	}
@@ -1203,11 +1271,19 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 	var forceColor, forceNoColor bool
 	var ignoreMacOSSpace bool
 	var sameApp bool
-	// Restore does not accept --spaces (nil spacesSet → unknown flag).
-	// sameApp non-nil accepts --same-app (save passes nil → unknown).
-	remain, err := parseSaveRestoreFlags(args, &dryRun, &fileFlag, &forceColor, &forceNoColor, &ignoreMacOSSpace, nil, nil, &sameApp, sessionsRestoreHelp)
+	var force bool
+	remain, err := lessflags.Bool("--dry-run", &dryRun).
+		Bool("--force", &force).
+		String("-f,--file", &fileFlag).
+		Bool("--color", &forceColor).
+		Bool("--no-color", &forceNoColor).
+		Bool("--ignore-macos-space", &ignoreMacOSSpace).
+		Bool("--same-app", &sameApp).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
 	if err != nil {
-		if err == errHelpRequested {
+		if err == lessflags.ErrHelp {
 			fmt.Fprint(stdout, strings.TrimSpace(sessionsRestoreHelp)+"\n")
 			return nil
 		}
@@ -1237,10 +1313,10 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		return errs.NewSilenceExitCode(1)
 	}
 
-	if doc.IsConsumed() {
+	if doc.IsConsumed() && !force {
 		WriteError(stderr, fmt.Sprintf(
-			"sessions restore: checkpoint already consumed (restored_at=%s)\n  path: %s\n  re-save with: kool iterm2 sessions save",
-			*doc.RestoredAt, path))
+			"sessions restore: checkpoint already consumed (restored_at=%s)\n  path: %s\n  re-save with: kool iterm2 sessions save\n  override: kool iterm2 sessions restore --force --file %s",
+			*doc.RestoredAt, path, path))
 		return errs.NewSilenceExitCode(1)
 	}
 
@@ -1254,18 +1330,22 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		WriteWarning(stderr, fmt.Sprintf("host in file is %q, this machine is %q", doc.Host, host))
 	}
 
-	// Already-running scan (D2 dry-run + live; D6 soft capture fail → 0 hits).
-	live := map[string]liveCriticalHit{}
-	snap, snapWarns, capErr := CaptureSnapshotWith(CaptureOpts{NoEnrich: false})
+	// Already-running scan covers every running iTerm install. Dry-run can still
+	// show an unknown/full plan when capture fails; live restore fails safely.
+	live, snapWarns, capErr := scanLiveCriticalAcrossApps(doc, !dryRun)
 	if capErr != nil {
 		msg := strings.TrimPrefix(capErr.Error(), "Error: ")
 		msg = strings.TrimSpace(msg)
-		WriteWarning(stderr, fmt.Sprintf("could not scan live sessions for already-running check: %s", msg))
+		if dryRun {
+			WriteWarning(stderr, fmt.Sprintf("could not scan live sessions for already-running check: %s", msg))
+		} else {
+			WriteError(stderr, fmt.Sprintf("sessions restore: could not safely check already-running sessions: %s", msg))
+			return errs.NewSilenceExitCode(1)
+		}
 	} else {
 		for _, w := range snapWarns {
 			WriteWarning(stderr, strings.TrimPrefix(w, "warning: "))
 		}
-		live = indexLiveCritical(snap)
 	}
 	tabSkipped, skippedCount := matchCheckpointSkips(doc, live, stderr)
 	remainWindows, remainTabs := countRemainingWouldCreate(doc, tabSkipped)
@@ -1373,6 +1453,35 @@ type restorePlanOpts struct {
 	PerWindow []RestoreAppTarget // --same-app; index-aligned with doc.Windows
 }
 
+func restoreTabSkipped(tabSkipped [][]bool, wi, ti int) bool {
+	return tabSkipped != nil && wi < len(tabSkipped) && ti < len(tabSkipped[wi]) && tabSkipped[wi][ti]
+}
+
+func remainingTabsInWindow(win SaveWindow, skipped []bool) int {
+	remaining := 0
+	for ti := range win.Tabs {
+		if ti < len(skipped) && skipped[ti] {
+			continue
+		}
+		remaining++
+	}
+	return remaining
+}
+
+// formatRestoreCommand colors the command token green and its arguments gray.
+func formatRestoreCommand(color bool, line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+	command, args, hasArgs := strings.Cut(line, " ")
+	out := paint(color, ansiGreen, command)
+	if hasArgs && args != "" {
+		out += " " + paint(color, ansiGray, args)
+	}
+	return out
+}
+
 // formatRestorePlan writes the restore dry-run plan or live summary.
 // Header/summary counts are would-create / actually restored (skipped excluded).
 // Dry-run lists every checkpoint tab with skip / would-restore action markers (E2).
@@ -1387,14 +1496,22 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 			paint(color, ansiGray, path))
 		fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, fmt.Sprintf("(saved_at %s, not yet restored)", doc.SavedAt)))
 		if skippedCount > 0 {
-			fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, fmt.Sprintf("(%d skipped already running)", skippedCount)))
+			fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, fmt.Sprintf("(%d already running; saved layout shown below)", skippedCount)))
 		}
 		// Global restore target (default mode only).
 		if !plan.SameApp {
 			fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, "restore target  "+plan.Global.Display()))
 		}
 		for wi, win := range doc.Windows {
-			fmt.Fprintf(w, "\n  %s\n", paint(color, ansiBold, "new window"))
+			var skipped []bool
+			if wi < len(tabSkipped) {
+				skipped = tabSkipped[wi]
+			}
+			windowLabel := "new window — would create"
+			if remainingTabsInWindow(win, skipped) == 0 {
+				windowLabel = "saved window (would not create — all tabs already running)"
+			}
+			fmt.Fprintf(w, "\n  %s\n", paint(color, ansiBold, windowLabel))
 			if !ignoreMacOSSpace {
 				s, _ := clampSpaceIndex(win.Space)
 				meta := formatSpaceDesktopLabel(s)
@@ -1419,17 +1536,15 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 				}
 			}
 			for ti, tab := range win.Tabs {
-				skipped := tabSkipped != nil && wi < len(tabSkipped) && ti < len(tabSkipped[wi]) && tabSkipped[wi][ti]
-				if skipped {
-					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "skip (already running)"))
-					if tab.ResumeCmd != "" {
-						fmt.Fprintf(w, "         %s\n", paint(color, ansiGray, tab.ResumeCmd))
-					}
-					continue
+				if restoreTabSkipped(tabSkipped, wi, ti) {
+					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "already running — would skip"))
+				} else {
+					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "would restore"))
 				}
-				fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "would restore"))
-				fmt.Fprintf(w, "         %s\n", paint(color, ansiGray, "cd "+shellSingleQuote(tab.Cwd)))
-				fmt.Fprintf(w, "         %s\n", paint(color, ansiGray, tab.ResumeCmd))
+				fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, "cd "+shellSingleQuote(tab.Cwd)))
+				if tab.ResumeCmd != "" {
+					fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, tab.ResumeCmd))
+				}
 			}
 		}
 		fmt.Fprintln(w, paint(color, ansiGray, "(dry-run: not applied)"))
@@ -1446,74 +1561,4 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 		fmt.Fprintf(w, "  %s\n", paint(color, ansiGray, fmt.Sprintf("marked restored_at=%s", *doc.RestoredAt)))
 	}
 	fmt.Fprintf(w, "  → %s\n", paint(color, ansiGray, path))
-}
-
-// errHelpRequested is returned when -h was parsed.
-var errHelpRequested = fmt.Errorf("help")
-
-// parseSaveRestoreFlags parses shared save/restore flags.
-// spacesRaw/spacesSet: pass non-nil on save to accept --spaces; pass nil on
-// restore so --spaces is rejected as unknown.
-// sameApp: pass non-nil on restore to accept --same-app; pass nil on save so
-// --same-app is rejected as unknown.
-func parseSaveRestoreFlags(args []string, dryRun *bool, fileFlag *string, forceColor, forceNoColor *bool, ignoreMacOSSpace *bool, spacesRaw *string, spacesSet *bool, sameApp *bool, helpText string) ([]string, error) {
-	// Manual parse to keep less-flags optional and help clean.
-	var remain []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "-h" || a == "--help" || a == "help":
-			return nil, errHelpRequested
-		case a == "--dry-run":
-			*dryRun = true
-		case a == "--color":
-			*forceColor = true
-		case a == "--no-color":
-			*forceNoColor = true
-		case a == "--ignore-macos-space":
-			if ignoreMacOSSpace != nil {
-				*ignoreMacOSSpace = true
-			}
-		case a == "--same-app":
-			if sameApp == nil {
-				return nil, fmt.Errorf("unknown flag %s", a)
-			}
-			*sameApp = true
-		case a == "--spaces":
-			if spacesSet == nil {
-				return nil, fmt.Errorf("unknown flag %s", a)
-			}
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("--spaces requires a comma-separated list of space indexes (e.g. 0,2)")
-			}
-			i++
-			*spacesSet = true
-			if spacesRaw != nil {
-				*spacesRaw = args[i]
-			}
-		case strings.HasPrefix(a, "--spaces="):
-			if spacesSet == nil {
-				return nil, fmt.Errorf("unknown flag --spaces")
-			}
-			*spacesSet = true
-			if spacesRaw != nil {
-				*spacesRaw = strings.TrimPrefix(a, "--spaces=")
-			}
-		case a == "--file" || a == "-f":
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("--file requires a path")
-			}
-			i++
-			*fileFlag = args[i]
-		case strings.HasPrefix(a, "--file="):
-			*fileFlag = strings.TrimPrefix(a, "--file=")
-		default:
-			if strings.HasPrefix(a, "-") {
-				return nil, fmt.Errorf("unknown flag %s", a)
-			}
-			remain = append(remain, a)
-		}
-	}
-	_ = helpText
-	return remain, nil
 }

@@ -10,8 +10,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xhd2015/agent-pro/pkgs/procresolve"
 	"github.com/xhd2015/dot-pkgs/go-pkgs/computer-use/macos/space"
 )
+
+func installEmptyLiveCollectorForRestoreTest(t *testing.T) {
+	t.Helper()
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{
+		ITermRunning: true,
+		Hostname:     "testhost",
+	})
+}
 
 func TestBuildSaveDocument_FiltersAndKinds(t *testing.T) {
 	now := time.Date(2026, 7, 25, 18, 0, 0, 0, time.FixedZone("CST", 8*3600))
@@ -425,6 +434,7 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 	prevPath := sessionsSavePathForTest
 	sessionsSavePathForTest = path
 	t.Cleanup(func() { sessionsSavePathForTest = prevPath })
+	installEmptyLiveCollectorForRestoreTest(t)
 
 	// Inject empty fixture so the already-running scan (CaptureSnapshotWith)
 	// does not hit live AppleScript (slow, non-deterministic).
@@ -498,6 +508,20 @@ func TestSessionsRestore_ConsumedAndDryRun(t *testing.T) {
 	if !strings.Contains(stderr.String(), "consumed") && !strings.Contains(stderr.String(), "restored_at") {
 		t.Fatal(stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "--force") {
+		t.Fatal(stderr.String())
+	}
+
+	// --force permits inspection or reapplication of a consumed checkpoint;
+	// it still runs the live-session duplicate check.
+	stdout.Reset()
+	stderr.Reset()
+	if err := runSessions([]string{"restore", "--force", "--dry-run"}, &stdout, &stderr); err != nil {
+		t.Fatalf("forced dry-run: %v stderr=%s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Would restore") {
+		t.Fatal(stdout.String())
+	}
 }
 
 func TestSessionsRestore_MissingFile(t *testing.T) {
@@ -566,7 +590,7 @@ func TestSessionsHelp_MentionsSaveRestore(t *testing.T) {
 	if err := runSessions([]string{"restore", "-h"}, &stdout, &stderr); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "restored_at") {
+	if !strings.Contains(stdout.String(), "restored_at") || !strings.Contains(stdout.String(), "--force") {
 		t.Fatal(stdout.String())
 	}
 }
@@ -627,6 +651,7 @@ func TestBuildSessionsRestoreScript_EmptyNameSkipsSetName(t *testing.T) {
 }
 
 func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
+	installEmptyLiveCollectorForRestoreTest(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "save.json")
 	doc := &SaveDocument{
@@ -695,6 +720,7 @@ func TestSessionsRestore_TitleWarningStillStamps(t *testing.T) {
 }
 
 func TestSessionsRestore_AppleScriptHardErrorNoStamp(t *testing.T) {
+	installEmptyLiveCollectorForRestoreTest(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "save.json")
 	doc := &SaveDocument{
@@ -962,5 +988,285 @@ func TestSessionsSave_SpacesInvalid(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "invalid space index 16") {
 		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+}
+
+func TestListTabsAndSessionsAppleScript_UsesStableIndexes(t *testing.T) {
+	script := listTabsAndSessionsAppleScript(4, "/tmp/iTerm.app")
+	for _, want := range []string{
+		"set tabCount to count of tabs of window target",
+		"session si of tab ti of window target",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("missing %q:\n%s", want, script)
+		}
+	}
+	if strings.Contains(script, "repeat with t in tabs") {
+		t.Fatalf("nested tab references are unstable for path-targeted apps:\n%s", script)
+	}
+}
+
+func TestMatchCheckpointSkips_ConsumesLiveHitsAndPrefersExactITermSession(t *testing.T) {
+	message := "same task"
+	snap := &Snapshot{Windows: []SnapshotWindow{{
+		Index: 1,
+		Tabs: []SnapshotTab{{Index: 1, Sessions: []SnapshotSession{
+			{Index: 1, ID: "LIVE-A", Cwd: strPtr("/a"), Processes: []SnapshotProc{{PID: 11, Command: "mark " + message}}},
+			{Index: 2, ID: "LIVE-B", Cwd: strPtr("/b"), Processes: []SnapshotProc{{PID: 22, Command: "mark " + message}}},
+		}}},
+	}}}
+	doc := &SaveDocument{Windows: []SaveWindow{{Tabs: []SaveTab{
+		{Kind: "mark", Message: message, ItermSessionID: "live-b"},
+		{Kind: "mark", Message: message},
+		{Kind: "mark", Message: message},
+		{Kind: "grok", SessionID: "different", ItermSessionID: "LIVE-A"},
+	}}}}
+
+	var stderr bytes.Buffer
+	skipped, count := matchCheckpointSkips(doc, indexLiveCritical(snap), &stderr)
+	if count != 2 {
+		t.Fatalf("skipped=%d want 2; flags=%v stderr=%s", count, skipped, stderr.String())
+	}
+	want := []bool{true, true, false, false}
+	for i, v := range want {
+		if skipped[0][i] != v {
+			t.Fatalf("tab %d skipped=%v want %v; all=%v", i, skipped[0][i], v, skipped[0])
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(stderr.String()), "\n")
+	if len(lines) < 1 || !strings.Contains(lines[0], "pid 22") {
+		t.Fatalf("exact iTerm session should consume LIVE-B first:\n%s", stderr.String())
+	}
+}
+
+func TestCaptureSnapshotAcrossApps_FindsHomeWhenBareHasNoWindows(t *testing.T) {
+	release := holdTestCollector()
+	t.Cleanup(release)
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeApp := filepath.Join(home, "Applications", "iTerm.app")
+	failHome := false
+	collector := defaultCollector()
+	collector.ITermRunning = func() bool { return true }
+	collector.RunAppleScript = func(script string) (string, error) {
+		if !strings.Contains(script, homeApp) {
+			return "", nil
+		}
+		if failHome {
+			return "", fmt.Errorf("home capture unavailable")
+		}
+		if strings.Contains(script, "set tabCount to count of tabs") {
+			return "###T###1###Default (mark)\n###S###1###/dev/ttys099###true###Default###LIVE-HOME###Default (mark)\n", nil
+		}
+		return "###W###1###Home###0\n", nil
+	}
+	collector.ListProcs = func(string) ([]rawProc, error) {
+		return []rawProc{
+			{PID: 100, PPID: 0, Stat: "Ss", Command: "login"},
+			{PID: 101, PPID: 100, Stat: "S", Command: "-zsh"},
+			{PID: 102, PPID: 101, Stat: "S+", Command: "mark home task"},
+		}, nil
+	}
+	collector.ListCwds = func(pids []int) (map[int]string, error) {
+		return map[int]string{100: "/work", 101: "/work", 102: "/work"}, nil
+	}
+	SetSnapshotCollectorForTest(collector)
+
+	previousPreflight := currentMultiAppPreflightFn()
+	SetMultiAppPreflightForTest(func() (MultiAppPreflight, error) {
+		return MultiAppPreflight{
+			AsApp:       CanonicalITermAppSystem,
+			RunningApps: []string{CanonicalITermAppSystem, CanonicalITermAppHome},
+		}, nil
+	})
+	t.Cleanup(func() { SetMultiAppPreflightForTest(previousPreflight) })
+
+	snap, warnings, err := CaptureSnapshotAcrossApps(CaptureOpts{NoEnrich: true})
+	if err != nil {
+		t.Fatalf("capture: %v warnings=%v", err, warnings)
+	}
+	if len(snap.Windows) != 1 || snap.Windows[0].App != CanonicalITermAppHome {
+		t.Fatalf("windows=%+v warnings=%v", snap.Windows, warnings)
+	}
+	live := indexLiveCritical(snap)
+	if _, ok := live.take(SaveTab{Kind: "mark", Message: "home task", ItermSessionID: "LIVE-HOME"}); !ok {
+		t.Fatalf("home-app live mark was not indexed: snap=%+v", snap)
+	}
+
+	failHome = true
+	if _, _, err := CaptureSnapshotAcrossAppsStrict(CaptureOpts{NoEnrich: true}); err == nil {
+		t.Fatal("strict multi-app capture must fail when the home surface cannot be scanned")
+	}
+}
+
+func TestSessionsRestore_LiveScanFailureAbortsWithoutStamp(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scan-fail.json")
+	doc := &SaveDocument{
+		Version: sessionsSaveVersion,
+		SavedAt: "2026-08-20T21:09:03+0800",
+		Host:    "testhost",
+		Source:  sessionsSaveSource,
+		Summary: SaveSummary{Windows: 1, Tabs: 1, Sessions: 1, ByKind: map[string]int{"grok": 1}},
+		Windows: []SaveWindow{{Tabs: []SaveTab{{Cwd: "/work", Kind: "grok", SessionID: "abc", ResumeCmd: "grok --resume abc"}}}},
+	}
+	if err := WriteSaveDocument(path, doc); err != nil {
+		t.Fatal(err)
+	}
+	previousPath := sessionsSavePathForTest
+	sessionsSavePathForTest = path
+	t.Cleanup(func() { sessionsSavePathForTest = previousPath })
+	InstallPhasedFixtureCollectorForTest(t, PhasedFixtureOpts{ITermRunning: false, Hostname: "testhost"})
+
+	var stdout, stderr bytes.Buffer
+	if err := runSessions([]string{"restore"}, &stdout, &stderr); err == nil {
+		t.Fatalf("expected safe abort; stdout=%s stderr=%s", stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "could not safely check already-running sessions") {
+		t.Fatalf("stderr:\n%s", stderr.String())
+	}
+	got, err := ReadSaveDocument(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.IsConsumed() {
+		t.Fatal("failed live scan must not stamp restored_at")
+	}
+}
+
+func TestParseLiveCriticalPanes_FailsWhenITermChangesDuringScan(t *testing.T) {
+	_, err := parseLiveCriticalPanes("###E###window 2, tab 3 changed while scanning\n")
+	if err == nil || !strings.Contains(err.Error(), "changed while scanning") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestScanLiveCriticalAcrossApps_UsesOneProcessListingAndKeepsPanesInOneWindow(t *testing.T) {
+	release := holdTestCollector()
+	t.Cleanup(release)
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeApp := filepath.Join(home, "Applications", "iTerm.app")
+	var appleScriptCalls, processCalls, resolveCalls int
+	collector := defaultCollector()
+	collector.ITermRunning = func() bool { return true }
+	collector.RunAppleScript = func(script string) (string, error) {
+		appleScriptCalls++
+		if !strings.Contains(script, "###P###") {
+			t.Fatalf("restore scan must use its single-pane AppleScript: %s", script)
+		}
+		if strings.Contains(script, homeApp) {
+			return "###P###202###/dev/ttys003###IDLE-HOME###idle\n", nil
+		}
+		return strings.Join([]string{
+			"###P###101###/dev/ttys001###GROK-LIVE###grok tab",
+			"###P###101###/dev/ttys002###MARK-LIVE###mark tab",
+			"###P###303###/dev/ttys004###UNRELATED-GROK###unrelated grok tab",
+		}, "\n") + "\n", nil
+	}
+	collector.ListTTYProcs = func(ttys []string) ([]liveTTYProc, error) {
+		processCalls++
+		if got, want := strings.Join(ttys, ","), "ttys001,ttys002,ttys003,ttys004"; got != want {
+			t.Fatalf("TTY filter=%q, want %q", got, want)
+		}
+		return []liveTTYProc{
+			{rawProc: rawProc{PID: 1, PPID: 0, Stat: "Ss", Command: "login"}, TTY: "ttys001"},
+			{rawProc: rawProc{PID: 2, PPID: 1, Stat: "S", Command: "-zsh"}, TTY: "ttys001"},
+			{rawProc: rawProc{PID: 3, PPID: 2, Stat: "S+", Command: "grok"}, TTY: "ttys001"},
+			{rawProc: rawProc{PID: 4, PPID: 0, Stat: "Ss", Command: "login"}, TTY: "ttys002"},
+			{rawProc: rawProc{PID: 5, PPID: 4, Stat: "S", Command: "-zsh"}, TTY: "ttys002"},
+			{rawProc: rawProc{PID: 6, PPID: 5, Stat: "S+", Command: "mark waiting for CI"}, TTY: "ttys002"},
+			{rawProc: rawProc{PID: 7, PPID: 0, Stat: "Ss", Command: "login"}, TTY: "ttys004"},
+			{rawProc: rawProc{PID: 8, PPID: 7, Stat: "S", Command: "-zsh"}, TTY: "ttys004"},
+			{rawProc: rawProc{PID: 9, PPID: 8, Stat: "S+", Command: "grok"}, TTY: "ttys004"},
+		}, nil
+	}
+	collector.ListProcs = func(string) ([]rawProc, error) {
+		t.Fatal("restore scan must not list processes per TTY")
+		return nil, nil
+	}
+	collector.ListCwds = func([]int) (map[int]string, error) {
+		t.Fatal("restore scan must not query current directories")
+		return nil, nil
+	}
+	collector.ResolveFromPID = func(pid int) (*procresolve.Result, error) {
+		resolveCalls++
+		if pid == 3 {
+			return &procresolve.Result{Kind: "grok", SessionID: "session-1", RunnerPID: 3}, nil
+		}
+		if pid == 9 {
+			t.Fatal("unrelated agent pane should not be resolved after exact match succeeds")
+		}
+		return nil, nil
+	}
+	SetSnapshotCollectorForTest(collector)
+
+	previousPreflight := currentMultiAppPreflightFn()
+	SetMultiAppPreflightForTest(func() (MultiAppPreflight, error) {
+		return MultiAppPreflight{
+			AsApp:       CanonicalITermAppSystem,
+			RunningApps: []string{CanonicalITermAppSystem, CanonicalITermAppHome},
+		}, nil
+	})
+	t.Cleanup(func() { SetMultiAppPreflightForTest(previousPreflight) })
+
+	doc := &SaveDocument{Windows: []SaveWindow{{Tabs: []SaveTab{
+		{Kind: "grok", SessionID: "session-1", ItermSessionID: "GROK-LIVE"},
+		{Kind: "mark", Message: "waiting for CI", ItermSessionID: "MARK-LIVE"},
+	}}}}
+	live, warnings, err := scanLiveCriticalAcrossApps(doc, true)
+	if err != nil {
+		t.Fatalf("scan: %v; warnings=%v", err, warnings)
+	}
+	if appleScriptCalls != 2 {
+		t.Fatalf("AppleScript calls=%d, want one per running installation", appleScriptCalls)
+	}
+	if processCalls != 1 {
+		t.Fatalf("process listings=%d, want 1", processCalls)
+	}
+	if resolveCalls != 1 {
+		t.Fatalf("agent resolutions=%d, want one candidate pane", resolveCalls)
+	}
+	for _, tab := range doc.Windows[0].Tabs {
+		if _, ok := live.take(tab); !ok {
+			t.Fatalf("missing live match for %+v", tab)
+		}
+	}
+}
+
+func TestFormatRestorePlan_PreservesSkippedLayoutAndColorsCommands(t *testing.T) {
+	doc := &SaveDocument{
+		SavedAt: "2026-08-20T21:09:03+0800",
+		Windows: []SaveWindow{{Space: 13, Tabs: []SaveTab{
+			{Cwd: "/work", Kind: "grok", ResumeCmd: "grok --resume abc"},
+			{Cwd: "/work", Kind: "mark", ResumeCmd: "mark 'fix picture'"},
+		}}},
+	}
+	var out bytes.Buffer
+	formatRestorePlan(&out, doc, "/tmp/save.json", true, true, false,
+		[][]bool{{true, true}}, 2, 0, 0,
+		restorePlanOpts{Global: RestoreAppTarget{Canonical: CanonicalITermAppHome}})
+	got := out.String()
+	for _, want := range []string{
+		"Would restore", "0 windows / 0 tabs", "saved layout shown below",
+		"saved window (would not create — all tabs already running)",
+		"already running — would skip", "cd", "grok", "mark",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Count(got, "already running — would skip") != 2 {
+		t.Fatalf("expected both skipped tabs in layout:\n%s", got)
+	}
+	for _, command := range []string{"cd", "grok", "mark"} {
+		if !strings.Contains(got, ansiGreen+command+ansiReset) {
+			t.Fatalf("command %q is not green:\n%q", command, got)
+		}
 	}
 }

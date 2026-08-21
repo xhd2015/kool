@@ -110,12 +110,14 @@ Examples:
 
 const sessionsRestoreHelp = `iterm2 sessions restore — recreate windows and resume from checkpoint
 
-Usage: kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
+Usage: kool iterm2 sessions restore [--dry-run] [--force] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
 
 Read the checkpoint, create one window per saved window, one tab per entry,
 then send: cd <cwd> and grok --resume / codex resume / mark <message>.
 
   --dry-run              print plan only; do not create tabs or mark restored
+  --force                allow a checkpoint with restored_at; live-session
+                         duplicate checks still apply
   --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-save.json)
   --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
   --no-color             force ANSI colors off
@@ -126,7 +128,11 @@ then send: cd <cwd> and grok --resume / codex resume / mark <message>.
                          else the only install on disk; else bare iTerm2
   -h, --help
 
-If restored_at is set, the file is already consumed and restore errors.
+If restored_at is set, the file is already consumed and restore errors unless
+--force is supplied. --force does not bypass the live-session duplicate check.
+Before creating tabs, restore scans every running iTerm install and skips matching
+live grok/codex sessions or mark messages. A live restore aborts if this safety
+scan fails; dry-run warns and shows the unfiltered saved layout.
 On full success, restored_at is written so the checkpoint cannot be applied twice.
 By default each window is placed on its recorded macOS Space (Switch/Create).
 Create target: by default one global install (prefer home when both exist);
