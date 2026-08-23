@@ -1,38 +1,22 @@
 package iterm2
 
 import (
-	"bytes"
-	"fmt"
-	"os"
-	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/xhd2015/agent-pro/pkgs/itermsnapshot"
 	"github.com/xhd2015/agent-pro/pkgs/procresolve"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2/snapshot"
 )
 
-// SnapshotCollector gathers hierarchy + process enrichment. Fields may be
-// overridden in tests.
+// SnapshotCollector is a thin adapter over snapshot.Collector plus agent-pro
+// itermsnapshot attach. Hierarchy + process enrich + SpaceAllow live in the lib;
+// Agent attach and kool Snapshot (with Agent) are composed here.
 type SnapshotCollector struct {
-	// RunAppleScript runs an AppleScript body and returns stdout.
-	RunAppleScript func(script string) (string, error)
-	// ListProcs returns processes on a short tty name (e.g. "ttys003").
-	ListProcs func(ttyShort string) ([]rawProc, error)
-	// ListCwds returns cwd paths keyed by pid for the given pids.
-	ListCwds func(pids []int) (map[int]string, error)
-	// ListTTYProcs returns one process listing for the requested terminal devices.
-	// The restore-only live critical scan uses it instead of one ps call per pane.
-	ListTTYProcs func(ttyShorts []string) ([]liveTTYProc, error)
-	// ITermRunning reports whether iTerm2 appears to be running.
-	ITermRunning func() bool
-	// Now is the clock (defaults to time.Now).
-	Now func() time.Time
-	// Hostname defaults to os.Hostname.
-	Hostname func() (string, error)
+	lib *snapshot.Collector
 
 	// OnListWindows is an optional test hook invoked at the start of ListWindows.
 	OnListWindows func()
@@ -42,52 +26,62 @@ type SnapshotCollector struct {
 	// ResolveFromPID optionally overrides live procresolve (production default).
 	ResolveFromPID func(pid int) (*procresolve.Result, error)
 
-	// AppTell is the AppleScript application target for live capture.
-	// Empty → "iTerm2". Absolute path → tell that .app (second dual-install instance).
-	// Canonical App tags are set separately via AppTag / multi-app merge.
+	// AppTell is the AppleScript application target (forwarded to lib).
 	AppTell string
-	// AppTag is stamped on every window from this collector (canonical app path).
-	// Empty leaves window.App unset (fixtures may set App per window).
+	// AppTag is stamped on windows when App is empty (forwarded to lib).
 	AppTag string
 
-	// fixtureEnabled + fixtureWindows drive phased APIs without AppleScript.
+	// RunAppleScript / ListProcs / ListTTYProcs / ListCwds / ITermRunning are
+	// injectable for live_scan and tests; synced onto lib before capture.
+	RunAppleScript func(script string) (string, error)
+	ListProcs      func(ttyShort string) ([]snapshot.ProcRow, error)
+	ListTTYProcs   func(ttyShorts []string) ([]liveTTYProc, error)
+	ListCwds       func(pids []int) (map[int]string, error)
+	ITermRunning   func() bool
+	Now            func() time.Time
+	Hostname       func() (string, error)
+
+	// fixtureEnabled is set by InstallPhasedFixtureCollectorForTest (multi-app
+	// short-circuits to single-pass capture when true).
 	fixtureEnabled bool
+	// fixtureWindows retained for multi-app live reset (lib owns fixture data).
 	fixtureWindows []SnapshotWindow
+
 	// agentResolveByTTY injects procresolve results by short tty (tests).
 	agentResolveByTTY map[string]AgentResolveFixture
 }
 
 func defaultCollector() *SnapshotCollector {
+	lib := snapshot.NewCollector()
 	return &SnapshotCollector{
-		RunAppleScript: defaultRunAppleScript,
-		ListProcs:      defaultListProcs,
-		ListCwds:       defaultListCwds,
-		ITermRunning:   defaultITermRunning,
-		Now:            time.Now,
-		Hostname: func() (string, error) {
-			h, err := os.Hostname()
+		lib:            lib,
+		RunAppleScript: lib.RunAppleScript,
+		ListProcs:      lib.ListProcs,
+		ListCwds:       lib.ListCwds,
+		ITermRunning:   lib.ITermRunning,
+		Now:            lib.Now,
+		Hostname:       lib.Hostname,
+		ListTTYProcs: func(ttys []string) ([]liveTTYProc, error) {
+			rows, err := lib.ListTTYProcs(ttys)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			if i := strings.Index(h, "."); i > 0 {
-				return h[:i], nil
+			out := make([]liveTTYProc, len(rows))
+			for i, r := range rows {
+				out[i] = liveTTYProc{rawProc: r.ProcRow, TTY: r.TTY}
 			}
-			return h, nil
+			return out, nil
 		},
 	}
 }
 
 var (
-	testCollector   *SnapshotCollector
-	testCollectorMu sync.Mutex
-	// testCollectorHold serializes tests that inject a collector so parallel
-	// doctest leaves do not stomp each other.
+	testCollector     *SnapshotCollector
+	testCollectorMu   sync.Mutex
 	testCollectorHold sync.Mutex
 )
 
 // SetSnapshotCollectorForTest overrides the collector used by CaptureSnapshot.
-// Pass nil to restore production defaults. Tests should t.Cleanup restore.
-// Prefer InstallPhasedFixtureCollectorForTest for parallel-safe inject.
 func SetSnapshotCollectorForTest(c *SnapshotCollector) {
 	testCollectorMu.Lock()
 	defer testCollectorMu.Unlock()
@@ -108,8 +102,6 @@ func activeCollector() *SnapshotCollector {
 	return defaultCollector()
 }
 
-// holdTestCollector acquires exclusive inject ownership until release is called.
-// Used so parallel tests share one global inject slot safely.
 func holdTestCollector() (release func()) {
 	testCollectorHold.Lock()
 	var once sync.Once
@@ -123,72 +115,27 @@ func holdTestCollector() (release func()) {
 
 // PhasedFixtureOpts configures InstallPhasedFixtureCollectorForTest.
 type PhasedFixtureOpts struct {
-	Windows       []SnapshotWindow
-	ITermRunning  bool
-	OnListWindows func()
-	OnListTabs    func(windowIndex int)
-	// IdleTTYs are short tty names (e.g. "ttys001") classified idle (shell only).
-	IdleTTYs []string
-	// BusyTTYs are short tty names classified busy (non-shell foreground work).
-	BusyTTYs []string
-	// BusyLeafByTTY overrides the default busy leaf command (python train.py)
-	// for that short tty. Use e.g. "mark still waiting" for mark fixtures.
-	BusyLeafByTTY map[string]string
-	// CwdByTTY sets the cwd returned for processes on that short tty (default /tmp).
-	CwdByTTY map[string]string
-	Now      time.Time
-	Hostname string
-	// AgentResolveByTTY injects procresolve results keyed by short tty (e.g. "ttys002").
-	// Applied after process enrich for busy sessions when enrich is on.
+	Windows           []SnapshotWindow
+	ITermRunning      bool
+	OnListWindows     func()
+	OnListTabs        func(windowIndex int)
+	IdleTTYs          []string
+	BusyTTYs          []string
+	BusyLeafByTTY     map[string]string
+	CwdByTTY          map[string]string
+	Now               time.Time
+	Hostname          string
 	AgentResolveByTTY map[string]AgentResolveFixture
 }
 
-// InstallPhasedFixtureCollectorForTest installs an injectable SnapshotCollector
-// that implements ListWindows / ListTabsAndSessions from opts.Windows and
-// process enrich from IdleTTYs / BusyTTYs. Restored via t.Cleanup.
-// Holds an exclusive inject lock so parallel doctest leaves cannot race.
+// InstallPhasedFixtureCollectorForTest installs an injectable SnapshotCollector.
 func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) {
 	t.Helper()
 	release := holdTestCollector()
 	t.Cleanup(release)
 
-	idleSet := map[string]bool{}
-	for _, tty := range opts.IdleTTYs {
-		idleSet[strings.TrimPrefix(tty, "/dev/")] = true
-	}
-	busySet := map[string]bool{}
-	for _, tty := range opts.BusyTTYs {
-		busySet[strings.TrimPrefix(tty, "/dev/")] = true
-	}
-	leafByTTY := map[string]string{}
-	for k, v := range opts.BusyLeafByTTY {
-		leafByTTY[strings.TrimPrefix(k, "/dev/")] = v
-	}
-	cwdByTTY := map[string]string{}
-	for k, v := range opts.CwdByTTY {
-		cwdByTTY[strings.TrimPrefix(k, "/dev/")] = v
-	}
-	// Map pid → tty short for ListCwds (fixture pids are unique per tty family).
-	pidTTY := map[int]string{}
-	now := opts.Now
-	if now.IsZero() {
-		now = time.Date(2026, 7, 25, 12, 0, 0, 0, time.UTC)
-	}
-	host := opts.Hostname
-	if host == "" {
-		host = "testhost"
-	}
-	// Clone windows so enrich mutations do not alter the caller's slice.
-	fxWindows := cloneWindows(opts.Windows)
-	// Multi-app fixture topology: tag App from names when unset so sealed
-	// installMultiApp* helpers (From-System / From-Home / …) get dual apps.
-	for i := range fxWindows {
-		tagFixtureAppFromName(&fxWindows[i])
-	}
-
 	agentByTTY := opts.AgentResolveByTTY
 	if agentByTTY != nil {
-		// shallow copy map so tests cannot mutate after install
 		cp := make(map[string]AgentResolveFixture, len(agentByTTY))
 		for k, v := range agentByTTY {
 			cp[k] = v
@@ -196,354 +143,215 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 		agentByTTY = cp
 	}
 
-	// Multi-app preflight inject for fixture path: dual-running home+system so
-	// dual-collapse leaves warn when secondary app has no distinct windows.
-	// Restored via same t.Cleanup as collector release (exclusive hold).
-	prevPreflight := currentMultiAppPreflightFn()
-	SetMultiAppPreflightForTest(func() (MultiAppPreflight, error) {
-		return MultiAppPreflight{
-			AsApp:       CanonicalITermAppSystem,
-			RunningApps: []string{CanonicalITermAppSystem, CanonicalITermAppHome},
-		}, nil
+	fxWindows := make([]SnapshotWindow, len(opts.Windows))
+	copy(fxWindows, opts.Windows)
+	for i := range fxWindows {
+		tagFixtureAppFromName(&fxWindows[i])
+	}
+
+	lib := snapshot.NewCollector()
+	lib.ApplyPhasedFixture(snapshot.PhasedFixtureOpts{
+		Windows:       toLibWindows(fxWindows),
+		ITermRunning:  opts.ITermRunning,
+		IdleTTYs:      opts.IdleTTYs,
+		BusyTTYs:      opts.BusyTTYs,
+		BusyLeafByTTY: opts.BusyLeafByTTY,
+		CwdByTTY:      opts.CwdByTTY,
+		Now:           opts.Now,
+		Hostname:      opts.Hostname,
 	})
-	t.Cleanup(func() {
-		SetMultiAppPreflightForTest(prevPreflight)
-	})
+	lib.OnListWindows = opts.OnListWindows
+	lib.OnListTabs = opts.OnListTabs
 
 	c := &SnapshotCollector{
-		fixtureEnabled:    true,
-		fixtureWindows:    fxWindows,
-		agentResolveByTTY: agentByTTY,
+		lib:               lib,
 		OnListWindows:     opts.OnListWindows,
 		OnListTabs:        opts.OnListTabs,
-		ITermRunning:      func() bool { return opts.ITermRunning },
-		Now:               func() time.Time { return now },
-		Hostname:          func() (string, error) { return host, nil },
-		ListProcs: func(ttyShort string) ([]rawProc, error) {
-			short := strings.TrimPrefix(ttyShort, "/dev/")
-			if idleSet[short] {
-				pidTTY[1] = short
-				pidTTY[2] = short
-				return []rawProc{
-					{PID: 1, PPID: 0, Stat: "Ss", Etime: "1:00", RSSKB: 1000, Command: "login -fp u"},
-					{PID: 2, PPID: 1, Stat: "S+", Etime: "0:59", RSSKB: 2000, Command: "-zsh"},
-				}, nil
-			}
-			if busySet[short] {
-				leaf := leafByTTY[short]
-				if leaf == "" {
-					leaf = "python train.py"
-				}
-				// Distinct pids per tty so cwd map can key by pid.
-				base := 100 + len(pidTTY)*10
-				pidTTY[base] = short
-				pidTTY[base+1] = short
-				pidTTY[base+2] = short
-				return []rawProc{
-					{PID: base, PPID: 0, Stat: "Ss", Etime: "1:00", RSSKB: 1000, Command: "login -fp u"},
-					{PID: base + 1, PPID: base, Stat: "S", Etime: "0:59", RSSKB: 2000, Command: "-zsh"},
-					{PID: base + 2, PPID: base + 1, Stat: "R+", Etime: "0:30", RSSKB: 8000, Command: leaf},
-				}, nil
-			}
-			return nil, nil
-		},
-		ListCwds: func(pids []int) (map[int]string, error) {
-			m := map[int]string{}
-			for _, p := range pids {
-				cwd := "/tmp"
-				if short, ok := pidTTY[p]; ok {
-					if c, ok := cwdByTTY[short]; ok && c != "" {
-						cwd = c
-					}
-				}
-				m[p] = cwd
-			}
-			return m, nil
-		},
-		RunAppleScript: func(string) (string, error) {
-			return "", fmt.Errorf("fixture collector: AppleScript not used")
-		},
+		ITermRunning:      lib.ITermRunning,
+		Now:               lib.Now,
+		Hostname:          lib.Hostname,
+		ListProcs:         lib.ListProcs,
+		ListCwds:          lib.ListCwds,
+		fixtureEnabled:    true,
+		agentResolveByTTY: agentByTTY,
 	}
 	SetSnapshotCollectorForTest(c)
 }
 
-// CaptureSnapshot builds a full live snapshot of iTerm2 sessions.
-func CaptureSnapshot() (*Snapshot, []string, error) {
-	return CaptureSnapshotWith(CaptureOpts{})
+func (c *SnapshotCollector) ensureLib() *snapshot.Collector {
+	if c.lib == nil {
+		c.lib = snapshot.NewCollector()
+	}
+	return c.lib
 }
 
-// CaptureSnapshotWith builds a snapshot with capture options (e.g. NoEnrich).
-// Live capture queries every running iTerm2 install (multi-app merge);
-// fixture collectors single-pass.
-func CaptureSnapshotWith(opts CaptureOpts) (*Snapshot, []string, error) {
-	return CaptureSnapshotStream(opts, nil)
-}
-
-// Capture runs phased hierarchy collection + process enrichment.
-func (c *SnapshotCollector) Capture() (*Snapshot, []string, error) {
-	return c.capture(nil, CaptureOpts{})
-}
-
-// CaptureWith runs Capture with options (e.g. skip agent enrich).
-func (c *SnapshotCollector) CaptureWith(opts CaptureOpts) (*Snapshot, []string, error) {
-	return c.capture(nil, opts)
-}
-
-// capture is Capture with an optional per-window callback after enrich
-// (used by streaming CLI to emit each window block as soon as it is ready).
-func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error, opts CaptureOpts) (*Snapshot, []string, error) {
-	if c.ITermRunning != nil && !c.ITermRunning() {
-		return nil, nil, fmt.Errorf("Error: iTerm2 is not running")
+func (c *SnapshotCollector) syncLib() *snapshot.Collector {
+	lib := c.ensureLib()
+	lib.OnListWindows = c.OnListWindows
+	lib.OnListTabs = c.OnListTabs
+	lib.AppTell = c.AppTell
+	lib.AppTag = c.AppTag
+	if c.RunAppleScript != nil {
+		lib.RunAppleScript = c.RunAppleScript
 	}
-	listProcs := c.ListProcs
-	if listProcs == nil {
-		listProcs = defaultListProcs
+	if c.ListProcs != nil {
+		lib.ListProcs = c.ListProcs
+		// Injected per-TTY ListProcs must win over production ListAllProcs.
+		lib.ListAllProcs = nil
 	}
-	listCwds := c.ListCwds
-	if listCwds == nil {
-		listCwds = defaultListCwds
-	}
-	nowFn := c.Now
-	if nowFn == nil {
-		nowFn = time.Now
-	}
-	hostFn := c.Hostname
-	if hostFn == nil {
-		hostFn = os.Hostname
-	}
-
-	now := nowFn()
-	host, _ := hostFn()
-
-	headers, warnings, err := c.ListWindows()
-	if err != nil {
-		return nil, warnings, err
-	}
-
-	// Cache process data by tty short name.
-	type ttyCache struct {
-		procs []rawProc
-		cwds  map[int]string
-	}
-	cache := map[string]*ttyCache{}
-	getTTY := func(tty string) *ttyCache {
-		short := strings.TrimPrefix(tty, "/dev/")
-		if short == "" {
-			return &ttyCache{}
-		}
-		if cached, ok := cache[short]; ok {
-			return cached
-		}
-		procs, err := listProcs(short)
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("warning: ps failed for %s: %v", tty, err))
-			procs = nil
-		}
-		var pids []int
-		for _, p := range procs {
-			pids = append(pids, p.PID)
-		}
-		cwds := map[int]string{}
-		if len(pids) > 0 {
-			if m, err := listCwds(pids); err != nil {
-				warnings = append(warnings, fmt.Sprintf("warning: cwd probe failed for %s: %v", tty, err))
-			} else {
-				cwds = m
+	if c.ListTTYProcs != nil {
+		listTTY := c.ListTTYProcs
+		lib.ListTTYProcs = func(ttys []string) ([]snapshot.TTYProc, error) {
+			rows, err := listTTY(ttys)
+			if err != nil {
+				return nil, err
 			}
-		}
-		if len(procs) == 0 {
-			warnings = append(warnings, fmt.Sprintf("warning: no processes on %s", tty))
-		}
-		tc := &ttyCache{procs: procs, cwds: cwds}
-		cache[short] = tc
-		return tc
-	}
-
-	spaceAllowSet := spaceAllowSet(opts.SpaceAllow)
-	spaceGate := len(spaceAllowSet) > 0
-	spaceSkipped := 0
-
-	var nTabs, nSess, nIdle, nBusy, nUnknown int
-	windows := make([]SnapshotWindow, 0, len(headers))
-	for _, hdr := range headers {
-		app := hdr.App
-		if app == "" {
-			app = c.AppTag
-		}
-		// Space-first gate: resolve Space from header before expensive tabs/enrich.
-		hdrWin := SnapshotWindow{
-			Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID,
-			FixedSpace: hdr.FixedSpace, App: app,
-		}
-		spaceIdx, _, spaceWarn := resolveSpaceForWindow(hdrWin)
-		if spaceWarn != "" && spaceGate {
-			// Soft-fail already maps to 0; still may filter. Surface only when deep-capturing.
-		}
-		if spaceGate && !spaceAllowed(spaceIdx, spaceAllowSet) {
-			spaceSkipped++
-			continue
-		}
-		// Pin resolved space so later attachSpaceFields stays consistent without re-resolve surprises.
-		sp := spaceIdx
-		hdrWin.FixedSpace = &sp
-
-		tabs, w2, err := c.ListTabsAndSessions(hdr.Index)
-		if err != nil {
-			return nil, append(warnings, w2...), err
-		}
-		warnings = append(warnings, w2...)
-		if spaceWarn != "" {
-			warnings = append(warnings, "warning: "+spaceWarn)
-		}
-		win := SnapshotWindow{
-			Index: hdr.Index, Name: hdr.Name, WindowID: hdr.WindowID,
-			FixedSpace: hdrWin.FixedSpace, App: app, Tabs: tabs,
-		}
-		for ti := range win.Tabs {
-			t := &win.Tabs[ti]
-			nTabs++
-			for si := range t.Sessions {
-				s := &t.Sessions[si]
-				nSess++
-				s.WindowIndex = win.Index
-				s.TabIndex = t.Index
-				tc := getTTY(s.TTY)
-				idle, shellPID, chosen, cwd, snapProcs := enrichFromProcs(tc.procs, tc.cwds, now)
-				applyChosenToSession(s, idle, shellPID, chosen, cwd, snapProcs, now)
-				c.attachAgent(s, opts.NoEnrich)
-				if s.Idle == nil {
-					nUnknown++
-				} else if *s.Idle {
-					nIdle++
-				} else {
-					nBusy++
-				}
+			out := make([]snapshot.TTYProc, len(rows))
+			for i, r := range rows {
+				out[i] = snapshot.TTYProc{ProcRow: r.rawProc, TTY: r.TTY}
 			}
+			return out, nil
 		}
-		if onWindowReady != nil {
-			if err := onWindowReady(win); err != nil {
-				return nil, warnings, err
-			}
-		}
-		windows = append(windows, win)
 	}
-	if opts.SpaceSkipped != nil {
-		*opts.SpaceSkipped = spaceSkipped
+	if c.ListCwds != nil {
+		lib.ListCwds = c.ListCwds
 	}
-
-	snap := &Snapshot{
-		CapturedAt: now.Format("2006-01-02T15:04:05") + zoneOffset(now),
-		Host:       host,
-		Source:     "iterm2",
-		Summary: SnapshotSummary{
-			Windows:  len(windows),
-			Tabs:     nTabs,
-			Sessions: nSess,
-			Idle:     nIdle,
-			Busy:     nBusy,
-			Unknown:  nUnknown,
-		},
-		Windows: windows,
+	if c.ITermRunning != nil {
+		lib.ITermRunning = c.ITermRunning
 	}
-	return snap, warnings, nil
+	if c.Now != nil {
+		lib.Now = c.Now
+	}
+	if c.Hostname != nil {
+		lib.Hostname = c.Hostname
+	}
+	// Prefer kool injectable Space resolver (SetSpaceIndexForWindowForTest).
+	lib.ResolveSpace = func(windowID uint64) (int, error) {
+		return currentSpaceIndexResolver()(windowID)
+	}
+	return lib
 }
 
 // ListWindows returns window index + name headers (tabs may be empty).
 func (c *SnapshotCollector) ListWindows() (windows []SnapshotWindow, warnings []string, err error) {
-	if c.OnListWindows != nil {
-		c.OnListWindows()
+	if c == nil {
+		c = defaultCollector()
 	}
-	if c.fixtureEnabled {
-		out := make([]SnapshotWindow, len(c.fixtureWindows))
-		for i, w := range c.fixtureWindows {
-			out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, FixedSpace: w.FixedSpace, App: w.App}
-		}
-		return out, nil, nil
-	}
-	runAS := c.RunAppleScript
-	if runAS == nil {
-		runAS = defaultRunAppleScript
-	}
-	raw, err := runAS(listWindowsAppleScript(c.AppTell))
+	libWins, warnings, err := c.syncLib().ListWindows()
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error: failed to query iTerm2: %w", err)
+		return nil, warnings, err
 	}
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		// No windows is valid.
-		return []SnapshotWindow{}, nil, nil
+	out := make([]SnapshotWindow, len(libWins))
+	for i, w := range libWins {
+		out[i] = toKoolWindow(w)
 	}
-	wins, warnings := parseHierarchy(raw)
-	// Ensure headers-only (strip any accidental tabs).
-	for i := range wins {
-		wins[i].Tabs = nil
-		if wins[i].App == "" && c.AppTag != "" {
-			wins[i].App = c.AppTag
-		}
-	}
-	return wins, warnings, nil
+	return out, warnings, nil
 }
 
 // ListTabsAndSessions returns tabs and sessions for one window (by 1-based index).
 func (c *SnapshotCollector) ListTabsAndSessions(windowIndex int) (tabs []SnapshotTab, warnings []string, err error) {
-	if c.OnListTabs != nil {
-		c.OnListTabs(windowIndex)
+	if c == nil {
+		c = defaultCollector()
 	}
-	if c.fixtureEnabled {
-		for _, w := range c.fixtureWindows {
-			if w.Index == windowIndex {
-				return cloneTabs(w.Tabs), nil, nil
-			}
-		}
-		return nil, nil, fmt.Errorf("Error: window %d not found", windowIndex)
-	}
-	runAS := c.RunAppleScript
-	if runAS == nil {
-		runAS = defaultRunAppleScript
-	}
-	script := listTabsAndSessionsAppleScript(windowIndex, c.AppTell)
-	raw, err := runAS(script)
+	libTabs, warnings, err := c.syncLib().ListTabsAndSessions(windowIndex)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error: failed to query iTerm2 window %d: %w", windowIndex, err)
+		return nil, warnings, err
 	}
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return []SnapshotTab{}, nil, nil
+	out := make([]SnapshotTab, len(libTabs))
+	for i, t := range libTabs {
+		out[i] = toKoolTab(t)
 	}
-	// parseHierarchy expects optional ###W###; tabs may appear alone.
-	// Prefix a synthetic window so session/tab parsing works.
-	wrapped := fmt.Sprintf("###W###%d###\n%s", windowIndex, raw)
-	wins, warnings := parseHierarchy(wrapped)
-	if len(wins) == 0 {
-		return []SnapshotTab{}, warnings, nil
-	}
-	return wins[0].Tabs, warnings, nil
+	return out, warnings, nil
 }
 
-func cloneWindows(in []SnapshotWindow) []SnapshotWindow {
-	out := make([]SnapshotWindow, len(in))
-	for i, w := range in {
-		out[i] = SnapshotWindow{Index: w.Index, Name: w.Name, WindowID: w.WindowID, FixedSpace: w.FixedSpace, App: w.App, Tabs: cloneTabs(w.Tabs)}
-	}
-	return out
+// CaptureSnapshot builds a full live snapshot of iTerm2 sessions (multi-app).
+func CaptureSnapshot() (*Snapshot, []string, error) {
+	return CaptureSnapshotStream(CaptureOpts{}, nil)
 }
 
-func cloneTabs(tabs []SnapshotTab) []SnapshotTab {
-	if tabs == nil {
+// CaptureSnapshotWith builds a snapshot with capture options (multi-app stream).
+func CaptureSnapshotWith(opts CaptureOpts) (*Snapshot, []string, error) {
+	return CaptureSnapshotStream(opts, nil)
+}
+
+// Capture runs phased hierarchy collection + process enrichment + agent attach.
+func (c *SnapshotCollector) Capture() (*Snapshot, []string, error) {
+	return c.capture(nil, CaptureOpts{})
+}
+
+// CaptureWith runs Capture with options (e.g. skip agent enrich, SpaceAllow).
+func (c *SnapshotCollector) CaptureWith(opts CaptureOpts) (*Snapshot, []string, error) {
+	return c.capture(nil, opts)
+}
+
+// capture is Capture with an optional per-window callback after enrich.
+func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error, opts CaptureOpts) (*Snapshot, []string, error) {
+	if c == nil {
+		c = defaultCollector()
+	}
+	if !c.fixtureEnabled {
+		// Multi-app live path shallow-copies SnapshotCollector with a shared lib
+		// pointer; give each source its own Collector so AppTell/AppTag cannot leak.
+		c.lib = snapshot.NewCollector()
+	} else if c.lib == nil {
+		c.lib = snapshot.NewCollector()
+	}
+	lib := c.syncLib()
+
+	libOpts := snapshot.CaptureOpts{
+		// Kool snapshot historically always attached cwd (save / critical index).
+		IncludeCwd:   true,
+		SpaceAllow:   opts.SpaceAllow,
+		SpaceSkipped: opts.SpaceSkipped,
+	}
+
+	var progressiveWindows []SnapshotWindow
+	libSnap, warnings, err := lib.CaptureProgressiveWith(libOpts, func(libWin snapshot.SnapshotWindow) error {
+		kWin := c.enrichWindowAgents(libWin, opts.NoEnrich)
+		progressiveWindows = append(progressiveWindows, kWin)
+		if onWindowReady != nil {
+			return onWindowReady(kWin)
+		}
 		return nil
+	})
+	if err != nil {
+		return nil, warnings, err
 	}
-	out := make([]SnapshotTab, len(tabs))
-	for i, t := range tabs {
-		out[i] = SnapshotTab{Index: t.Index, Name: t.Name}
-		if len(t.Sessions) > 0 {
-			out[i].Sessions = make([]SnapshotSession, len(t.Sessions))
-			copy(out[i].Sessions, t.Sessions)
+
+	var kool *Snapshot
+	if len(progressiveWindows) > 0 {
+		kool = &Snapshot{
+			CapturedAt: libSnap.CapturedAt,
+			Host:       libSnap.Host,
+			Source:     libSnap.Source,
+			Summary: SnapshotSummary{
+				Windows:  libSnap.Summary.Windows,
+				Tabs:     libSnap.Summary.Tabs,
+				Sessions: libSnap.Summary.Sessions,
+				Idle:     libSnap.Summary.Idle,
+				Busy:     libSnap.Summary.Busy,
+				Unknown:  libSnap.Summary.Unknown,
+			},
+			Windows: progressiveWindows,
+		}
+	} else {
+		kool = toKoolSnapshot(libSnap)
+		if !opts.NoEnrich && libSnap != nil {
+			res, w2, aerr := itermsnapshot.Capture(itermsnapshot.CaptureOpts{
+				Snapshot:       libSnap,
+				NoEnrich:       false,
+				ResolveFromPID: c.makeResolve(libSnap),
+			})
+			if aerr == nil && res != nil {
+				attachAgents(kool, res.Agents)
+			}
+			warnings = append(warnings, w2...)
 		}
 	}
-	return out
+	return kool, warnings, nil
 }
 
-// FindSessionInSnapshot returns sessions matching a user-supplied id token.
+// FindSessionsByRef returns sessions matching a user-supplied id token.
 func FindSessionsByRef(snap *Snapshot, ref string) []*SnapshotSession {
 	ref = strings.TrimSpace(ref)
 	if ref == "" || snap == nil {
@@ -556,7 +364,6 @@ func FindSessionsByRef(snap *Snapshot, ref string) []*SnapshotSession {
 		refTTY = "/dev/" + ref
 	}
 
-	// PID exact?
 	pidVal, pidErr := strconv.Atoi(ref)
 	pidOK := pidErr == nil
 
@@ -564,21 +371,17 @@ func FindSessionsByRef(snap *Snapshot, ref string) []*SnapshotSession {
 		for ti := range snap.Windows[wi].Tabs {
 			for si := range snap.Windows[wi].Tabs[ti].Sessions {
 				s := &snap.Windows[wi].Tabs[ti].Sessions[si]
-				// Full UUID or prefix (case-insensitive)
 				idLower := strings.ToLower(s.ID)
 				if idLower == refLower || (len(refLower) >= 8 && strings.HasPrefix(idLower, refLower)) {
 					out = append(out, s)
 					continue
 				}
-				// tty
 				if s.TTY == ref || s.TTY == refTTY || strings.TrimPrefix(s.TTY, "/dev/") == strings.TrimPrefix(ref, "/dev/") {
-					// avoid double-add if also matched id
 					if !containsSession(out, s) {
 						out = append(out, s)
 					}
 					continue
 				}
-				// pid
 				if pidOK {
 					if s.PID != nil && *s.PID == pidVal {
 						if !containsSession(out, s) {
@@ -605,305 +408,151 @@ func containsSession(list []*SnapshotSession, s *SnapshotSession) bool {
 	return false
 }
 
-// appleScriptAppLiteral returns the tell-application target string for AS.
-// Empty → "iTerm2". Path → quoted absolute path (escaped for AS double quotes).
-func appleScriptAppLiteral(appTell string) string {
-	appTell = strings.TrimSpace(appTell)
-	if appTell == "" || appTell == "iTerm2" {
-		return `"iTerm2"`
+func toLibWindows(in []SnapshotWindow) []snapshot.SnapshotWindow {
+	if in == nil {
+		return nil
 	}
-	// Expand ~ for AppleScript path tell.
-	if strings.HasPrefix(appTell, "~/") {
-		if home, err := os.UserHomeDir(); err == nil && home != "" {
-			appTell = home + appTell[1:]
-		}
+	out := make([]snapshot.SnapshotWindow, len(in))
+	for i, w := range in {
+		out[i] = toLibWindow(w)
 	}
-	esc := strings.ReplaceAll(appTell, `\`, `\\`)
-	esc = strings.ReplaceAll(esc, `"`, `\"`)
-	return `"` + esc + `"`
+	return out
 }
 
-func listWindowsAppleScript(appTell string) string {
-	return fmt.Sprintf(`
-tell application %s
-  set out to ""
-  set wi to 0
-  repeat with w in windows
-    set wi to wi + 1
-    try
-      set wname to name of w
-    on error
-      set wname to ""
-    end try
-    try
-      set wid to id of w
-    on error
-      set wid to 0
-    end try
-    set out to out & "###W###" & wi & "###" & wname & "###" & wid & linefeed
-  end repeat
-  return out
-end tell
-`, appleScriptAppLiteral(appTell))
+func toLibWindow(w SnapshotWindow) snapshot.SnapshotWindow {
+	out := snapshot.SnapshotWindow{
+		Index: w.Index, Name: w.Name, WindowID: w.WindowID,
+		FixedSpace: cloneIntPtr(w.FixedSpace), App: w.App,
+	}
+	if len(w.Tabs) == 0 {
+		return out
+	}
+	out.Tabs = make([]snapshot.SnapshotTab, len(w.Tabs))
+	for i, t := range w.Tabs {
+		out.Tabs[i] = toLibTab(t)
+	}
+	return out
 }
 
-func listTabsAndSessionsAppleScript(windowIndex int, appTell string) string {
-	// Use numeric indexes throughout. Nested `repeat with t in tabs of w` object
-	// references are unstable for path-targeted iTerm instances and can resolve
-	// as invalid indexes while windows or tabs are active.
-	return fmt.Sprintf(`
-tell application %s
-  set out to ""
-  set target to %d
-  set windowCount to count of windows
-  if target is less than or equal to windowCount then
-    set tabCount to count of tabs of window target
-    repeat with ti from 1 to tabCount
-      try
-        set tname to name of current session of tab ti of window target
-      on error
-        set tname to ""
-      end try
-      set out to out & "###T###" & ti & "###" & tname & linefeed
-      set sessionCount to count of sessions of tab ti of window target
-      repeat with si from 1 to sessionCount
-        try
-          set nm to name of session si of tab ti of window target
-        on error
-          set nm to "?"
-        end try
-        try
-          set ttyn to tty of session si of tab ti of window target
-        on error
-          set ttyn to ""
-        end try
-        try
-          set prof to profile name of session si of tab ti of window target
-        on error
-          set prof to ""
-        end try
-        try
-          set proc to is processing of session si of tab ti of window target
-        on error
-          set proc to false
-        end try
-        try
-          set uid to unique ID of session si of tab ti of window target
-        on error
-          set uid to ""
-        end try
-        set out to out & "###S###" & si & "###" & ttyn & "###" & proc & "###" & prof & "###" & uid & "###" & nm & linefeed
-      end repeat
-    end repeat
-  end if
-  return out
-end tell
-`, appleScriptAppLiteral(appTell), windowIndex)
+func toLibTab(t SnapshotTab) snapshot.SnapshotTab {
+	out := snapshot.SnapshotTab{Index: t.Index, Name: t.Name}
+	if len(t.Sessions) == 0 {
+		return out
+	}
+	out.Sessions = make([]snapshot.SnapshotSession, len(t.Sessions))
+	for i, s := range t.Sessions {
+		out.Sessions[i] = toLibSession(s)
+	}
+	return out
 }
 
-func parseHierarchy(raw string) ([]SnapshotWindow, []string) {
-	var warnings []string
-	var windows []SnapshotWindow
-	var curW *SnapshotWindow
-	var curT *SnapshotTab
-
-	for _, row := range strings.Split(raw, "\n") {
-		row = strings.TrimRight(row, "\r")
-		if row == "" {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(row, "###W###"):
-			rest := strings.TrimPrefix(row, "###W###")
-			// Formats: "idx###name" or "idx###name###windowID"
-			parts := strings.SplitN(rest, "###", 3)
-			idx, _ := strconv.Atoi(parts[0])
-			name := ""
-			if len(parts) > 1 {
-				name = parts[1]
-			}
-			var wid uint64
-			if len(parts) > 2 {
-				if v, err := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64); err == nil {
-					wid = v
-				}
-			}
-			windows = append(windows, SnapshotWindow{Index: idx, Name: name, WindowID: wid})
-			curW = &windows[len(windows)-1]
-			curT = nil
-		case strings.HasPrefix(row, "###T###"):
-			if curW == nil {
-				warnings = append(warnings, "warning: tab before window in hierarchy")
-				continue
-			}
-			rest := strings.TrimPrefix(row, "###T###")
-			idxStr, name, _ := strings.Cut(rest, "###")
-			idx, _ := strconv.Atoi(idxStr)
-			curW.Tabs = append(curW.Tabs, SnapshotTab{Index: idx, Name: name})
-			curT = &curW.Tabs[len(curW.Tabs)-1]
-		case strings.HasPrefix(row, "###S###"):
-			if curT == nil {
-				warnings = append(warnings, "warning: session before tab in hierarchy")
-				continue
-			}
-			rest := strings.TrimPrefix(row, "###S###")
-			parts := strings.SplitN(rest, "###", 6)
-			if len(parts) < 6 {
-				warnings = append(warnings, "warning: malformed session line")
-				continue
-			}
-			si, _ := strconv.Atoi(parts[0])
-			proc := parts[2] == "true"
-			curT.Sessions = append(curT.Sessions, SnapshotSession{
-				Index:             si,
-				TTY:               parts[1],
-				ItermIsProcessing: proc,
-				Profile:           parts[3],
-				ID:                parts[4],
-				Name:              parts[5],
-			})
-		}
+func toLibSession(s SnapshotSession) snapshot.SnapshotSession {
+	return snapshot.SnapshotSession{
+		Index: s.Index, ID: s.ID, Name: s.Name, TTY: s.TTY, Profile: s.Profile,
+		ItermIsProcessing: s.ItermIsProcessing, Idle: s.Idle, Cwd: s.Cwd,
+		ShellPID: s.ShellPID, PID: s.PID, PPID: s.PPID, Stat: s.Stat,
+		Command: s.Command, CommandLine: s.CommandLine, StartTime: s.StartTime,
+		StartTimeUnix: s.StartTimeUnix, DurationSeconds: s.DurationSeconds,
+		Duration: s.Duration, Etime: s.Etime, RSSKB: s.RSSKB,
+		Processes: toLibProcs(s.Processes), WindowIndex: s.WindowIndex, TabIndex: s.TabIndex,
 	}
-	return windows, warnings
 }
 
-func defaultITermRunning() bool {
-	// System Events name check
-	cmd := exec.Command("osascript", "-e", `tell application "System Events" to (name of processes) contains "iTerm2"`)
-	out, err := cmd.Output()
-	if err == nil && strings.Contains(strings.ToLower(string(out)), "true") {
-		return true
+func toLibProcs(in []SnapshotProc) []snapshot.SnapshotProc {
+	if in == nil {
+		return nil
 	}
-	// process path fallback
-	cmd = exec.Command("pgrep", "-f", "/Applications/iTerm.app/Contents/MacOS/iTerm2")
-	if err := cmd.Run(); err == nil {
-		return true
+	out := make([]snapshot.SnapshotProc, len(in))
+	for i, p := range in {
+		out[i] = snapshot.SnapshotProc{
+			PID: p.PID, PPID: p.PPID, Stat: p.Stat, Etime: p.Etime,
+			DurationSeconds: p.DurationSeconds, Duration: p.Duration,
+			StartTime: p.StartTime, StartTimeUnix: p.StartTimeUnix,
+			RSSKB: p.RSSKB, Command: p.Command,
+		}
 	}
-	return false
+	return out
 }
 
-func defaultRunAppleScript(script string) (string, error) {
-	cmd := exec.Command("osascript", "-e", script)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return "", fmt.Errorf("%s", msg)
+func toKoolSnapshot(s *snapshot.Snapshot) *Snapshot {
+	if s == nil {
+		return nil
 	}
-	return stdout.String(), nil
+	out := &Snapshot{
+		CapturedAt: s.CapturedAt, Host: s.Host, Source: s.Source,
+		Summary: SnapshotSummary{
+			Windows: s.Summary.Windows, Tabs: s.Summary.Tabs, Sessions: s.Summary.Sessions,
+			Idle: s.Summary.Idle, Busy: s.Summary.Busy, Unknown: s.Summary.Unknown,
+		},
+	}
+	if len(s.Windows) > 0 {
+		out.Windows = make([]SnapshotWindow, len(s.Windows))
+		for i, w := range s.Windows {
+			out.Windows[i] = toKoolWindow(w)
+		}
+	}
+	return out
 }
 
-var psLineRe = regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d+\s+\d+:\d+:\d+\s+\d+)\s+(.*)$`)
-
-type liveTTYProc struct {
-	rawProc
-	TTY string
+func toKoolWindow(w snapshot.SnapshotWindow) SnapshotWindow {
+	out := SnapshotWindow{
+		Index: w.Index, Name: w.Name, WindowID: w.WindowID,
+		FixedSpace: cloneIntPtr(w.FixedSpace), App: w.App,
+	}
+	if len(w.Tabs) == 0 {
+		return out
+	}
+	out.Tabs = make([]SnapshotTab, len(w.Tabs))
+	for i, t := range w.Tabs {
+		out.Tabs[i] = toKoolTab(t)
+	}
+	return out
 }
 
-func defaultListTTYProcs(ttyShorts []string) ([]liveTTYProc, error) {
-	if len(ttyShorts) == 0 {
-		return nil, nil
+func toKoolTab(t snapshot.SnapshotTab) SnapshotTab {
+	out := SnapshotTab{Index: t.Index, Name: t.Name}
+	if len(t.Sessions) == 0 {
+		return out
 	}
-	cmd := exec.Command("ps", "-t", strings.Join(ttyShorts, ","), "-o", "pid=,ppid=,tty=,stat=,command=")
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &bytes.Buffer{}
-	if err := cmd.Run(); err != nil {
-		return nil, err
+	out.Sessions = make([]SnapshotSession, len(t.Sessions))
+	for i, s := range t.Sessions {
+		out.Sessions[i] = toKoolSession(s)
 	}
-
-	var out []liveTTYProc
-	for _, line := range strings.Split(stdout.String(), "\n") {
-		fields := strings.Fields(strings.TrimSpace(line))
-		if len(fields) < 5 {
-			continue
-		}
-		pid, err := strconv.Atoi(fields[0])
-		if err != nil {
-			continue
-		}
-		ppid, err := strconv.Atoi(fields[1])
-		if err != nil {
-			continue
-		}
-		out = append(out, liveTTYProc{
-			rawProc: rawProc{
-				PID:     pid,
-				PPID:    ppid,
-				Stat:    fields[3],
-				Command: strings.Join(fields[4:], " "),
-			},
-			TTY: fields[2],
-		})
-	}
-	return out, nil
+	return out
 }
 
-func defaultListProcs(ttyShort string) ([]rawProc, error) {
-	cmd := exec.Command("ps", "-t", ttyShort, "-o", "pid=,ppid=,stat=,etime=,rss=,lstart=,command=")
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &bytes.Buffer{}
-	if err := cmd.Run(); err != nil {
-		// no processes is ok
-		if stdout.Len() == 0 {
-			return nil, nil
-		}
+func toKoolSession(s snapshot.SnapshotSession) SnapshotSession {
+	return SnapshotSession{
+		Index: s.Index, ID: s.ID, Name: s.Name, TTY: s.TTY, Profile: s.Profile,
+		ItermIsProcessing: s.ItermIsProcessing, Idle: s.Idle, Cwd: s.Cwd,
+		ShellPID: s.ShellPID, PID: s.PID, PPID: s.PPID, Stat: s.Stat,
+		Command: s.Command, CommandLine: s.CommandLine, StartTime: s.StartTime,
+		StartTimeUnix: s.StartTimeUnix, DurationSeconds: s.DurationSeconds,
+		Duration: s.Duration, Etime: s.Etime, RSSKB: s.RSSKB,
+		Processes: toKoolProcs(s.Processes), WindowIndex: s.WindowIndex, TabIndex: s.TabIndex,
 	}
-	var out []rawProc
-	for _, line := range strings.Split(stdout.String(), "\n") {
-		line = strings.TrimRight(line, "\r")
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		m := psLineRe.FindStringSubmatch(line)
-		if m == nil {
-			continue
-		}
-		pid, _ := strconv.Atoi(m[1])
-		ppid, _ := strconv.Atoi(m[2])
-		rss, _ := strconv.ParseInt(m[5], 10, 64)
-		out = append(out, rawProc{
-			PID:     pid,
-			PPID:    ppid,
-			Stat:    m[3],
-			Etime:   m[4],
-			RSSKB:   rss,
-			Lstart:  m[6],
-			Command: m[7],
-		})
-	}
-	return out, nil
 }
 
-func defaultListCwds(pids []int) (map[int]string, error) {
-	if len(pids) == 0 {
-		return map[int]string{}, nil
+func toKoolProcs(in []snapshot.SnapshotProc) []SnapshotProc {
+	if in == nil {
+		return nil
 	}
-	args := []string{"-a", "-d", "cwd", "-F", "pn"}
-	// lsof -p a,b,c
-	pidList := make([]string, len(pids))
-	for i, p := range pids {
-		pidList[i] = strconv.Itoa(p)
-	}
-	args = append(args, "-p", strings.Join(pidList, ","))
-	cmd := exec.Command("lsof", args...)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &bytes.Buffer{}
-	_ = cmd.Run() // partial results ok
-	result := map[int]string{}
-	var cur int
-	for _, line := range strings.Split(stdout.String(), "\n") {
-		if strings.HasPrefix(line, "p") {
-			cur, _ = strconv.Atoi(strings.TrimPrefix(line, "p"))
-		} else if strings.HasPrefix(line, "n") && cur != 0 {
-			result[cur] = strings.TrimPrefix(line, "n")
+	out := make([]SnapshotProc, len(in))
+	for i, p := range in {
+		out[i] = SnapshotProc{
+			PID: p.PID, PPID: p.PPID, Stat: p.Stat, Etime: p.Etime,
+			DurationSeconds: p.DurationSeconds, Duration: p.Duration,
+			StartTime: p.StartTime, StartTimeUnix: p.StartTimeUnix,
+			RSSKB: p.RSSKB, Command: p.Command,
 		}
 	}
-	return result, nil
+	return out
+}
+
+func cloneIntPtr(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }

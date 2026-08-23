@@ -15,6 +15,7 @@
 
 ```go
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -43,7 +44,10 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 	if !strings.Contains(out, "Would restore") {
 		t.Fatalf("missing Would restore:\n%s", out)
 	}
-	if !strings.Contains(out, "grok --resume "+fixtureGrokSessionID) {
+	// formatRestoreCommand paints argv0 green and args gray separately, so
+	// strip CSI before checking the contiguous resume command text.
+	plain := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(out, "")
+	if !strings.Contains(plain, "grok --resume "+fixtureGrokSessionID) {
 		t.Fatalf("missing grok resume:\n%s", out)
 	}
 	if resp.Doc == nil || resp.Doc.IsConsumed() {
