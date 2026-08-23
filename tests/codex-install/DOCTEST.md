@@ -337,10 +337,34 @@ func assertShellCalls(t *testing.T, got []string, want ...string) {
 		t.Fatalf("ShellCalls = %#v, want %#v", got, want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("ShellCalls[%d] = %q, want %q", i, got[i], want[i])
+		// Library Update/Install may path-qualify the binary when Bin is set
+		// (e.g. "/tmp/.../bin/codex update"); accept that as matching "codex update".
+		if shellCallMatches(got[i], want[i]) {
+			continue
+		}
+		t.Fatalf("ShellCalls[%d] = %q, want %q", i, got[i], want[i])
+	}
+}
+
+func shellCallMatches(got, want string) bool {
+	if got == want {
+		return true
+	}
+	gFields := strings.Fields(got)
+	wFields := strings.Fields(want)
+	if len(gFields) != len(wFields) || len(wFields) == 0 {
+		return false
+	}
+	// Compare argv0 basenames; remaining args exact.
+	if filepath.Base(gFields[0]) != filepath.Base(wFields[0]) {
+		return false
+	}
+	for i := 1; i < len(wFields); i++ {
+		if gFields[i] != wFields[i] {
+			return false
 		}
 	}
+	return true
 }
 
 // silence unused helpers in some leaves (constants still available for asserts)

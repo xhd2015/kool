@@ -149,6 +149,19 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 		tagFixtureAppFromName(&fxWindows[i])
 	}
 
+	// Dual-running home+system preflight so dual-collapse leaves warn when the
+	// secondary app adds no distinct window ids (parity with pre-adapter HEAD).
+	prevPreflight := currentMultiAppPreflightFn()
+	SetMultiAppPreflightForTest(func() (MultiAppPreflight, error) {
+		return MultiAppPreflight{
+			AsApp:       CanonicalITermAppSystem,
+			RunningApps: []string{CanonicalITermAppSystem, CanonicalITermAppHome},
+		}, nil
+	})
+	t.Cleanup(func() {
+		SetMultiAppPreflightForTest(prevPreflight)
+	})
+
 	lib := snapshot.NewCollector()
 	lib.ApplyPhasedFixture(snapshot.PhasedFixtureOpts{
 		Windows:       toLibWindows(fxWindows),
