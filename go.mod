@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/iancoleman/strcase v0.3.0
 	github.com/k3a/html2text v1.2.1
-	github.com/xhd2015/agent-pro v0.0.152-0.20260823013434-9720b30da314
+	github.com/xhd2015/agent-pro v0.0.152
 	github.com/xhd2015/dot-pkgs/go-pkgs v0.0.143
 	github.com/xhd2015/gitops v0.0.31
 	github.com/xhd2015/less-flags v1.0.2
