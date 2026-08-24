@@ -122,8 +122,8 @@ github.com/ugorji/go/codec v1.2.12 h1:9LC83zGrHhuUA9l16C9AHXAqEV/2wBQ4nkvumAE65E
 github.com/ugorji/go/codec v1.2.12/go.mod h1:UNopzCgEMSXjBc6AOMqYvWC1ktqTAfzJZUZgYf6w6lg=
 github.com/xhd2015/arc-orm v0.0.16 h1:OtkgXfIZdJdh4MBKlazE6oAeWIf6gcgbLOXfRQp363Q=
 github.com/xhd2015/arc-orm v0.0.16/go.mod h1:fbVysHjWNds3JnhNKsmTFyvjGQxVd8+4xbf2mgGSrbk=
-github.com/xhd2015/less-flags v1.0.0 h1:ay8YG0WSXn59CAwBYUcAsq7l+mUwDEMUqaW/Fy0ZoCM=
-github.com/xhd2015/less-flags v1.0.0/go.mod h1:HGGM7JrrfZm/RvmxBQT96jF916m9UQE8vELpejQaoIo=
+github.com/xhd2015/less-flags v1.0.5 h1:PZH0v8wZVdscDcSxLyRFEtybN/Xz341bWQ4JRCQqAQ0=
+github.com/xhd2015/less-flags v1.0.5/go.mod h1:HGGM7JrrfZm/RvmxBQT96jF916m9UQE8vELpejQaoIo=
 github.com/xhd2015/less-gen v0.0.19 h1:JllrPhx3HzN+f2AB6cTvW9aRCpvuODJFx7affpa0zQY=
 github.com/xhd2015/less-gen v0.0.19/go.mod h1:Ym5HW/yfVnf2mgSo48QsuHAKnMTPv/u7oqty+raTnTQ=
 github.com/xhd2015/xgo v1.1.7 h1:JWIACBBD8qlY4Fu42/v6BmkTyCRHgOuw2ctylrfAFkE=
