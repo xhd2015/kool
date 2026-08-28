@@ -34,6 +34,9 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 	if resp.StartLocalURL != "http://127.0.0.1:9" {
 		t.Fatalf("StartLocalURL=%q want http://127.0.0.1:9", resp.StartLocalURL)
 	}
+	if !resp.WaitReadyCalled {
+		t.Fatal("expected WaitReady to be called")
+	}
 	if !resp.WaitSignalCalled {
 		t.Fatal("expected WaitSignal to be called")
 	}

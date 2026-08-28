@@ -4,7 +4,7 @@
 
 ```
 # invalid argv → no tunnel start
-user -> kool cloudflare … (no subcommand | unknown | missing flags)
+user -> kool cloudflare … (no subcommand | unknown | missing flags | color conflict)
   -> stderr error, non-zero exit; StartSession not called
 ```
 

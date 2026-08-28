@@ -39,6 +39,8 @@ serve
 --domain
 --url
 --tunnel
+--ready-timeout
+--no-wait-ready
 </contains>
 `)
 }

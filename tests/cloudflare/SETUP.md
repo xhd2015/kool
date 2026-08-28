@@ -12,8 +12,8 @@ user -> kool cloudflare [bad/missing args]
   -> stderr error, non-zero; no StartSession
 
 # serve (injected)
-user -> kool cloudflare serve --domain HOST --url URL [--tunnel NAME]
-  -> StartSession(Domain, LocalURL, TunnelName) → print public URL → WaitSignal → Stop
+user -> kool cloudflare serve --domain HOST --url URL [--tunnel NAME] [wait/color flags]
+  -> StartSession → print public URL → WaitReady (unless --no-wait-ready) → WaitSignal → Stop
 ```
 
 ## Preconditions

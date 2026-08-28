@@ -38,6 +38,12 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 	if resp.StartTunnelName != "kool-lb-a" {
 		t.Fatalf("StartTunnelName=%q want kool-lb-a", resp.StartTunnelName)
 	}
+	if !resp.WaitReadyCalled {
+		t.Fatal("expected WaitReady to be called")
+	}
+	if resp.WaitReadyURL != "https://a.example.com/" {
+		t.Fatalf("WaitReadyURL=%q want https://a.example.com/", resp.WaitReadyURL)
+	}
 	if !resp.WaitSignalCalled {
 		t.Fatal("expected WaitSignal to be called")
 	}
@@ -48,6 +54,9 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 	assert.Output(t, resp.Stdout, `<contains>
 https://a.example.com
 kool-lb-a
+Checking public readiness
+Public ready
+Press Ctrl+C to stop
 </contains>
 `)
 }

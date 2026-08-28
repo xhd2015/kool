@@ -6,7 +6,13 @@
 # happy
 user -> serve --domain HOST --url URL [--tunnel NAME]
   -> StartSession(Domain, LocalURL, TunnelName)
-  -> print public URL → WaitSignal → Session.Stop → exit 0
+  -> print public URL → WaitReady → WaitSignal → Session.Stop → exit 0
+
+# wait timeout
+WaitReady ErrReadyTimeout → warning on stderr; still WaitSignal → Stop → exit 0
+
+# no-wait-ready
+--no-wait-ready → skip WaitReady
 
 # start failure
 StartSession error → non-zero; stderr surfaces error

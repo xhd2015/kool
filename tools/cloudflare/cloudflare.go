@@ -1,24 +1,30 @@
 package cloudflare
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	dotcf "github.com/xhd2015/dot-pkgs/go-pkgs/cloudflare"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/terminal/color"
+	"github.com/xhd2015/kool/pkgs/duration"
 	"github.com/xhd2015/kool/pkgs/flag"
 )
 
 const rootHelp = `kool cloudflare - expose a local HTTP origin on a public Cloudflare hostname
 
 Usage:
-  kool cloudflare serve --domain HOST --url URL [--tunnel NAME]
+  kool cloudflare serve --domain HOST --url URL [--tunnel NAME] [options]
   kool cloudflare -h|--help
   kool cloudflare serve -h|--help
 
@@ -29,6 +35,11 @@ Serve options:
   --domain HOST                    public hostname (required)
   --url URL                        local origin URL, e.g. http://127.0.0.1:8080 (required)
   --tunnel NAME                    tunnel name (default: kool-lb-<leftmost-domain-label>)
+  --ready-timeout DUR              max wait for public readiness (default 90s)
+  --no-wait-ready                  skip blocking public readiness wait
+  --ready-path PATH                public path to probe (default /)
+  --color                          force ANSI color on (even when stdout is not a TTY)
+  --no-color                       force ANSI color off
   -h,--help                        show help message
 
 Examples:
@@ -39,12 +50,17 @@ Examples:
 const serveHelp = `kool cloudflare serve - start a Cloudflare tunnel for a local origin
 
 Usage:
-  kool cloudflare serve --domain HOST --url URL [--tunnel NAME]
+  kool cloudflare serve --domain HOST --url URL [--tunnel NAME] [options]
 
 Options:
   --domain HOST                    public hostname (required)
   --url URL                        local origin URL, e.g. http://127.0.0.1:8080 (required)
   --tunnel NAME                    tunnel name (default: kool-lb-<leftmost-domain-label>)
+  --ready-timeout DUR              max wait for public readiness (default 90s)
+  --no-wait-ready                  skip blocking public readiness wait
+  --ready-path PATH                public path to probe (default /)
+  --color                          force ANSI color on (even when stdout is not a TTY)
+  --no-color                       force ANSI color off
   -h,--help                        show help message
 
 Examples:
@@ -63,9 +79,15 @@ type HandleOpts struct {
 	StartSession func(SessionStartOptions) (Session, error)
 	// WaitSignal nil → block until SIGINT/SIGTERM.
 	WaitSignal func() error
+	// WaitReady nil → WaitPublicReady against the public probe URL.
+	WaitReady func(WaitReadyOptions) (time.Duration, error)
+	// HTTPClient nil → &http.Client{Timeout: 10s} for readiness probes.
+	HTTPClient HTTPDoer
 	// Stdout/Stderr nil → os.Stdout / os.Stderr (help + user messages).
 	Stdout io.Writer
 	Stderr io.Writer
+	// NoColorEnv nil → os.Getenv("NO_COLOR"); set in tests to control auto mode.
+	NoColorEnv *string
 }
 
 // SessionStartOptions is the subset of session config used by the CLI.
@@ -91,7 +113,6 @@ func HandleWith(args []string, opts HandleOpts) error {
 	if stderr == nil {
 		stderr = os.Stderr
 	}
-	_ = stderr // reserved for future direct writes; errors return to main
 
 	if len(args) == 0 {
 		return fmt.Errorf("requires subcommand, try 'kool cloudflare --help'")
@@ -111,15 +132,16 @@ func HandleWith(args []string, opts HandleOpts) error {
 
 	switch cmd {
 	case "serve":
-		return handleServe(rest, opts, stdout)
+		return handleServe(rest, opts, stdout, stderr)
 	default:
 		return fmt.Errorf("unrecognized command: %s", cmd)
 	}
 }
 
-func handleServe(args []string, opts HandleOpts, stdout io.Writer) error {
-	var domain, localURL, tunnel string
-	var domainSet, urlSet, tunnelSet bool
+func handleServe(args []string, opts HandleOpts, stdout, stderr io.Writer) error {
+	var domain, localURL, tunnel, readyTimeoutStr, readyPath string
+	var domainSet, urlSet, tunnelSet, readyTimeoutSet, readyPathSet bool
+	var noWaitReady, colorFlag, noColorFlag bool
 
 	n := len(args)
 	for i := 0; i < n; i++ {
@@ -155,6 +177,26 @@ func handleServe(args []string, opts HandleOpts, stdout io.Writer) error {
 			}
 			tunnel = v
 			tunnelSet = true
+		case "--ready-timeout":
+			v, ok := value()
+			if !ok {
+				return fmt.Errorf("--ready-timeout requires a value")
+			}
+			readyTimeoutStr = v
+			readyTimeoutSet = true
+		case "--ready-path":
+			v, ok := value()
+			if !ok {
+				return fmt.Errorf("--ready-path requires a value")
+			}
+			readyPath = v
+			readyPathSet = true
+		case "--no-wait-ready":
+			noWaitReady = true
+		case "--color":
+			colorFlag = true
+		case "--no-color":
+			noColorFlag = true
 		default:
 			return fmt.Errorf("unrecognized: %s", f)
 		}
@@ -165,6 +207,30 @@ func handleServe(args []string, opts HandleOpts, stdout io.Writer) error {
 	}
 	if !urlSet || strings.TrimSpace(localURL) == "" {
 		return fmt.Errorf("requires --url")
+	}
+
+	colorMode, err := color.ModeFromFlags(colorFlag, noColorFlag)
+	if err != nil {
+		return err
+	}
+	noColorEnv := ""
+	if opts.NoColorEnv != nil {
+		noColorEnv = *opts.NoColorEnv
+	} else {
+		noColorEnv = os.Getenv("NO_COLOR")
+	}
+	style := color.Style{Enabled: color.Resolve(colorMode, color.WriterIsTTY(stdout), noColorEnv)}
+
+	readyTimeout := DefaultReadyTimeout
+	if readyTimeoutSet {
+		d, err := duration.Parse(readyTimeoutStr)
+		if err != nil {
+			return fmt.Errorf("--ready-timeout: %w", err)
+		}
+		readyTimeout = d
+	}
+	if !readyPathSet || strings.TrimSpace(readyPath) == "" {
+		readyPath = DefaultReadyPath
 	}
 
 	tunnelName := tunnel
@@ -207,15 +273,42 @@ func handleServe(args []string, opts HandleOpts, stdout io.Writer) error {
 		publicURL = sess.PublicBaseURL()
 	}
 	if publicURL == "" {
-		publicURL = "https://" + strings.TrimPrefix(strings.TrimPrefix(domain, "https://"), "http://")
+		publicURL = "https://" + normalizeDomain(domain)
 	}
 
 	fmt.Fprintf(stdout, "Public URL: %s\n", publicURL)
 	fmt.Fprintf(stdout, "Tunnel: %s\n", tunnelName)
+
+	if !noWaitReady {
+		probeURL := PublicProbeURL(domain, readyPath)
+		fmt.Fprintf(stdout, "Checking public readiness (timeout %s)…\n", formatShortDuration(readyTimeout))
+
+		client := opts.HTTPClient
+		if client == nil {
+			client = &http.Client{Timeout: 10 * time.Second}
+		}
+		waitOpts := WaitReadyOptions{
+			Client:       client,
+			URL:          probeURL,
+			Timeout:      readyTimeout,
+			PollInterval: DefaultReadyPollInterval,
+			Log:          stdout,
+			Interactive:  color.WriterIsTTY(stdout),
+			Style:        style,
+		}
+		waitReady := opts.WaitReady
+		if waitReady == nil {
+			waitReady = func(o WaitReadyOptions) (time.Duration, error) {
+				return WaitPublicReady(context.Background(), o)
+			}
+		}
+		_, waitErr := waitReady(waitOpts)
+		handleWaitReadyResult(waitErr, style, probeURL, readyTimeout, stderr)
+	}
+
 	fmt.Fprintln(stdout, "Press Ctrl+C to stop")
 
 	if err := wait(); err != nil {
-		// still stop on wait error
 		if sess != nil {
 			_ = sess.Stop()
 		}
@@ -225,6 +318,18 @@ func handleServe(args []string, opts HandleOpts, stdout io.Writer) error {
 		return sess.Stop()
 	}
 	return nil
+}
+
+func handleWaitReadyResult(waitErr error, style color.Style, probeURL string, readyTimeout time.Duration, stderr io.Writer) {
+	if waitErr == nil {
+		return
+	}
+	if errors.Is(waitErr, ErrReadyTimeout) {
+		fmt.Fprint(stderr, FormatReadyTimeoutWarning(style, probeURL, readyTimeout))
+		return
+	}
+	// Unexpected wait errors: warn and keep serving (same spirit as timeout).
+	fmt.Fprintln(stderr, style.Yellow("warning: wait ready: "+waitErr.Error()))
 }
 
 func defaultWaitSignal() error {

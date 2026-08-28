@@ -38,6 +38,11 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 --domain
 --url
 --tunnel
+--ready-timeout
+--no-wait-ready
+--ready-path
+--color
+--no-color
 </contains>
 `)
 }
