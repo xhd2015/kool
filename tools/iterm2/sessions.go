@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	lib "github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2"
+	"github.com/xhd2015/dot-pkgs/go-pkgs/shell/iterm2/tabselect"
 	"github.com/xhd2015/kool/pkgs/errs"
 	lessflags "github.com/xhd2015/less-flags"
 )
@@ -157,9 +158,10 @@ const sessionHelp = `iterm2 session — inspect or drive a single iTerm2 session
 Usage:
   kool iterm2 session <session-id> status [options]
   kool iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
+  kool iterm2 session send (--session-id ID | --tab SEL | --tab-index N) [options] <text>
   kool iterm2 session -h|--help
 
-Session id:
+Session id (positional form):
   Primary: iTerm2 session unique ID (UUID from snapshot "id" field).
   Also accepted when unique among live sessions:
     UUID prefix (≥8 chars), tty (ttys003 or /dev/ttys003), or pid.
@@ -178,11 +180,18 @@ Status options:
   --no-tree                keep agent session id but omit process tree lines
   -h, --help               show this help
 
-Send options:
+Send options (both forms):
   --focus                  switch to the session's window/tab before writing
   --no-submit              write without newline (stage; user presses Enter)
   --no-ctrl-u              do not prefix Ctrl-U (default prefixes Ctrl-U)
   -h, --help               show this help
+
+Flag-form send sources (exactly one; kool iterm2 session send …):
+  --session-id ID          same resolve rules as positional <session-id>
+  --tab SEL                1-based tab index, or next|left|right (right ≡ next)
+  --tab-index N            0-based tab index in this iTerm window
+  Tab selectors use the same window/tab discovery as: kool iterm2 window status.
+  --tab / --tab-index / --session-id are not valid on the positional form.
 
 Examples:
   kool iterm2 session D922B298-25FB-41FA-BAF8-7AC7A1D56758 status
@@ -191,6 +200,10 @@ Examples:
   kool iterm2 session D922B298 send "echo hi"
   kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
   kool iterm2 session D922B298 send --focus "ls"
+  kool iterm2 session send --tab next "echo hi"
+  kool iterm2 session send --tab 2 --focus "ls"
+  kool iterm2 session send --tab-index 0 "echo hi"
+  kool iterm2 session send --session-id D922B298 "echo hi"
 `
 
 func runSessions(args []string, stdout, stderr io.Writer) error {
@@ -327,6 +340,11 @@ func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 		return nil
 	}
 
+	// Flag form: kool iterm2 session send (--session-id|… ) <text>
+	if args[0] == "send" {
+		return runSessionSendFlags(args[1:], stdout, stderr, env)
+	}
+
 	sessionRef := args[0]
 	rest := args[1:]
 	if len(rest) == 0 {
@@ -339,7 +357,7 @@ func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 	case "status":
 		return runSessionStatus(sessionRef, cmdArgs, stdout, stderr)
 	case "send":
-		return runSessionSend(sessionRef, cmdArgs, stdout, stderr, env)
+		return runSessionSendPositional(sessionRef, cmdArgs, stdout, stderr, env)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
 		return nil
@@ -424,11 +442,65 @@ func runSessionStatus(sessionRef string, args []string, stdout, stderr io.Writer
 	return nil
 }
 
-func runSessionSend(sessionRef string, args []string, stdout, stderr io.Writer, env TestRun) error {
+// runSessionSendPositional handles: session <session-id> send [flags] <text>
+func runSessionSendPositional(sessionRef string, args []string, stdout, stderr io.Writer, env TestRun) error {
 	var focus, noSubmit, noCtrlU bool
+	var sessionIDFlag, tabFlag string
+	var tabIndex *int
 	remain, err := lessflags.Bool("--focus", &focus).
 		Bool("--no-submit", &noSubmit).
 		Bool("--no-ctrl-u", &noCtrlU).
+		String("--session-id", &sessionIDFlag).
+		String("--tab", &tabFlag).
+		Int("--tab-index", &tabIndex).
+		HelpFunc("-h,--help", func() {}).
+		HelpNoExit().
+		Parse(args)
+	if err != nil {
+		if err == lessflags.ErrHelp {
+			fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
+			return nil
+		}
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+	if sessionIDFlag != "" || tabFlag != "" || tabIndex != nil {
+		WriteError(stderr, "session send: --session-id / --tab / --tab-index belong on: kool iterm2 session send …")
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) == 0 {
+		WriteError(stderr, "session send: missing text")
+		return errs.NewSilenceExitCode(1)
+	}
+	if len(remain) > 1 {
+		WriteError(stderr, fmt.Sprintf("session send: unexpected arguments: %s", strings.Join(remain[1:], " ")))
+		return errs.NewSilenceExitCode(1)
+	}
+	text := remain[0]
+
+	targetID, err := resolveSendSessionID(sessionRef, env)
+	if err != nil {
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+	return finishSessionSend(sessionRef, targetID, text, lib.SendTextOptions{
+		Focus:    focus,
+		NoSubmit: noSubmit,
+		NoCtrlU:  noCtrlU,
+	}, stdout, stderr, env)
+}
+
+// runSessionSendFlags handles: session send (--session-id|…|--) [flags] <text>
+func runSessionSendFlags(args []string, stdout, stderr io.Writer, env TestRun) error {
+	var focus, noSubmit, noCtrlU bool
+	var sessionIDFlag, tabFlag string
+	var tabIndex *int
+	remain, err := lessflags.Bool("--focus", &focus).
+		Bool("--no-submit", &noSubmit).
+		Bool("--no-ctrl-u", &noCtrlU).
+		String("--session-id", &sessionIDFlag).
+		String("--tab", &tabFlag).
+		Int("--tab-index", &tabIndex).
 		HelpFunc("-h,--help", func() {}).
 		HelpNoExit().
 		Parse(args)
@@ -450,9 +522,29 @@ func runSessionSend(sessionRef string, args []string, stdout, stderr io.Writer, 
 	}
 	text := remain[0]
 
-	targetID, err := resolveSendSessionID(sessionRef, env)
-	if err != nil {
-		WriteError(stderr, err.Error())
+	hasSID := strings.TrimSpace(sessionIDFlag) != ""
+	hasTab := strings.TrimSpace(tabFlag) != ""
+	hasTabIndex := tabIndex != nil
+	nSources := 0
+	if hasSID {
+		nSources++
+	}
+	if hasTab {
+		nSources++
+	}
+	if hasTabIndex {
+		nSources++
+	}
+	if nSources == 0 {
+		WriteError(stderr, "session send: expected --session-id, or --tab / --tab-index")
+		return errs.NewSilenceExitCode(1)
+	}
+	if nSources > 1 {
+		if hasSID && (hasTab || hasTabIndex) {
+			WriteError(stderr, "--session-id cannot be combined with --tab/--tab-index")
+			return errs.NewSilenceExitCode(1)
+		}
+		WriteError(stderr, "--tab and --tab-index cannot be specified together")
 		return errs.NewSilenceExitCode(1)
 	}
 
@@ -461,6 +553,41 @@ func runSessionSend(sessionRef string, args []string, stdout, stderr io.Writer, 
 		NoSubmit: noSubmit,
 		NoCtrlU:  noCtrlU,
 	}
+
+	if hasSID {
+		ref := strings.TrimSpace(sessionIDFlag)
+		targetID, err := resolveSendSessionID(ref, env)
+		if err != nil {
+			WriteError(stderr, err.Error())
+			return errs.NewSilenceExitCode(1)
+		}
+		return finishSessionSend(ref, targetID, text, opts, stdout, stderr, env)
+	}
+
+	var sel tabselect.TabSelector
+	if hasTab {
+		sel, err = tabselect.ParseTabFlag(tabFlag)
+	} else {
+		sel, err = tabselect.ParseTabIndexFlag(*tabIndex)
+	}
+	if err != nil {
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+
+	targetID, display, err := resolveSendTabSessionID(sel, env)
+	if err != nil {
+		if errors.Is(err, lib.ErrNotInSession) {
+			WriteError(stderr, "iterm2: not inside an iTerm2 session (no ITERM_SESSION_ID and no matching TTY)")
+			return errs.NewSilenceExitCode(1)
+		}
+		WriteError(stderr, err.Error())
+		return errs.NewSilenceExitCode(1)
+	}
+	return finishSessionSend(display, targetID, text, opts, stdout, stderr, env)
+}
+
+func finishSessionSend(displayRef, targetID, text string, opts lib.SendTextOptions, stdout, stderr io.Writer, env TestRun) error {
 	sendFn := env.SendText
 	if sendFn == nil {
 		sendFn = lib.SendText
@@ -468,19 +595,44 @@ func runSessionSend(sessionRef string, args []string, stdout, stderr io.Writer, 
 	if err := sendFn(targetID, text, opts, nil); err != nil {
 		msg := err.Error()
 		if errors.Is(err, lib.ErrSessionNotFound) || strings.Contains(strings.ToLower(msg), "session not found") {
-			WriteError(stderr, fmt.Sprintf("session not found: %s", sessionRef))
+			ref := strings.TrimSpace(displayRef)
+			if ref == "" {
+				ref = targetID
+			}
+			WriteError(stderr, fmt.Sprintf("session not found: %s", ref))
 			return errs.NewSilenceExitCode(1)
 		}
 		WriteError(stderr, strings.TrimPrefix(msg, "Error: "))
 		return errs.NewSilenceExitCode(1)
 	}
 
-	display := strings.TrimSpace(sessionRef)
+	display := strings.TrimSpace(displayRef)
 	if display == "" {
 		display = shortID(targetID)
 	}
 	fmt.Fprintf(stdout, "sent to session %s\n", display)
 	return nil
+}
+
+// resolveSendTabSessionID maps a tab selector in the current window to an iTerm session UUID.
+func resolveSendTabSessionID(sel tabselect.TabSelector, env TestRun) (targetID, display string, err error) {
+	st, err := lib.CurrentWindowStatusWith(env.currentStatusConfig())
+	if err != nil {
+		return "", "", err
+	}
+	row, _, err := tabselect.SelectWindowTab(st, sel)
+	if err != nil {
+		return "", "", err
+	}
+	id := strings.TrimSpace(row.SessionID)
+	if id == "" {
+		return "", "", fmt.Errorf("no session id on tab %d", row.Index)
+	}
+	uuid := lib.SessionUUID(id)
+	if uuid == "" {
+		uuid = id
+	}
+	return uuid, uuid, nil
 }
 
 // resolveSendSessionID maps a user session ref to a full unique ID for SendText.

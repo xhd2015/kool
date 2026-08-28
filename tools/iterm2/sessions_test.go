@@ -243,3 +243,161 @@ func TestSessionSendNotFound(t *testing.T) {
 		t.Fatal(stderr.String())
 	}
 }
+
+func sendTabStatusEnv(currentSessionID string) TestRun {
+	refs := sendListFixture()
+	return TestRun{
+		CurrentStatus: &lib.CurrentStatusConfig{
+			SessionID:      func() string { return currentSessionID },
+			ListSessions:   func() ([]lib.SessionRef, error) { return refs, nil },
+			ControllingTTY: func() string { return "" },
+			AncestorTTYs:   func() []string { return nil },
+		},
+	}
+}
+
+func TestSessionSendFlags_TabNext(t *testing.T) {
+	var gotID, gotText string
+	env := sendTabStatusEnv("11111111-2222-3333-4444-555555555555")
+	env.SendText = func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+		gotID, gotText = sessionID, text
+		if opts.Focus || opts.NoSubmit || opts.NoCtrlU {
+			t.Fatalf("opts=%+v", opts)
+		}
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--tab", "next", "from-next"}, &stdout, &stderr, env)
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	want := "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	if gotID != want || gotText != "from-next" {
+		t.Fatalf("id=%q text=%q", gotID, gotText)
+	}
+	if stdout.String() != "sent to session "+want+"\n" {
+		t.Fatalf("stdout=%q", stdout.String())
+	}
+}
+
+func TestSessionSendFlags_TabIndex(t *testing.T) {
+	var gotID string
+	env := sendTabStatusEnv("11111111-2222-3333-4444-555555555555")
+	env.SendText = func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+		gotID = sessionID
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--tab-index", "0", "hi"}, &stdout, &stderr, env)
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	if gotID != "11111111-2222-3333-4444-555555555555" {
+		t.Fatalf("id=%q", gotID)
+	}
+}
+
+func TestSessionSendFlags_SessionID(t *testing.T) {
+	var gotID string
+	var listed bool
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--session-id", "aaaaaaaa", "--no-submit", "hi"}, &stdout, &stderr, TestRun{
+		ListSessions: func() ([]lib.SessionRef, error) {
+			listed = true
+			return sendListFixture(), nil
+		},
+		SendText: func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+			gotID = sessionID
+			if !opts.NoSubmit {
+				t.Fatalf("opts=%+v", opts)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	if !listed {
+		t.Fatal("prefix resolve should list")
+	}
+	if gotID != "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" {
+		t.Fatalf("id=%q", gotID)
+	}
+	if stdout.String() != "sent to session aaaaaaaa\n" {
+		t.Fatalf("stdout=%q", stdout.String())
+	}
+}
+
+func TestSessionSendFlags_MissingSource(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "hi"}, &stdout, &stderr, TestRun{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "expected --session-id, or --tab / --tab-index") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendFlags_ConflictTabAndSessionID(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--tab", "next", "--session-id", "abc", "hi"}, &stdout, &stderr, TestRun{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "--session-id cannot be combined") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendFlags_ConflictTabAndTabIndex(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--tab", "next", "--tab-index", "0", "hi"}, &stdout, &stderr, TestRun{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "--tab and --tab-index cannot be specified together") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendFlags_TabNextAtLast(t *testing.T) {
+	env := sendTabStatusEnv("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	env.SendText = func(sessionID, text string, opts lib.SendTextOptions, cfg *lib.SendTextConfig) error {
+		t.Fatal("SendText should not run")
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "--tab", "next", "hi"}, &stdout, &stderr, env)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "no tab to the right") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendPositional_RejectsTabFlag(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"11111111", "send", "--tab", "next", "hi"}, &stdout, &stderr, TestRun{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(stderr.String(), "belong on") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestSessionSendFlags_Help(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := runSession([]string{"send", "-h"}, &stdout, &stderr, TestRun{})
+	if err != nil {
+		t.Fatalf("%v %s", err, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"--tab", "--tab-index", "--session-id", "session send"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("help missing %q:\n%s", want, out)
+		}
+	}
+}

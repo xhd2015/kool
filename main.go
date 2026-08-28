@@ -96,6 +96,7 @@ VSCode:
   iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
   iterm2 session <id> status         live status for one session (id = iTerm unique ID)
   iterm2 session <id> send <text>    type text into a session (--focus/--no-submit/--no-ctrl-u)
+  iterm2 session send (--session-id|--tab|--tab-index) <text>  send via flag target
   codex install [--dry-run] [--check-update]  ensure OpenAI Codex CLI is installed/updated
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 

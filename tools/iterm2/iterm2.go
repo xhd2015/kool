@@ -23,6 +23,7 @@ iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
 iterm2 session <session-id> status [options]
 iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
+iterm2 session send (--session-id ID | --tab SEL | --tab-index N) [options] <text>
 iterm2 contents <session-id> [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
@@ -72,6 +73,8 @@ Sessions snapshot / save / restore / auto-backup / status:
                                    periodically checkpoint critical tabs (default 10m)
   session <id> status [options]    live status for one session (id = iTerm unique ID)
   session <id> send [flags] <text> type text into a session (default: no focus, Ctrl-U on)
+  session send (--session-id|--tab|--tab-index) <text>
+                                   type text via flag target (tab next|left|right / id)
   contents <session-id>            print visible pane text (no focus; home then system app)
 
 Options:
@@ -103,6 +106,8 @@ Examples:
   kool iterm2 session D922B298 status
   kool iterm2 session D922B298 send "echo hi"
   kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
+  kool iterm2 session send --tab next "echo hi"
+  kool iterm2 session send --session-id D922B298 "echo hi"
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2 --json
 `
