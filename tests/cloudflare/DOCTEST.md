@@ -39,8 +39,8 @@ responds with any HTTP status other than Cloudflare connector-down (530 + body
   prints usage mentioning `serve`, `--domain`, `--url`, `--tunnel`, wait/color
   flags; exit 0; stdout ends with `\n`.
 - **Serve help** — `kool cloudflare serve -h|--help` documents serve flags
-  including `--ready-timeout`, `--no-wait-ready`, `--ready-path`, `--color`,
-  `--no-color`; exit 0; stdout ends with `\n`.
+  including `--ready-timeout`, `--no-wait-ready`, `--ready-path`, `--no-teardown`,
+  `--color`, `--no-color`; exit 0; stdout ends with `\n`.
 - **No subcommand** — bare `kool cloudflare` → non-zero; stderr suggests
   subcommands / help.
 - **Unknown subcommand** — e.g. `nosuch` → non-zero; stderr indicates unknown /
@@ -50,8 +50,9 @@ responds with any HTTP status other than Cloudflare connector-down (530 + body
 - **Color conflict** — `--color` and `--no-color` together → non-zero;
   `--color and --no-color cannot be specified together`.
 - **Serve happy path** — with inject: call StartSession with Domain, LocalURL,
-  and TunnelName (derived or explicit); print public URL; WaitReady (unless
-  `--no-wait-ready`); WaitSignal; Session.Stop; exit 0.
+  TunnelName (derived or explicit), and Teardown=true by default; print public
+  URL; WaitReady (unless `--no-wait-ready`); WaitSignal; Session.Stop; exit 0.
+- **`--no-teardown`** — StartSession receives Teardown=false (sticky DNS/tunnel).
 - **Default tunnel name** — when `--tunnel` omitted/empty: normalize domain
   (trim, strip `http(s)://`, trailing `/`, lower), take leftmost label, slugify
   to `[a-z0-9-]`, prefix **`kool-lb-`**. Example:
@@ -95,6 +96,7 @@ type SessionStartOptions struct {
     Domain     string
     LocalURL   string
     TunnelName string
+    Teardown   bool
 }
 
 type Session interface {
@@ -133,7 +135,9 @@ cloudflare/
     ├── happy-explicit-tunnel/         --tunnel my-tun
     ├── start-error/                   StartSession error → non-zero
     ├── wait-timeout/                  WaitReady timeout → warning; keep serving
-    └── no-wait-ready/                 --no-wait-ready skips WaitReady
+    ├── no-wait-ready/                 --no-wait-ready skips WaitReady
+    ├── teardown-default/              StartSession Teardown=true by default
+    └── no-teardown/                   --no-teardown → Teardown=false
 ```
 
 ## Test Index
@@ -152,6 +156,8 @@ cloudflare/
 | `serve/start-error/` | Inject StartSession error → non-zero; stderr surfaces error |
 | `serve/wait-timeout/` | WaitReady timeout → `warning:` on stderr; WaitSignal; exit 0 |
 | `serve/no-wait-ready/` | `--no-wait-ready` → WaitReady not called; Ctrl+C printed |
+| `serve/teardown-default/` | Default StartSession Teardown=true |
+| `serve/no-teardown/` | `--no-teardown` → StartSession Teardown=false |
 
 ## How to Run
 
@@ -202,6 +208,7 @@ type Request struct {
 	ReadyPath       string
 	ReadyPathSet    bool
 	NoWaitReady     bool
+	NoTeardown      bool
 	Color           bool
 	NoColor         bool
 
@@ -232,6 +239,7 @@ type Response struct {
 	StartDomain      string
 	StartLocalURL    string
 	StartTunnelName  string
+	StartTeardown    bool
 	StopCalled       bool
 	WaitSignalCalled bool
 	WaitReadyCalled  bool
@@ -289,6 +297,9 @@ func buildArgs(req *Request) []string {
 		if req.NoWaitReady {
 			args = append(args, "--no-wait-ready")
 		}
+		if req.NoTeardown {
+			args = append(args, "--no-teardown")
+		}
 		if req.Color {
 			args = append(args, "--color")
 		}
@@ -330,6 +341,7 @@ func Run(t *testing.T, d *session.Doctest, req *Request) (*Response, error) {
 			resp.StartDomain = o.Domain
 			resp.StartLocalURL = o.LocalURL
 			resp.StartTunnelName = o.TunnelName
+			resp.StartTeardown = o.Teardown
 			if !req.AllowStart {
 				return nil, errors.New("unexpected StartSession in this scenario")
 			}

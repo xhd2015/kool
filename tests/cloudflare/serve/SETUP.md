@@ -5,7 +5,7 @@
 ```
 # happy
 user -> serve --domain HOST --url URL [--tunnel NAME]
-  -> StartSession(Domain, LocalURL, TunnelName)
+  -> StartSession(Domain, LocalURL, TunnelName, Teardown=true)
   -> print public URL → WaitReady → WaitSignal → Session.Stop → exit 0
 
 # wait timeout
@@ -13,6 +13,9 @@ WaitReady ErrReadyTimeout → warning on stderr; still WaitSignal → Stop → e
 
 # no-wait-ready
 --no-wait-ready → skip WaitReady
+
+# no-teardown
+--no-teardown → StartSession Teardown=false
 
 # start failure
 StartSession error → non-zero; stderr surfaces error

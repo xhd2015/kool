@@ -41,6 +41,7 @@ func Assert(t *testing.T, d *session.Doctest, req *Request, resp *Response, err 
 --ready-timeout
 --no-wait-ready
 --ready-path
+--no-teardown
 --color
 --no-color
 </contains>

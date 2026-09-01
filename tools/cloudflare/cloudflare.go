@@ -38,6 +38,7 @@ Serve options:
   --ready-timeout DUR              max wait for public readiness (default 90s)
   --no-wait-ready                  skip blocking public readiness wait
   --ready-path PATH                public path to probe (default /)
+  --no-teardown                    on Ctrl+C, keep DNS/tunnel/creds (default: full teardown)
   --color                          force ANSI color on (even when stdout is not a TTY)
   --no-color                       force ANSI color off
   -h,--help                        show help message
@@ -59,9 +60,14 @@ Options:
   --ready-timeout DUR              max wait for public readiness (default 90s)
   --no-wait-ready                  skip blocking public readiness wait
   --ready-path PATH                public path to probe (default /)
+  --no-teardown                    on Ctrl+C, keep DNS/tunnel/creds (default: full teardown)
   --color                          force ANSI color on (even when stdout is not a TTY)
   --no-color                       force ANSI color off
   -h,--help                        show help message
+
+On Ctrl+C (default): stop connector, remove DNS for the hostname, delete the
+Cloudflare tunnel and local credentials/managed dir. Re-run serve to recreate.
+Use --no-teardown to only stop the local connector (hostname stays routed).
 
 Examples:
   kool cloudflare serve --domain a.example.com --url http://127.0.0.1:8080
@@ -95,6 +101,8 @@ type SessionStartOptions struct {
 	Domain     string
 	LocalURL   string
 	TunnelName string
+	// Teardown true → Stop deletes DNS + tunnel + local managed state (kool default).
+	Teardown bool
 }
 
 // Session is the stoppable surface returned by StartSession.
@@ -141,7 +149,7 @@ func HandleWith(args []string, opts HandleOpts) error {
 func handleServe(args []string, opts HandleOpts, stdout, stderr io.Writer) error {
 	var domain, localURL, tunnel, readyTimeoutStr, readyPath string
 	var domainSet, urlSet, tunnelSet, readyTimeoutSet, readyPathSet bool
-	var noWaitReady, colorFlag, noColorFlag bool
+	var noWaitReady, noTeardown, colorFlag, noColorFlag bool
 
 	n := len(args)
 	for i := 0; i < n; i++ {
@@ -193,6 +201,8 @@ func handleServe(args []string, opts HandleOpts, stdout, stderr io.Writer) error
 			readyPathSet = true
 		case "--no-wait-ready":
 			noWaitReady = true
+		case "--no-teardown":
+			noTeardown = true
 		case "--color":
 			colorFlag = true
 		case "--no-color":
@@ -238,14 +248,22 @@ func handleServe(args []string, opts HandleOpts, stdout, stderr io.Writer) error
 		tunnelName = deriveTunnelName(domain)
 	}
 
+	teardown := !noTeardown
+
 	start := opts.StartSession
 	if start == nil {
 		start = func(o SessionStartOptions) (Session, error) {
+			var dnsDeleter dotcf.DNSDeleter
+			if o.Teardown {
+				dnsDeleter = dotcf.NewOriginCertDNSDeleter()
+			}
 			sess, err := dotcf.StartSession(dotcf.SessionOptions{
 				Domain:     o.Domain,
 				LocalURL:   o.LocalURL,
 				TunnelName: o.TunnelName,
 				Log:        stdout,
+				DNSDeleter: dnsDeleter,
+				Teardown:   o.Teardown,
 			})
 			if err != nil {
 				return nil, err
@@ -263,6 +281,7 @@ func handleServe(args []string, opts HandleOpts, stdout, stderr io.Writer) error
 		Domain:     domain,
 		LocalURL:   localURL,
 		TunnelName: tunnelName,
+		Teardown:   teardown,
 	})
 	if err != nil {
 		return err
