@@ -15,6 +15,7 @@ import (
 	"github.com/xhd2015/kool/tools/go/coverage"
 	"github.com/xhd2015/kool/tools/go/example"
 	"github.com/xhd2015/kool/tools/go/find"
+	"github.com/xhd2015/kool/tools/go/modcache"
 	"github.com/xhd2015/kool/tools/go/modules"
 	"github.com/xhd2015/kool/tools/go/run"
 	"github.com/xhd2015/kool/tools/go/vendortool"
@@ -41,6 +42,7 @@ Commands:
   vendor
   find
   modules
+  modcache
   example
   run
 
@@ -52,7 +54,7 @@ Example:
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,vendor,example,run")
+		return fmt.Errorf("commands: replace,update,resolve,inspect,refactor,vendor,example,run,modcache")
 	}
 	gocmd := args[0]
 	args = args[1:]
@@ -80,6 +82,8 @@ func Handle(args []string) error {
 		return find.Handle(args)
 	case "modules":
 		return modules.Handle(args)
+	case "modcache":
+		return modcache.Handle(args)
 	case "example":
 		return example.Handle(args)
 	case "run":

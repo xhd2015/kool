@@ -113,6 +113,7 @@ Project:
     vendor unlink --all              remove symlinks for all local modules from vendor
     inspect <pkg> <T>                inspect the given package and type
     modules                          list go modules under current directory
+    modcache inspect|prune           inspect / prune $GOMODCACHE legacy versions
 	run --debug <flags> [args...]    run the given program with debug mode
     example
 	  parse-flag                     code snippet for parsing flag
