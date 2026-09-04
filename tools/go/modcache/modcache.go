@@ -12,15 +12,17 @@ import (
 	lessflags "github.com/xhd2015/less-flags"
 )
 
-const rootHelp = `Usage: kool go modcache <inspect|prune> [OPTIONS]
+const rootHelp = `Usage: kool go modcache <inspect|prune|seed> [OPTIONS]
 
-Inspect $GOMODCACHE and prune legacy (non-newest) versions of each module.
+Inspect $GOMODCACHE and prune legacy (non-newest) versions of each module,
+or seed the cache from a local tagged git module.
 
 Commands:
   inspect            report module cache versions and reclaimable legacy copies
   prune              delete legacy versions of each module
+  seed               download module@version into GOMODCACHE from this local git repo
 
-Options:
+Options (inspect/prune):
   --modcache PATH    module cache root (default: go env GOMODCACHE)
   --root PATH        live-set / upgrade hints via git repo scan (repeatable)
   --json             JSON on stdout
@@ -31,7 +33,8 @@ Options:
   --cache-dir PATH   git-repo-scan cache root
   -h, --help         show help message
 
-Progress is printed on stderr as [n/total] stage markers while the cache is sized.
+Run kool go modcache seed --help for seed options.
+Progress for inspect/prune is printed on stderr as [n/total] stage markers.
 `
 
 const inspectHelp = `Usage: kool go modcache inspect [OPTIONS]
@@ -95,7 +98,7 @@ func HandleWith(args []string, opts HandleOpts) error {
 	}
 
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "requires subcommand: inspect or prune (try --help)")
+		fmt.Fprintln(stderr, "requires subcommand: inspect, prune, or seed (try --help)")
 		return errs.NewSilenceExitCode(1)
 	}
 
@@ -112,8 +115,10 @@ func HandleWith(args []string, opts HandleOpts) error {
 		return handleInspect(args[1:], stdout, stderr)
 	case "prune":
 		return handlePrune(args[1:], stdout, stderr)
+	case "seed":
+		return handleSeed(args[1:], stdout, stderr)
 	default:
-		return fail(stderr, "unknown subcommand: %s (try inspect, prune, or --help)", args[0])
+		return fail(stderr, "unknown subcommand: %s (try inspect, prune, seed, or --help)", args[0])
 	}
 }
 
