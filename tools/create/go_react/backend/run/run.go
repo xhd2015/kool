@@ -17,20 +17,31 @@ Usage: __PROJECT_NAME__ [options]
 
 Options:
   --dev                    run in dev mode (proxies to the vite dev server)
+  --external-vite          in --dev, proxy to an already-running Vite (do not spawn)
+  --vite-port PORT         Vite proxy port when using --external-vite (default: 6193)
   --port PORT              listen on PORT (default: auto-select starting at 8080)
   --route-prefix PREFIX    mount the whole app under PREFIX, e.g. my-app
   --component NAME         render a single named component (default: full app)
   -h, --help               show this help
 `
 
+// Main is the CLI entry used by cmd/__PROJECT_NAME__.
+func Main(args []string) error {
+	return Run(args)
+}
+
 func Run(args []string) error {
 	var devFlag bool
+	var externalVite bool
 	var component string
 	var port int
+	var vitePort int
 	var routePrefix string
 	args, err := lessflags.
 		Bool("--dev", &devFlag).
+		Bool("--external-vite", &externalVite).
 		Int("--port", &port).
+		Int("--vite-port", &vitePort).
 		String("--route-prefix", &routePrefix).
 		String("--component", &component).
 		Help("-h,--help", help).
@@ -41,6 +52,10 @@ func Run(args []string) error {
 
 	if len(args) > 0 {
 		return fmt.Errorf("unrecognized extra args: %s", strings.Join(args, " "))
+	}
+
+	if externalVite && !devFlag {
+		return fmt.Errorf("--external-vite requires --dev")
 	}
 
 	if component == "list" {
@@ -66,13 +81,21 @@ func Run(args []string) error {
 			}
 		}
 		return server.ServeComponent(port, server.ServeOptions{
-			Dev:         devFlag,
-			RoutePrefix: routePrefix,
+			Dev:          devFlag,
+			RoutePrefix:  routePrefix,
+			VitePort:     vitePort,
+			ExternalVite: externalVite,
 			Static: server.StaticOptions{
 				IndexHtml: html,
 			},
 		})
 	}
 
-	return server.Serve(port, devFlag, routePrefix)
+	return server.ServeWithConfig(server.ServeConfig{
+		Port:         port,
+		Dev:          devFlag,
+		RoutePrefix:  routePrefix,
+		VitePort:     vitePort,
+		ExternalVite: externalVite,
+	})
 }

@@ -22,5 +22,5 @@ func main() {
 
 func Handle(args []string) error {
 	fmt.Println("==> Building")
-	return cmd.Debug().Run("go", "build", "-o", "bin/__PROJECT_NAME__", ".")
+	return cmd.Debug().Run("go", "build", "-o", "bin/__PROJECT_NAME__", "./cmd/__PROJECT_NAME__")
 }

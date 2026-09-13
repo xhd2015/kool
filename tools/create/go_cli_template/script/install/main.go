@@ -1,16 +1,11 @@
 // usage: go run ./script/install
-// build via go run ./script/build; then go install
-//
-// Proposed behavior (sketch):
-//   1. Build the project via go run ./script/build.
-//   2. Install the module with go install .
-//   3. Exit non-zero if either step fails.
 package main
 
 import (
 	"fmt"
 	"os"
 
+	localinstall "github.com/xhd2015/dot-pkgs/go-pkgs/gotool/localbin/install"
 	"github.com/xhd2015/xgo/support/cmd"
 )
 
@@ -26,9 +21,20 @@ func handle() error {
 	if err := cmd.Debug().Run("go", "run", "./script/build"); err != nil {
 		return fmt.Errorf("build failed: %w", err)
 	}
+	root, err := os.Getwd()
+	if err != nil {
+		return err
+	}
 	fmt.Println("==> Installing")
-	if err := cmd.Debug().Run("go", "install", "."); err != nil {
-		return fmt.Errorf("go install failed: %w", err)
+	_, err = localinstall.Install(localinstall.Options{
+		Dir:     root,
+		Package: "./cmd/__PROJECT_NAME__",
+		BinName: "__PROJECT_NAME__",
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+	})
+	if err != nil {
+		return err
 	}
 	fmt.Println("install complete")
 	return nil

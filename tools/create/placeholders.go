@@ -10,10 +10,21 @@ func applyPlaceholders(s string, replacements map[string]string) string {
 	return s
 }
 
+// packageNameFromModuleBasename returns a Go package identifier from the
+// module path basename (hyphens → underscores).
+func packageNameFromModuleBasename(moduleName string) string {
+	base := moduleName
+	if i := strings.LastIndex(moduleName, "/"); i >= 0 {
+		base = moduleName[i+1:]
+	}
+	return strings.ReplaceAll(base, "-", "_")
+}
+
 func standardPlaceholders(projectName, moduleName string) map[string]string {
 	m := map[string]string{
 		"PROJECT_NAME": projectName,
 		"MODULE_NAME":  moduleName,
+		"PACKAGE_NAME": packageNameFromModuleBasename(moduleName),
 		"NAME":         projectName,
 	}
 	owner, repo := parseGitHubOwnerRepo(moduleName)

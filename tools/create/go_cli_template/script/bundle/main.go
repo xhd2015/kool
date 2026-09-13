@@ -33,12 +33,12 @@ func run() error {
 	outputName := fmt.Sprintf("__PROJECT_NAME__-%s-%s", runtime.GOOS, runtime.GOARCH)
 	out := filepath.Join(root, outputName)
 
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, ".")
+	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, "./cmd/__PROJECT_NAME__")
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Printf("building: CGO_ENABLED=0 go build -o %s .\n", outputName)
+	fmt.Printf("building: CGO_ENABLED=0 go build -o %s ./cmd/__PROJECT_NAME__\n", outputName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("go build: %w", err)
 	}

@@ -14,5 +14,5 @@ var DefaultSpecs = release.DefaultSpecs
 
 func BuildRelease(specs []*release.Spec) (*release.BuildReleaseResult, error) {
 	// Add custom pre-build steps here (e.g. frontend build, asset generation)
-	return release.BuildRelease("__PROJECT_NAME__", nil, specs)
+	return release.BuildRelease("__PROJECT_NAME__", nil, specs, release.WithPackagePath("./cmd/__PROJECT_NAME__"))
 }

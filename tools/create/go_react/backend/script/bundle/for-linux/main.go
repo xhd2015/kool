@@ -57,7 +57,7 @@ func Handle(args []string) error {
 	fmt.Printf("module root: %s\n", root)
 
 	env := append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
-	cmd := exec.Command("go", "build", "-o", output, ".")
+	cmd := exec.Command("go", "build", "-o", output, "./cmd/__PROJECT_NAME__")
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

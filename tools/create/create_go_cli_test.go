@@ -23,7 +23,7 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 		".gitignore",
 		"go.mod",
 		"go.sum",
-		"main.go",
+		filepath.Join("cmd", "git-hooks", "main.go"),
 		"install.sh",
 		filepath.Join("run", "run.go"),
 		filepath.Join("script", "install", "main.go"),
@@ -49,13 +49,16 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 	if !strings.Contains(buildGo, "bin/git-hooks") {
 		t.Fatalf("script/build/main.go missing binary name:\n%s", buildGo)
 	}
+	if !strings.Contains(buildGo, "./cmd/git-hooks") {
+		t.Fatalf("script/build/main.go missing cmd package path:\n%s", buildGo)
+	}
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		t.Fatalf("expected git repository to be initialized: %v", err)
 	}
 
-	mainGo := mustReadCreateTest(t, filepath.Join(dir, "main.go"))
+	mainGo := mustReadCreateTest(t, filepath.Join(dir, "cmd", "git-hooks", "main.go"))
 	if !strings.Contains(mainGo, `"git-hooks/run"`) {
-		t.Fatalf("main.go did not dispatch to generated run package:\n%s", mainGo)
+		t.Fatalf("cmd/git-hooks/main.go did not dispatch to generated run package:\n%s", mainGo)
 	}
 
 	runGo := mustReadCreateTest(t, filepath.Join(dir, "run", "run.go"))

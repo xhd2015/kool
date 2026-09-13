@@ -14,10 +14,12 @@ import (
 )
 
 type ServeOptions struct {
-	Static      StaticOptions
-	Route       func(mux *http.ServeMux) error // Optional custom route registration
-	Dev         bool
-	RoutePrefix string
+	Static       StaticOptions
+	Route        func(mux *http.ServeMux) error // Optional custom route registration
+	Dev          bool
+	RoutePrefix  string
+	VitePort     int
+	ExternalVite bool
 }
 
 func ServeComponent(port int, opts ServeOptions) error {
@@ -49,18 +51,28 @@ func ServeComponent(port int, opts ServeOptions) error {
 			server.Close()
 		}()
 
-		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx, opts.RoutePrefix)
-		if err != nil {
-			return err
-		}
-		if subProcessDone != nil {
-			defer func() {
-				fmt.Println("Waiting for frontend dev server to be closed...")
-				<-subProcessDone
-			}()
+		vitePort := opts.VitePort
+		if opts.ExternalVite {
+			if vitePort <= 0 {
+				vitePort = DefaultVitePort
+			}
+			fmt.Printf("Dev mode: proxying UI to vite :%d (external)\n", vitePort)
+		} else {
+			var subProcessDone chan struct{}
+			var err error
+			vitePort, subProcessDone, err = EnsureFrontendDevServer(ctx, opts.RoutePrefix)
+			if err != nil {
+				return err
+			}
+			if subProcessDone != nil {
+				defer func() {
+					fmt.Println("Waiting for frontend dev server to be closed...")
+					<-subProcessDone
+				}()
+			}
 		}
 
-		err = ProxyDev(mux, vitePort, opts.RoutePrefix)
+		err := ProxyDev(mux, vitePort, opts.RoutePrefix)
 		if err != nil {
 			return err
 		}

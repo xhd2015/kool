@@ -131,17 +131,37 @@ func findFreeVitePort(startPort, maxAttempts int) (int, error) {
 	return 0, fmt.Errorf("no free port found in [%d, %d)", startPort, startPort+maxAttempts)
 }
 
+// DefaultVitePort is the fixed Vite port used by script/dev (strictPort).
+const DefaultVitePort = 6193
+
+// ServeConfig controls HTTP serve for production and --dev.
+type ServeConfig struct {
+	Port         int
+	Dev          bool
+	RoutePrefix  string
+	VitePort     int  // proxy target in Dev; 0 → DefaultVitePort when ExternalVite
+	ExternalVite bool // Dev: proxy only; do not spawn Vite (air / script/dev)
+}
+
 func Serve(port int, dev bool, routePrefix string) error {
-	routePrefix = NormalizeRoutePrefix(routePrefix)
+	return ServeWithConfig(ServeConfig{
+		Port:        port,
+		Dev:         dev,
+		RoutePrefix: routePrefix,
+	})
+}
+
+func ServeWithConfig(cfg ServeConfig) error {
+	routePrefix := NormalizeRoutePrefix(cfg.RoutePrefix)
 	mux := http.NewServeMux()
-	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
+	httpServer := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		Handler:      mountRoutePrefix(routePrefix, mux),
 	}
 
-	if dev {
+	if cfg.Dev {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -151,24 +171,33 @@ func Serve(port int, dev bool, routePrefix string) error {
 			<-c
 			cancel()
 
-			if err := server.Close(); err != nil {
+			if err := httpServer.Close(); err != nil {
 				fmt.Printf("Failed to close server: %v\n", err)
 			}
 		}()
 
-		vitePort, subProcessDone, err := EnsureFrontendDevServer(ctx, routePrefix)
-		if err != nil {
-			return err
-		}
-		if subProcessDone != nil {
-			defer func() {
-				fmt.Println("Waiting for frontend dev server to be closed...")
-				<-subProcessDone
-			}()
+		vitePort := cfg.VitePort
+		if cfg.ExternalVite {
+			if vitePort <= 0 {
+				vitePort = DefaultVitePort
+			}
+			fmt.Printf("Dev mode: proxying UI to vite :%d (external)\n", vitePort)
+		} else {
+			var subProcessDone chan struct{}
+			var err error
+			vitePort, subProcessDone, err = EnsureFrontendDevServer(ctx, routePrefix)
+			if err != nil {
+				return err
+			}
+			if subProcessDone != nil {
+				defer func() {
+					fmt.Println("Waiting for frontend dev server to be closed...")
+					<-subProcessDone
+				}()
+			}
 		}
 
-		err = ProxyDev(mux, vitePort, routePrefix)
-		if err != nil {
+		if err := ProxyDev(mux, vitePort, routePrefix); err != nil {
 			return err
 		}
 	} else {
@@ -183,9 +212,9 @@ func Serve(port int, dev bool, routePrefix string) error {
 		return err
 	}
 
-	fmt.Printf("Serving directory preview at %s\n", localURL(port, routePrefix, "/"))
+	fmt.Printf("Serving directory preview at %s\n", localURL(cfg.Port, routePrefix, "/"))
 
-	return server.ListenAndServe()
+	return httpServer.ListenAndServe()
 }
 
 func ProxyDev(mux *http.ServeMux, vitePort int, routePrefix string) error {

@@ -141,7 +141,19 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
-	if err := initGitRepo(filepath.Join(reactDir, "external_src")); err != nil {
+	externalSrc := filepath.Join(reactDir, "external_src")
+	if err := os.MkdirAll(externalSrc, 0755); err != nil {
+		return fmt.Errorf("mkdir external_src: %w", err)
+	}
+	demoExternal := filepath.Join(externalSrc, "demo-external", "frontend", "src")
+	if err := os.MkdirAll(demoExternal, 0755); err != nil {
+		return fmt.Errorf("mkdir demo-external: %w", err)
+	}
+	demoFile := filepath.Join(demoExternal, "ExternalDemo.tsx")
+	if err := os.WriteFile(demoFile, []byte("export function ExternalDemo() {\n  return null;\n}\n"), 0644); err != nil {
+		return fmt.Errorf("write ExternalDemo.tsx: %w", err)
+	}
+	if err := initGitRepo(externalSrc); err != nil {
 		return err
 	}
 
@@ -167,13 +179,16 @@ func HandleCreateGoReact(args []string) error {
 	// Go Mod Tidy
 	err = cmd.Debug().Dir(projectDir).Run("go", "mod", "tidy")
 	if err != nil {
-		return err
+		return fmt.Errorf("go mod tidy: %w", err)
 	}
 
 	// Git Init
 	if err := initGitRepo(projectDir); err != nil {
 		return err
 	}
+
+	fmt.Printf("Successfully created go-react project: %s\n", projectDir)
+	fmt.Printf("To get started:\n  cd %s\n  go run ./script/dev\n", projectDir)
 	return nil
 }
 
@@ -192,10 +207,16 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 			return nil
 		}
 
-		targetFilePath := filepath.Join(targetDir, relPath)
+		placeholders := standardPlaceholders(projectName, moduleName)
+		targetRelPath := applyPlaceholders(relPath, placeholders)
+		targetFilePath := filepath.Join(targetDir, targetRelPath)
 
 		if d.IsDir() {
 			return os.MkdirAll(targetFilePath, 0755)
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetFilePath), 0755); err != nil {
+			return err
 		}
 
 		contentBytes, err := templateFS.ReadFile(path)
@@ -203,11 +224,10 @@ func copyTemplateDir(templateFS embed.FS, srcRoot, targetDir, projectName, modul
 			return err
 		}
 		content := stripTemplateBuildIgnore(string(contentBytes))
-
-		content = applyPlaceholders(content, standardPlaceholders(projectName, moduleName))
+		content = applyPlaceholders(content, placeholders)
 
 		mode := os.FileMode(0644)
-		if strings.HasSuffix(relPath, ".sh") {
+		if strings.HasSuffix(targetRelPath, ".sh") {
 			mode = 0755
 		}
 		return os.WriteFile(targetFilePath, []byte(content), mode)
