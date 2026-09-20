@@ -433,6 +433,8 @@ func RegisterAPI(mux *http.ServeMux) error {
 	// ping
 	mux.HandleFunc("/ping", handlePing)
 
+	RegisterCounterAPI(mux)
+
 	return nil
 }
 

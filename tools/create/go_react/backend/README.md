@@ -68,3 +68,20 @@ go run ./cmd/__PROJECT_NAME__
 go run ./script/build-frontend && go run ./script/build
 go run ./script/install
 ```
+
+## Persistent state (counter demo)
+
+The template ships a tiny demo showing how to keep persistent server state
+with the shared [dot-pkgs](https://github.com/xhd2015/dot-pkgs) id allocator
+(`server/store.go`):
+
+```sh
+curl -X POST http://localhost:<port>/api/counter   # {"id":1}
+curl -X POST http://localhost:<port>/api/counter   # {"id":2}
+curl http://localhost:<port>/api/counter           # {"last":2}
+```
+
+Ids are sequential, survive restarts, and are safe across processes: they are
+allocated from `~/.__PROJECT_NAME__/id.json` under an exclusive flock on the
+inferred `~/.__PROJECT_NAME__/id.lock`. Replace this demo with your own storage
+when you no longer need it.
