@@ -158,7 +158,7 @@ func ServeWithConfig(cfg ServeConfig) error {
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		Handler:      mountRoutePrefix(routePrefix, mux),
+		Handler:      MountRoutePrefix(routePrefix, mux),
 	}
 
 	if cfg.Dev {
@@ -221,6 +221,31 @@ func ProxyDev(mux *http.ServeMux, vitePort int, routePrefix string) error {
 	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", vitePort))
 	if err != nil {
 		return fmt.Errorf("invalid proxy target: %v", err)
+	}
+	return proxyDevTarget(mux, targetURL, routePrefix)
+}
+
+// DevHandler builds the development handler used by an external supervisor.
+// It proxies frontend requests to frontendURL, serves API routes locally, and
+// mounts the complete app under routePrefix.
+func DevHandler(frontendURL string, routePrefix string) (http.Handler, error) {
+	targetURL, err := url.Parse(frontendURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid frontend URL: %v", err)
+	}
+	mux := http.NewServeMux()
+	if err := proxyDevTarget(mux, targetURL, routePrefix); err != nil {
+		return nil, err
+	}
+	if err := RegisterAPI(mux); err != nil {
+		return nil, err
+	}
+	return MountRoutePrefix(routePrefix, mux), nil
+}
+
+func proxyDevTarget(mux *http.ServeMux, targetURL *url.URL, routePrefix string) error {
+	if targetURL.Scheme == "" || targetURL.Host == "" {
+		return fmt.Errorf("invalid proxy target: %q", targetURL.String())
 	}
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	routePrefix = NormalizeRoutePrefix(routePrefix)
@@ -312,10 +337,16 @@ func NormalizeRoutePrefix(prefix string) string {
 	if prefix == "" || prefix == "/" {
 		return ""
 	}
-	return path.Clean("/" + strings.Trim(prefix, "/"))
+	prefix = path.Clean("/" + strings.Trim(prefix, "/"))
+	if prefix == "/" {
+		return ""
+	}
+	return prefix
 }
 
-func mountRoutePrefix(routePrefix string, handler http.Handler) http.Handler {
+// MountRoutePrefix mounts handler below routePrefix, stripping it before the
+// request reaches handler. Empty and root prefixes leave handler unchanged.
+func MountRoutePrefix(routePrefix string, handler http.Handler) http.Handler {
 	routePrefix = NormalizeRoutePrefix(routePrefix)
 	if routePrefix == "" {
 		return handler

@@ -30,7 +30,8 @@ Options:
 
 ```sh
 go run ./script/dev --port 9000
-go run ./script/dev --no-air          # single go run, still external Vite
+go run ./script/dev --route-prefix my-app # serves http://localhost:<port>/my-app/
+go run ./script/dev --no-air          # compatibility alias: no backend hot reload
 go run ./script/dev --no-open
 ```
 

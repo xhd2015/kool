@@ -100,7 +100,7 @@ func ServeComponent(port int, opts ServeOptions) error {
 
 	fmt.Printf("Serving at %s\n", localURL(port, opts.RoutePrefix, "/"))
 
-	server.Handler = mountRoutePrefix(opts.RoutePrefix, mux)
+	server.Handler = MountRoutePrefix(opts.RoutePrefix, mux)
 	return server.ListenAndServe()
 }
 

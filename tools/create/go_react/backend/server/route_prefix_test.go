@@ -13,6 +13,7 @@ func TestNormalizeRoutePrefix(t *testing.T) {
 	cases := map[string]string{
 		"":              "",
 		"/":             "",
+		"////":          "",
 		"my-app":        "/my-app",
 		"/my-app":       "/my-app",
 		"/my-app/":      "/my-app",
@@ -27,7 +28,7 @@ func TestNormalizeRoutePrefix(t *testing.T) {
 }
 
 func TestMountRoutePrefixStripsPrefix(t *testing.T) {
-	handler := mountRoutePrefix("/my-app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MountRoutePrefix("/my-app", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(r.URL.Path))
 	}))
 
@@ -58,5 +59,40 @@ func TestPrepareFrontendHTML(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("prepared HTML missing %q: %s", want, out)
 		}
+	}
+}
+
+func TestDevHandlerMountsAPIAndRestoresViteBase(t *testing.T) {
+	var gotPath string
+	frontend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write([]byte("vite"))
+	}))
+	defer frontend.Close()
+
+	handler, err := DevHandler(frontend.URL, "/demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/demo/ping", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "pong" {
+		t.Fatalf("API response = %d %q", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/demo/assets/index.js", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "vite" {
+		t.Fatalf("proxy response = %d %q", rec.Code, rec.Body.String())
+	}
+	if gotPath != "/demo/assets/index.js" {
+		t.Fatalf("Vite path = %q, want restored prefix", gotPath)
+	}
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ping", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unprefixed API status = %d, want 404", rec.Code)
 	}
 }
