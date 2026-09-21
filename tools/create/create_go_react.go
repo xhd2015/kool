@@ -76,8 +76,9 @@ func createGoReactProject(templateFS embed.FS, templateDir string, usageName str
 		return err
 	}
 
-	// Install react-router-dom
-	err = cmd.Debug().Dir(reactDir).Run("bun", "add", "react-router-dom")
+	// Install frontend dependencies: routing plus Ant Design as the default
+	// component library (v6 supports React 19 natively).
+	err = cmd.Debug().Dir(reactDir).Run("bun", "add", "react-router-dom", "antd", "@ant-design/icons")
 	if err != nil {
 		return err
 	}

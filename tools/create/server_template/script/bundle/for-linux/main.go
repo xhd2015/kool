@@ -4,9 +4,9 @@
 // The resulting artifact is written to ./__PROJECT_NAME__-linux-amd64 in the module root.
 //
 // Proposed behavior (sketch):
-//   1. Parse -o/--output (default __PROJECT_NAME__-linux-amd64).
-//   2. Cross-compile with GOOS=linux GOARCH=amd64 CGO_ENABLED=0.
-//   3. Write the binary under the module root and print its path.
+//  1. Parse -o/--output (default __PROJECT_NAME__-linux-amd64).
+//  2. Cross-compile with GOOS=linux GOARCH=amd64 CGO_ENABLED=0.
+//  3. Write the binary under the module root and print its path.
 package main
 
 import (

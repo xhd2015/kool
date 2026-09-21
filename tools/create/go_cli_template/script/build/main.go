@@ -1,9 +1,9 @@
 // usage: go run ./script/build (go build -o bin/__PROJECT_NAME__)
 //
 // Proposed behavior (sketch):
-//   1. Parse optional flags if any (default: native go build).
-//   2. Run go build -o bin/__PROJECT_NAME__ for the module root.
-//   3. Exit non-zero on build failure.
+//  1. Parse optional flags if any (default: native go build).
+//  2. Run go build -o bin/__PROJECT_NAME__ for the module root.
+//  3. Exit non-zero on build failure.
 package main
 
 import (

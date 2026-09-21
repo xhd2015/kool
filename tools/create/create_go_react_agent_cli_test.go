@@ -187,4 +187,41 @@ func TestGoReactAgentCLISharesBaseTemplateFiles(t *testing.T) {
 	if err := walkVariant(variantRoot); err != nil {
 		t.Fatal(err)
 	}
+
+	// Frontend trees must stay byte-identical too: both variants share the
+	// same demo shell (App.tsx with __APP_GEN_*__ placeholders).
+	const baseFrontend = "go_react/frontend"
+	const variantFrontend = "go_react_agent_cli/frontend"
+	var walkFrontend func(prefix string) error
+	walkFrontend = func(prefix string) error {
+		entries, err := goReactTemplateFS.ReadDir(prefix)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			full := prefix + "/" + e.Name()
+			rel := strings.TrimPrefix(full, baseFrontend+"/")
+			if e.IsDir() {
+				if err := walkFrontend(full); err != nil {
+					return err
+				}
+				continue
+			}
+			baseData, err := goReactTemplateFS.ReadFile(full)
+			if err != nil {
+				return err
+			}
+			variantData, err := goReactAgentCLITemplateFS.ReadFile(variantFrontend + "/" + rel)
+			if err != nil {
+				t.Fatalf("variant template missing shared frontend file %s: %v", rel, err)
+			}
+			if string(baseData) != string(variantData) {
+				t.Errorf("shared frontend file %s drifted between go-react and go-react-agent-cli templates", rel)
+			}
+		}
+		return nil
+	}
+	if err := walkFrontend(baseFrontend); err != nil {
+		t.Fatal(err)
+	}
 }

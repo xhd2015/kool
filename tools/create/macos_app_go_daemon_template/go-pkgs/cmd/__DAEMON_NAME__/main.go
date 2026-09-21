@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	lessflags "github.com/xhd2015/less-flags"
 	"__MODULE_NAME__/server"
+	lessflags "github.com/xhd2015/less-flags"
 )
 
 const (

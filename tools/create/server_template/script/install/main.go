@@ -2,9 +2,9 @@
 // build via go run ./script/build; then go install
 //
 // Proposed behavior (sketch):
-//   1. Build the project via go run ./script/build.
-//   2. Install the module with go install .
-//   3. Exit non-zero if either step fails.
+//  1. Build the project via go run ./script/build.
+//  2. Install the module with go install .
+//  3. Exit non-zero if either step fails.
 package main
 
 import (

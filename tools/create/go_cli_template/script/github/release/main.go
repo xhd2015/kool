@@ -1,11 +1,11 @@
 // usage: go run ./script/github/release [--dry-run]
 //
 // Proposed behavior (sketch):
-//   1. Parse --dry-run / --help flags.
-//   2. Resolve tag and credentials (soft-warn on dry-run; hard-fail live).
-//   3. Plan artifact names with the same formula as BuildRelease.
-//   4. Dry-run: print plan without building or uploading.
-//   5. Live: build multi-platform assets, create/upload GitHub Release.
+//  1. Parse --dry-run / --help flags.
+//  2. Resolve tag and credentials (soft-warn on dry-run; hard-fail live).
+//  3. Plan artifact names with the same formula as BuildRelease.
+//  4. Dry-run: print plan without building or uploading.
+//  5. Live: build multi-platform assets, create/upload GitHub Release.
 package main
 
 import (
