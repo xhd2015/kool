@@ -35,6 +35,8 @@ TEMPLATE:
   go-cli        create a new go cli project
   macos-app-go-daemon  create a macOS menu bar app with a Go HTTP daemon
   go-react      create a new go-react project (go backend + react frontend)
+  go-react-agent-cli  create a go-react project with an agent-driven CLI
+                (server / get / put / post / delete / skill, port 8080)
   frontend      create a new frontend project (react frontend)
   server        create a new server project (go backend)
   electron      create a new electron project (electron frontend)
@@ -45,13 +47,14 @@ Examples:
   kool create go-cli my-project
   kool create macos-app-go-daemon my-project
   kool create go-react my-project
+  kool create go-react-agent-cli my-project
   kool create react my-project
   kool create electron my-project
 `
 
 func Handle(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-cli, macos-app-go-daemon, go-react, frontend, server, electron")
+		return fmt.Errorf("usage: kool create <TEMPLATE> <project-name>\nTEMPLATE: react, go-cli, macos-app-go-daemon, go-react, go-react-agent-cli, frontend, server, electron")
 	}
 
 	template := args[0]
@@ -67,6 +70,9 @@ func Handle(args []string) error {
 	}
 	if template == "go-react" {
 		return HandleCreateGoReact(args[1:])
+	}
+	if template == "go-react-agent-cli" {
+		return HandleCreateGoReactAgentCLI(args[1:])
 	}
 	if template == "go-cli" {
 		return HandleCreateGoCLI(args[1:])

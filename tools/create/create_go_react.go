@@ -25,16 +25,24 @@ Create a new go-react project.
 `
 
 func HandleCreateGoReact(args []string) error {
+	return createGoReactProject(goReactTemplateFS, "go_react", "go-react", goReactHelp, args)
+}
+
+// createGoReactProject runs the shared go-react generation flow for a
+// template variant: it scaffolds the Vite app, copies <templateDir>/backend
+// and <templateDir>/frontend with placeholder substitution, then builds and
+// tidies. usageName is the template name shown in help and errors.
+func createGoReactProject(templateFS embed.FS, templateDir string, usageName string, helpText string, args []string) error {
 	var goModule string
 	args, err := lessflags.String("--go-module", &goModule).
-		Help("-h,--help", goReactHelp).
+		Help("-h,--help", helpText).
 		Parse(args)
 	if err != nil {
 		return err
 	}
 
 	if len(args) == 0 {
-		return fmt.Errorf("requires project, try `kool create go-react --help`")
+		return fmt.Errorf("requires project, try `kool create %s --help`", usageName)
 	}
 	projectDir := filepath.Clean(args[0])
 	args = args[1:]
@@ -48,7 +56,7 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
-	err = copyTemplateFile(goReactTemplateFS, "go_react/.gitignore", filepath.Join(projectDir, ".gitignore"), "", "")
+	err = copyTemplateFile(templateFS, templateDir+"/.gitignore", filepath.Join(projectDir, ".gitignore"), "", "")
 	if err != nil {
 		return err
 	}
@@ -115,8 +123,8 @@ func HandleCreateGoReact(args []string) error {
 	}
 
 	// Copy Backend Template Files
-	backendRoot := "go_react/backend"
-	err = copyTemplateDir(goReactTemplateFS, backendRoot, projectDir, baseProjectName, modulePath)
+	backendRoot := templateDir + "/backend"
+	err = copyTemplateDir(templateFS, backendRoot, projectDir, baseProjectName, modulePath)
 	if err != nil {
 		return err
 	}
@@ -135,8 +143,8 @@ func HandleCreateGoReact(args []string) error {
 	}
 
 	// Copy Frontend Template Files
-	frontendRoot := "go_react/frontend"
-	err = copyTemplateDir(goReactTemplateFS, frontendRoot, reactDir, baseProjectName, modulePath)
+	frontendRoot := templateDir + "/frontend"
+	err = copyTemplateDir(templateFS, frontendRoot, reactDir, baseProjectName, modulePath)
 	if err != nil {
 		return err
 	}
@@ -187,7 +195,7 @@ func HandleCreateGoReact(args []string) error {
 		return err
 	}
 
-	fmt.Printf("Successfully created go-react project: %s\n", projectDir)
+	fmt.Printf("Successfully created %s project: %s\n", usageName, projectDir)
 	fmt.Printf("To get started:\n  cd %s\n  go run ./script/dev\n", projectDir)
 	return nil
 }
