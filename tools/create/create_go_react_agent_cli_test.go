@@ -123,6 +123,7 @@ func TestGoReactAgentCLISharesBaseTemplateFiles(t *testing.T) {
 		"skill/SKILL.md":       true,
 		"server/server.go":     true, // adds the JSON 404 fallback
 		"README.md":            true, // CLI-focused docs
+		"AGENTS.md":            true, // adds the CLI≈web alignment rules for the CLI verbs
 	}
 
 	baseFS := goReactTemplateFS
