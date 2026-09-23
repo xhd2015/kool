@@ -434,6 +434,7 @@ func RegisterAPI(mux *http.ServeMux) error {
 	mux.HandleFunc("/ping", handlePing)
 
 	RegisterCounterAPI(mux)
+	RegisterPageMetaAPI(mux)
 
 	return nil
 }

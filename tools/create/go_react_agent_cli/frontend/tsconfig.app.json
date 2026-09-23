@@ -18,9 +18,11 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "paths": {
-      "@external_src/*": ["./external_src/*"]
+      "@external_src/*": ["./external_src/*"],
+      "@pagemeta/*": ["../server/pagemeta/parts/*"]
     }
   },
-  "include": ["src", "external_src"]
+  "include": ["src", "external_src", "../server/pagemeta/parts"]
 }

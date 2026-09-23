@@ -40,11 +40,20 @@ __PROJECT_NAME__ delete <URI> [--json]                      # delete a resource
 
 ## Endpoints
 
-| Method | Path          | Purpose                                   |
-|--------|---------------|-------------------------------------------|
-| GET    | /ping         | health check, replies `pong`              |
-| GET    | /api/counter  | current counter (`{"last":N}`)            |
-| POST   | /api/counter  | allocate the next id (`{"id":N+1}`)       |
+| Method | Path             | Purpose                                        |
+|--------|------------------|------------------------------------------------|
+| GET    | /ping            | health check, replies `pong`                   |
+| GET    | /api/counter     | current counter (`{"last":N}`)                 |
+| POST   | /api/counter     | allocate the next id (`{"id":N+1}`)            |
+| GET    | /api/page-meta   | every card's server-owned meta (title/hint/empty) |
+| GET    | /api/pages/home  | the Home page document: cards in web order, each with `meta`, `empty` and its rows |
+
+Card meta is server-owned: a page document carries `sections[].meta`
+(`title`, `hint`, `empty`) next to the rows, so `get /api/pages/home` tells you
+what every card is for — empty cards included — without reading the React
+source. Author the words in `server/pagemeta/parts/<Card>.json`; the React card
+imports that same file over the `@pagemeta/` alias, and
+`go test ./server/pagemeta/` fails when a registered card is missing a word.
 
 The counter demonstrates persistent state: ids come from
 `~/.<project>/id.json` and survive restarts. Grow the API on top of this
@@ -57,6 +66,7 @@ __PROJECT_NAME__ server &                     # start (or: go run ./cmd/__PROJEC
 __PROJECT_NAME__ get /ping                    # pong
 __PROJECT_NAME__ post /api/counter            # allocate id 1 (silent)
 __PROJECT_NAME__ get /api/counter --json      # {"last":1}
+__PROJECT_NAME__ get /api/pages/home --json   # cards with meta + rows + empty flags
 __PROJECT_NAME__ get http://localhost:8080/api/counter   # full-URL form
 ```
 

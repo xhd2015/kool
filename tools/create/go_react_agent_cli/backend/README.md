@@ -39,10 +39,17 @@ persistent-state pattern (`~/.<project>/id.json` via the shared id allocator):
 ```sh
 go run ./cmd/__PROJECT_NAME__ post /api/counter   # silent, allocates the next id
 go run ./cmd/__PROJECT_NAME__ get /api/counter --json   # {"last":1}
+go run ./cmd/__PROJECT_NAME__ get /api/pages/home --json # cards with meta + rows
 ```
 
 Ids are sequential, survive restarts, and are safe across processes. Replace
 the counter with your own storage when you no longer need it.
+
+Cards carry server-owned meta (`server/pagemeta/parts/<Card>.json`: `title`,
+`hint`, `empty`). `/api/pages/home` returns the page document — cards in web
+order, each with `meta`, an `empty` flag and its rows — so an agent reading the
+API learns what every card is for without opening a `.tsx`. The React card
+imports the same part over the `@pagemeta/` alias.
 
 ## Agent skill
 

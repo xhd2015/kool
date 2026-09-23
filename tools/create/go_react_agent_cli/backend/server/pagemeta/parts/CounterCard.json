@@ -1,0 +1,5 @@
+{
+  "title": "Counter",
+  "hint": "Server-owned card meta: the hint ships with the rows, so an agent knows what this card is for without reading the React source",
+  "empty": "No counts yet — POST /api/counter to allocate the first id"
+}

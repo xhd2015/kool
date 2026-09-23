@@ -434,6 +434,7 @@ func RegisterAPI(mux *http.ServeMux) error {
 	mux.HandleFunc("/ping", handlePing)
 
 	RegisterCounterAPI(mux)
+	RegisterPageMetaAPI(mux)
 
 	// Unknown API paths get a JSON 404 instead of the SPA fallback, so CLI
 	// and agent callers see a clean error. Specific routes above win over

@@ -16,6 +16,9 @@ export default defineConfig({
     ],
     alias: {
       '@external_src': fileURLToPath(new URL('./external_src', import.meta.url)),
+      // Card meta (title / hint / empty) is owned by the server tree; the page
+      // imports the same JSON the server embeds, so the two cannot disagree.
+      '@pagemeta': fileURLToPath(new URL('../server/pagemeta/parts', import.meta.url)),
     },
   },
   server: {

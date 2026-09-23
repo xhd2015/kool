@@ -229,3 +229,101 @@ func TestGoReactAgentCLISharesBaseTemplateFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestGoReactAgentCLITemplateShipsServerOwnedCardMeta pins the meta half of the
+// scaffold: the server owns each card's title/hint/empty, serves them with the
+// page content, and the page imports the same parts over the @pagemeta alias.
+func TestGoReactAgentCLITemplateShipsServerOwnedCardMeta(t *testing.T) {
+	dir := copyAgentCLIBackend(t, "demo")
+
+	// The generated package drops the template build tag and embeds the parts.
+	metaGo := mustReadCreateTest(t, filepath.Join(dir, "server", "pagemeta", "pagemeta.go"))
+	for _, want := range []string{"//go:embed parts/*.json", "func Sections() []string", "func Catalog()", "func Validate() error"} {
+		if !strings.Contains(metaGo, want) {
+			t.Fatalf("server/pagemeta/pagemeta.go missing %q:\n%s", want, metaGo)
+		}
+	}
+	if strings.Contains(metaGo, "//go:build ignore") {
+		t.Fatalf("generated server/pagemeta/pagemeta.go still carries the template build tag:\n%s", metaGo)
+	}
+
+	// Every registered card's words live in a part, and the guard test ships.
+	part := mustReadCreateTest(t, filepath.Join(dir, "server", "pagemeta", "parts", "CounterCard.json"))
+	for _, want := range []string{`"title"`, `"hint"`, `"empty"`} {
+		if !strings.Contains(part, want) {
+			t.Fatalf("parts/CounterCard.json missing %s:\n%s", want, part)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "server", "pagemeta", "pagemeta_test.go")); err != nil {
+		t.Fatalf("missing generated server/pagemeta/pagemeta_test.go: %v", err)
+	}
+
+	// The page document carries the meta next to the rows.
+	api := mustReadCreateTest(t, filepath.Join(dir, "server", "pagemeta_api.go"))
+	for _, want := range []string{`"/api/page-meta"`, `"/api/pages/home"`, "Meta  pagemeta.Meta", "Empty bool"} {
+		if !strings.Contains(api, want) {
+			t.Fatalf("server/pagemeta_api.go missing %q:\n%s", want, api)
+		}
+	}
+	serverGo := mustReadCreateTest(t, filepath.Join(dir, "server", "server.go"))
+	if !strings.Contains(serverGo, "RegisterPageMetaAPI(mux)") {
+		t.Fatalf("server/server.go does not register the page-meta API:\n%s", serverGo)
+	}
+
+	// The rule is binding, and the root help enumerates the paths.
+	agents := mustReadCreateTest(t, filepath.Join(dir, "AGENTS.md"))
+	for _, want := range []string{"Section Meta Is Server-Owned", "@pagemeta/<Card>.json", "go test ./server/pagemeta/"} {
+		if !strings.Contains(agents, want) {
+			t.Fatalf("AGENTS.md missing %q:\n%s", want, agents)
+		}
+	}
+	dispatch := mustReadCreateTest(t, filepath.Join(dir, "run", "run.go"))
+	for _, want := range []string{"/api/page-meta", "/api/pages/home"} {
+		if !strings.Contains(dispatch, want) {
+			t.Fatalf("run/run.go root help missing path %q:\n%s", want, dispatch)
+		}
+	}
+
+	// No placeholder survives into the generated Go sources.
+	for _, name := range []string{
+		filepath.Join("server", "pagemeta", "pagemeta.go"),
+		filepath.Join("server", "pagemeta_api.go"),
+	} {
+		content := mustReadCreateTest(t, filepath.Join(dir, name))
+		if strings.Contains(content, "__PROJECT_NAME__") || strings.Contains(content, "__MODULE_NAME__") {
+			t.Fatalf("generated %s has unresolved placeholders:\n%s", name, content)
+		}
+	}
+
+	// The web side imports the server-owned parts and reads the page document.
+	readTemplate := func(name string) string {
+		t.Helper()
+		data, err := goReactAgentCLITemplateFS.ReadFile("go_react_agent_cli/frontend/" + name)
+		if err != nil {
+			t.Fatalf("read template frontend/%s: %v", name, err)
+		}
+		return string(data)
+	}
+	vite := readTemplate("vite.config.ts")
+	if !strings.Contains(vite, "'@pagemeta'") || !strings.Contains(vite, "../server/pagemeta/parts") {
+		t.Fatalf("vite.config.ts missing the @pagemeta alias:\n%s", vite)
+	}
+	tsconfig := readTemplate("tsconfig.app.json")
+	for _, want := range []string{`"@pagemeta/*"`, `"resolveJsonModule": true`} {
+		if !strings.Contains(tsconfig, want) {
+			t.Fatalf("tsconfig.app.json missing %q:\n%s", want, tsconfig)
+		}
+	}
+	card := readTemplate("src/components/CounterCard.tsx")
+	if !strings.Contains(card, "@pagemeta/CounterCard.json") {
+		t.Fatalf("CounterCard.tsx does not import the server-owned part:\n%s", card)
+	}
+	app := readTemplate("src/App.tsx")
+	if !strings.Contains(app, "<CounterCard />") {
+		t.Fatalf("App.tsx does not render the meta-driven card:\n%s", app)
+	}
+	pageAPI := readTemplate("src/api/page.ts")
+	if !strings.Contains(pageAPI, "/api/pages/home") {
+		t.Fatalf("src/api/page.ts does not read the page document:\n%s", pageAPI)
+	}
+}

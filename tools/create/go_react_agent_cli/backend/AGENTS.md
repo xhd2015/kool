@@ -33,3 +33,20 @@ rg -n "\bfetch\(|\bapiFetch\b|new EventSource|\bapiEventSource\b" __PROJECT_NAME
 ```
 
 The command should return no matches.
+
+## Section Meta Is Server-Owned
+
+Every card's meta — `title`, `hint` (the line under the title) and `empty` (the sentence shown when the card has no rows) — lives in the server tree at `server/pagemeta/parts/<Card>.json` and is registered in `server/pagemeta/pagemeta.go`. Meta is agent-facing: the page API carries it **with** the rows (`sections[].meta` plus `empty`), so an agent that never opens a `.tsx` still learns what each card is for, empty cards included.
+
+- Author the words in the part; never retype a title, hint or empty state in TSX or in a Go string.
+- Import them in React through the `@pagemeta/<Card>.json` alias (vite + tsconfig paths), never by copying the text.
+- Serve them through a page document (`GET /api/pages/home`), not by hand-rolling JSON in a handler.
+- A card cannot ship without meta: page documents are built from the `pagemeta` registry, so an unregistered section is an error rather than a card without its brief.
+
+Before finishing changes that touch a page card, verify this rule with:
+
+```sh
+go test ./server/pagemeta/ && rg -n "@pagemeta/" __PROJECT_NAME__-react/src/components
+```
+
+The first command fails when a registered card is missing `title`, `hint` or `empty`; the second proves the card imports the server-owned part.

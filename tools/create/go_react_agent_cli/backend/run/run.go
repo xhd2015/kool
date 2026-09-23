@@ -19,6 +19,11 @@ Commands:
   delete    DELETE <URI>
   skill     Show or install the __PROJECT_NAME__ agent skill
 
+Paths:
+  /api/counter      the counter record (get, post)
+  /api/page-meta    server-owned card meta: title / hint / empty per card
+  /api/pages/home   the Home page document (cards in web order, meta included)
+
 Run '__PROJECT_NAME__ <command> --help' for command-specific options.
 `
 

@@ -1,9 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { useState } from 'react';
-import { ConfigProvider, Layout, Card, Button, Statistic, Space, Typography } from 'antd';
+import { ConfigProvider, Layout, Card, Space, Typography } from 'antd';
 import { BranchesOutlined } from '@ant-design/icons';
 import { ExternalDemo } from '@external_src/demo-external/frontend/src/ExternalDemo';
 __APP_GEN_IMPORT__
+import { CounterCard } from './components/CounterCard';
 import { getRoutePrefix } from './routePrefix';
 import './App.css';
 
@@ -12,8 +12,6 @@ const routePrefix = getRoutePrefix();
 const linkStyle = { color: 'rgba(255, 255, 255, 0.85)' };
 
 function Home() {
-    const [count, setCount] = useState(0);
-
     return (
         <Card style={{ maxWidth: 560, margin: '40px auto' }}>
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -24,14 +22,7 @@ function Home() {
                     Edit <code>src/App.tsx</code> and save to test HMR. UI components come from Ant
                     Design.
                 </Typography.Text>
-                <Card>
-                    <Space size="large">
-                        <Statistic title="count" value={count} />
-                        <Button type="primary" onClick={() => setCount((count) => count + 1)}>
-                            increment
-                        </Button>
-                    </Space>
-                </Card>
+                <CounterCard />
                 <Link to="/about">Go to About Page</Link>
             </Space>
         </Card>

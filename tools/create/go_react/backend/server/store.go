@@ -30,25 +30,34 @@ func RegisterCounterAPI(mux *http.ServeMux) {
 	mux.HandleFunc("/api/counter", handleCounter)
 }
 
+// CurrentCounter reports the last allocated id (0 before the first POST). The
+// counter handler and the Home page document both read state through it.
+func CurrentCounter() (int64, error) {
+	dir, err := dataDir()
+	if err != nil {
+		return 0, err
+	}
+	return idalloc.New(filepath.Join(dir, "id.json")).Last()
+}
+
 // handleCounter allocates the next sequential id on POST and reports the
 // current counter on GET.
 func handleCounter(w http.ResponseWriter, r *http.Request) {
-	dir, err := dataDir()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	alloc := idalloc.New(filepath.Join(dir, "id.json"))
 	switch r.Method {
 	case http.MethodGet:
-		last, err := alloc.Last()
+		last, err := CurrentCounter()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		writeJSON(w, map[string]int64{"last": last})
 	case http.MethodPost:
-		next, err := alloc.Next(0)
+		dir, err := dataDir()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		next, err := idalloc.New(filepath.Join(dir, "id.json")).Next(0)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
