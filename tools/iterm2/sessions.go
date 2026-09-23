@@ -195,12 +195,14 @@ Examples:
   kool iterm2 sessions restore --deny-unknown
 `
 
-const sessionHelp = `iterm2 session — inspect or drive a single iTerm2 session
+const sessionHelp = `iterm2 session — list, inspect, send to, or fork a live iTerm2 session
 
 Usage:
+  kool iterm2 session list [options]
   kool iterm2 session <session-id> status [options]
   kool iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
   kool iterm2 session send (--session-id ID | --tab SEL | --tab-index N) [options] <text>
+  kool iterm2 session <session-id> fork [--dry-run]
   kool iterm2 session -h|--help
 
 Session id (positional form):
@@ -209,8 +211,17 @@ Session id (positional form):
     UUID prefix (≥8 chars), tty (ttys003 or /dev/ttys003), or pid.
 
 Commands:
+  list                     flat table of live panes (filters: --grok, --only-cwd)
   status                   re-query live status for the session
   send                     type text into the session (AppleScript write text)
+  fork                     open a new window and fork a grok session via agent-run
+
+List options:
+  --grok                   only sessions with a resolved grok agent
+  --only-cwd               only sessions whose cwd equals process cwd
+  --json                   emit JSON array
+  --no-color               disable ANSI colors
+  --no-enrich              skip agent session resolve
 
 Status options:
   --json                   emit JSON
@@ -235,9 +246,17 @@ Flag-form send sources (exactly one; kool iterm2 session send …):
   Tab selectors use the same window/tab discovery as: kool iterm2 window status.
   --tab / --tab-index / --session-id are not valid on the positional form.
 
+Fork options:
+  --dry-run                print plan only; do not open a window
+  -h, --help               show this help
+
+
 Examples:
+  kool iterm2 session list
+  kool iterm2 session list --grok --only-cwd
   kool iterm2 session D922B298-25FB-41FA-BAF8-7AC7A1D56758 status
   kool iterm2 session D922B298 status --json
+  kool iterm2 session D922B298 fork --dry-run
   kool iterm2 session ttys003 status
   kool iterm2 session D922B298 send "echo hi"
   kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
@@ -383,6 +402,11 @@ func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 		fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
 		return nil
 	}
+	// Reserved first tokens (not session refs).
+	switch args[0] {
+	case "list":
+		return runSessionList(args[1:], stdout, stderr)
+	}
 
 	// Flag form: kool iterm2 session send (--session-id|… ) <text>
 	if args[0] == "send" {
@@ -392,7 +416,7 @@ func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 	sessionRef := args[0]
 	rest := args[1:]
 	if len(rest) == 0 {
-		fmt.Fprint(stderr, "Error: session: missing command (expected status or send)\n\n"+strings.TrimSpace(sessionHelp)+"\n")
+		fmt.Fprint(stderr, "Error: session: missing command (expected status, send, or fork)\n\n"+strings.TrimSpace(sessionHelp)+"\n")
 		return errs.NewSilenceExitCode(1)
 	}
 	cmd := rest[0]
@@ -402,6 +426,8 @@ func runSession(args []string, stdout, stderr io.Writer, env TestRun) error {
 		return runSessionStatus(sessionRef, cmdArgs, stdout, stderr)
 	case "send":
 		return runSessionSendPositional(sessionRef, cmdArgs, stdout, stderr, env)
+	case "fork":
+		return runSessionFork(sessionRef, cmdArgs, stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, strings.TrimSpace(sessionHelp)+"\n")
 		return nil

@@ -94,9 +94,11 @@ VSCode:
   iterm2 install [--dry-run] [--download-dir DIR] [--download-only]  official iTerm2 install (no brew)
   iterm2 tab-set list|show|run|status|stop  manage named multi-tab iTerm2 layouts
   iterm2 sessions snapshot [opts]    snapshot all windows/tabs/sessions (cli|json|md|html)
+  iterm2 session list                flat list of live panes (--grok, --only-cwd)
   iterm2 session <id> status         live status for one session (id = iTerm unique ID)
   iterm2 session <id> send <text>    type text into a session (--focus/--no-submit/--no-ctrl-u)
   iterm2 session send (--session-id|--tab|--tab-index) <text>  send via flag target
+  iterm2 session <id> fork           fork grok session in a new window
   codex install [--dry-run] [--check-update]  ensure OpenAI Codex CLI is installed/updated
   macos space create|switch|list     manage Mission Control Desktops (Spaces; optional --run)
 

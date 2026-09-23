@@ -21,15 +21,17 @@ iterm2 window status
 iterm2 tab status
 iterm2 tab-set list|show|run|status|stop ...
 iterm2 sessions snapshot|save|restore [options]
+iterm2 session list [options]
 iterm2 session <session-id> status [options]
 iterm2 session <session-id> send [--focus] [--no-submit] [--no-ctrl-u] <text>
 iterm2 session send (--session-id ID | --tab SEL | --tab-index N) [options] <text>
+iterm2 session <session-id> fork [--dry-run]
 iterm2 contents <session-id> [options]
 
 Open a directory in iTerm2 on macOS, get/set the current session or window title
 when running inside iTerm2 (ITERM_SESSION_ID set), show the parent window/tab
 status for this process, manage named tab-set layouts, install official iTerm2
-(no Homebrew), or snapshot / save / restore live sessions.
+(no Homebrew), or snapshot / save / restore / list / fork live sessions.
 
 Open directory:
   dir                              directory to open (required)
@@ -63,7 +65,7 @@ Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set stop <name>              close marked windows/tabs for a set
   tab-set -h|--help                tab-set usage
 
-Sessions snapshot / save / restore / decisions / auto-backup / status:
+Sessions snapshot / save / restore / decisions / auto-backup / list / status / send / fork:
   sessions snapshot [options]      dump all windows/tabs/sessions (cli|json|md|html)
   sessions save [--dry-run] [--file PATH]
                                    checkpoint grok/codex/mark and foreground command tabs
@@ -73,10 +75,12 @@ Sessions snapshot / save / restore / decisions / auto-backup / status:
                                    list or remove saved restore allow/deny decisions
   sessions auto-backup [--once] [--interval DUR] [--file PATH]
                                    periodically checkpoint critical tabs (default 10m)
+  session list [options]           flat list of live panes (--grok, --only-cwd)
   session <id> status [options]    live status for one session (id = iTerm unique ID)
   session <id> send [flags] <text> type text into a session (default: no focus, Ctrl-U on)
   session send (--session-id|--tab|--tab-index) <text>
                                    type text via flag target (tab next|left|right / id)
+  session <id> fork [--dry-run]    new window: agent-run --fork (grok --fork-session)
   contents <session-id>            print visible pane text (no focus; home then system app)
 
 Options:
@@ -105,11 +109,13 @@ Examples:
   kool iterm2 sessions save
   kool iterm2 sessions restore
   kool iterm2 sessions auto-backup --once
+  kool iterm2 session list --grok --only-cwd
   kool iterm2 session D922B298 status
   kool iterm2 session D922B298 send "echo hi"
   kool iterm2 session D922B298 send --no-submit --no-ctrl-u "partial"
   kool iterm2 session send --tab next "echo hi"
   kool iterm2 session send --session-id D922B298 "echo hi"
+  kool iterm2 session D922B298 fork --dry-run
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2
   kool iterm2 contents B95E6BAC-3104-43D2-ABAE-86FC02A669A2 --json
 `
