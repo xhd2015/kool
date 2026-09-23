@@ -113,7 +113,7 @@ func TestBuildSaveDocument_FiltersAndKinds(t *testing.T) {
 	}
 
 	doc, warns := BuildSaveDocument(snap, now, "testhost")
-	if doc.Version != 1 {
+	if doc.Version != sessionsSaveVersion {
 		t.Fatalf("version %d", doc.Version)
 	}
 	if doc.Host != "testhost" {

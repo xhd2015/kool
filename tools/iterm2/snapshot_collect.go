@@ -186,6 +186,7 @@ func InstallPhasedFixtureCollectorForTest(t testing.TB, opts PhasedFixtureOpts) 
 		ListProcs:         lib.ListProcs,
 		ListCwds:          lib.ListCwds,
 		fixtureEnabled:    true,
+		fixtureWindows:    fxWindows,
 		agentResolveByTTY: agentByTTY,
 	}
 	SetSnapshotCollectorForTest(c)
@@ -321,6 +322,7 @@ func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error
 	var progressiveWindows []SnapshotWindow
 	libSnap, warnings, err := lib.CaptureProgressiveWith(libOpts, func(libWin snapshot.SnapshotWindow) error {
 		kWin := c.enrichWindowAgents(libWin, opts.NoEnrich)
+		c.enrichWindowForeground(&kWin)
 		progressiveWindows = append(progressiveWindows, kWin)
 		if onWindowReady != nil {
 			return onWindowReady(kWin)
@@ -349,6 +351,11 @@ func (c *SnapshotCollector) capture(onWindowReady func(win SnapshotWindow) error
 		}
 	} else {
 		kool = toKoolSnapshot(libSnap)
+		if kool != nil {
+			for i := range kool.Windows {
+				c.enrichWindowForeground(&kool.Windows[i])
+			}
+		}
 		if !opts.NoEnrich && libSnap != nil {
 			res, w2, aerr := itermsnapshot.Capture(itermsnapshot.CaptureOpts{
 				Snapshot:       libSnap,

@@ -27,6 +27,28 @@ func scanLiveCriticalAcrossApps(doc *SaveDocument, strict bool) (*liveCriticalIn
 	if len(wanted) == 0 {
 		return idx, nil, nil
 	}
+	// Generic command identities require exact launcher argv and cwd. Keep the
+	// lightweight agent-only scan unchanged; use full evidence for commands.
+	for key := range wanted {
+		if strings.HasPrefix(key, "command:") {
+			snap, warnings, err := CaptureSnapshotAcrossAppsStrict(CaptureOpts{NoEnrich: false})
+			if err != nil {
+				return nil, warnings, err
+			}
+			if snap != nil {
+				for _, win := range snap.Windows {
+					for _, tab := range win.Tabs {
+						for _, pane := range tab.Sessions {
+							if fg := pane.Foreground; fg != nil && (len(fg.Argv) == 0 || fg.Cwd == "") {
+								return nil, warnings, fmt.Errorf("Error: foreground command identity unavailable in pane %s; cannot exclude duplicate restart", shortID(pane.ID))
+							}
+						}
+					}
+				}
+			}
+			return indexLiveCriticalForKeys(snap, wanted), warnings, nil
+		}
+	}
 
 	base := activeCollector()
 	if base == nil {
@@ -169,6 +191,9 @@ func wantedLiveCriticalKeys(doc *SaveDocument) map[string]bool {
 	}
 	for _, win := range doc.Windows {
 		for _, tab := range win.Tabs {
+			if !commandExecutable(tab) {
+				continue
+			}
 			if key := criticalMatchKey(tab); key != "" {
 				wanted[key] = true
 			}

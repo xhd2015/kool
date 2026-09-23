@@ -45,9 +45,19 @@ const sessionsAutoBackupHelp = `iterm2 sessions auto-backup — periodically che
 
 Usage: kool iterm2 sessions auto-backup [options]
 
-Periodically checkpoint critical grok/codex/mark tabs (same filter as sessions
-save) so crash recovery can restore from the auto file. Default interval is
-10m; the first cycle runs immediately, then sleeps --interval.
+Periodically checkpoint grok/codex/mark and generic foreground blocking commands
+(kind command; same filter as sessions save). Background-only idle shells are
+excluded. Default interval is 10m; the first cycle runs immediately, then sleeps
+--interval. New checkpoints use v2; old v1 checkpoints remain readable.
+
+Commands record exact process argv + launcher cwd when available. Only recognized
+dev servers auto restart: vite, next dev, astro dev, python -m http.server, or
+package dev/start/serve scripts verified to be a simple known server with no
+lifecycle hooks. Unknown commands, pipelines, and missing data stay review-only:
+restore skips them without executing, even with --force. The checkpoint remains
+unconsumed while reviews remain. Restart loses in-memory state. No process
+environment is captured; original shell syntax is not guaranteed. Arguments can
+contain secrets.
 
 Default checkpoint: ~/.config/iterm2/sessions-auto.json
 (distinct from manual sessions-save.json). Always overwrites the auto file on

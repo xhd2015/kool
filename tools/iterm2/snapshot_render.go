@@ -489,6 +489,19 @@ func WriteWarning(stderr io.Writer, msg string) {
 	fmt.Fprintln(stderr, line)
 }
 
+// WriteNotice prints a gray informational notice line to stderr.
+func WriteNotice(stderr io.Writer, msg string) {
+	line := msg
+	if !strings.HasPrefix(msg, "notice:") {
+		line = "notice: " + msg
+	}
+	if f, ok := stderr.(*os.File); ok && term.IsTerminal(int(f.Fd())) && os.Getenv("NO_COLOR") == "" {
+		fmt.Fprintln(stderr, ansiGray+line+ansiReset)
+		return
+	}
+	fmt.Fprintln(stderr, line)
+}
+
 // WriteError prints a red Error line when appropriate.
 func WriteError(stderr io.Writer, msg string) {
 	line := msg

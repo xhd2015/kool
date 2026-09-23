@@ -63,12 +63,14 @@ Tab sets (config: ~/.config/iterm2/tab-set or KOOL_ITERM2_TAB_SET_DIR):
   tab-set stop <name>              close marked windows/tabs for a set
   tab-set -h|--help                tab-set usage
 
-Sessions snapshot / save / restore / auto-backup / status:
+Sessions snapshot / save / restore / decisions / auto-backup / status:
   sessions snapshot [options]      dump all windows/tabs/sessions (cli|json|md|html)
   sessions save [--dry-run] [--file PATH]
-                                   checkpoint critical grok/codex/mark tabs
-  sessions restore [--dry-run] [--file PATH] [--same-app]
+                                   checkpoint grok/codex/mark and foreground command tabs
+  sessions restore [--dry-run] [--force] [--deny-unknown] [--file PATH] [--same-app]
                                    recreate windows and resume from checkpoint
+  sessions decisions list|rm [--file PATH]
+                                   list or remove saved restore allow/deny decisions
   sessions auto-backup [--once] [--interval DUR] [--file PATH]
                                    periodically checkpoint critical tabs (default 10m)
   session <id> status [options]    live status for one session (id = iTerm unique ID)

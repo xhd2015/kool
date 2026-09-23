@@ -19,14 +19,16 @@ const sessionsHelp = `iterm2 sessions — inspect live iTerm2 windows, tabs, and
 Usage:
   kool iterm2 sessions snapshot [options]
   kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
-  kool iterm2 sessions restore [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
+  kool iterm2 sessions restore [--dry-run] [--force] [--deny-unknown] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
+  kool iterm2 sessions decisions list|rm [--file PATH]
   kool iterm2 sessions auto-backup [--once] [--interval DUR] [--file PATH] [--dry-run]
   kool iterm2 sessions -h|--help
 
 Commands:
   snapshot                 capture all windows/tabs/sessions for human review
-  save                     checkpoint critical grok/codex/mark tabs for restore
+  save                     checkpoint grok/codex/mark and foreground command tabs for restore
   restore                  recreate windows and resume from the last save file
+  decisions                list or remove saved restore allow/deny decisions
   auto-backup              periodically checkpoint critical tabs (default every 10m)
 
 Snapshot options:
@@ -44,8 +46,19 @@ Snapshot options:
 Save / restore / auto-backup:
   Manual checkpoint default: ~/.config/iterm2/sessions-save.json
   Auto-backup default: ~/.config/iterm2/sessions-auto.json (always overwrite)
-  save keeps panes with resolved grok/codex session ids, or a live mark process.
-  restore creates windows/tabs, then: cd <cwd> and grok --resume / codex resume / mark …
+  save keeps resolved grok/codex sessions, live mark processes, and generic
+  foreground blocking commands (kind command); background-only idle shells are excluded.
+  Commands record exact process argv + launcher cwd when available, not original
+  shell syntax or process environment. Arguments can contain secrets.
+  Only recognized dev servers auto restart: vite, next dev, astro dev,
+  python -m http.server, or package dev/start/serve scripts verified to be a simple
+  known server with no lifecycle hooks. Restart loses in-memory state.
+  Unknown commands, pipelines, and missing data stay review-only. On restore,
+  review commands ask for confirmation (deny/allow once|always); choices are
+  remembered in ~/.config/iterm2/restore-decisions.json and auto-applied next
+  time (with a notice). Non-TTY restore errors when confirmation is needed,
+  unless --deny-unknown skips unrecorded commands.
+  restore resumes grok/codex/mark and restarts eligible commands in the saved cwd.
   auto-backup loops (default every 10m) with --once for a single cycle; soft-fails capture.
   If the checkpoint exists and is not restored yet, save prompts [Y/n] on a TTY
   (non-TTY stdin errors). restore errors if restored_at is already set.
@@ -74,12 +87,24 @@ Examples:
   kool iterm2 sessions auto-backup --interval 5m
 `
 
-const sessionsSaveHelp = `iterm2 sessions save — checkpoint critical grok/codex/mark tabs
+const sessionsSaveHelp = `iterm2 sessions save — checkpoint grok/codex/mark and foreground command tabs
 
 Usage: kool iterm2 sessions save [--dry-run] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--spaces LIST]
 
-Save busy panes that have a resolved grok or codex session_id, or a live mark
-process, into a checkpoint JSON (default: ~/.config/iterm2/sessions-save.json).
+Save panes with a resolved grok or codex session_id, a live mark process, or a
+generic foreground blocking command (kind command), into checkpoint JSON
+(default: ~/.config/iterm2/sessions-save.json). Background-only idle shells are
+excluded. New checkpoints use v2; old v1 checkpoints remain readable.
+Checkpoint files are written with owner-only permissions (0600).
+
+Commands record exact process argv + launcher cwd when available. Unknown
+commands, pipelines, and missing data stay review-only. Only recognized dev
+servers auto restart: vite, next dev, astro dev, python -m http.server, or package
+dev/start/serve scripts verified to be a simple known server with no lifecycle
+hooks. Restore skips review-only entries without executing, even with --force;
+the checkpoint remains unconsumed while reviews remain.
+Restart loses in-memory state. No process environment is captured; original
+shell syntax is not guaranteed. Arguments can contain secrets.
 
   --dry-run              print plan only; do not write or prompt
   --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-save.json)
@@ -114,14 +139,28 @@ Examples:
 
 const sessionsRestoreHelp = `iterm2 sessions restore — recreate windows and resume from checkpoint
 
-Usage: kool iterm2 sessions restore [--dry-run] [--force] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
+Usage: kool iterm2 sessions restore [--dry-run] [--force] [--deny-unknown] [--file PATH] [--color|--no-color] [--ignore-macos-space] [--same-app]
 
-Read the checkpoint, create one window per saved window, one tab per entry,
-then send: cd <cwd> and grok --resume / codex resume / mark <message>.
+Read v2 or old v1 checkpoints, create windows/tabs for eligible entries, then
+resume grok/codex/mark or restart recognized dev servers using exact saved process
+argv + launcher cwd. Only vite, next dev, astro dev, python -m http.server, and
+package dev/start/serve scripts verified to be a simple known server with no
+lifecycle hooks qualify for command auto restart.
+Unknown commands, pipelines, and missing data are review-only. On restore they
+ask for confirmation:
+  1) deny once    2) allow once    3) deny always    4) allow always
+Choices 3/4 are remembered in ~/.config/iterm2/restore-decisions.json and
+auto-applied on later restores of the exact same command (cwd + argv), with a
+notice printed. When any confirmation is needed and stdin is not a TTY, restore
+errors out unless --deny-unknown skips unrecorded commands.
+Restart loses in-memory state. No process environment is captured; original
+shell syntax is not guaranteed. Arguments can contain secrets.
 
   --dry-run              print plan only; do not create tabs or mark restored
   --force                allow a checkpoint with restored_at; live-session
                          duplicate checks still apply
+  --deny-unknown         skip commands without a saved decision instead of
+                         prompting (recorded decisions still win)
   --file PATH            checkpoint path (default: ~/.config/iterm2/sessions-save.json)
   --color                force ANSI colors on (wins over NO_COLOR / non-TTY)
   --no-color             force ANSI colors off
@@ -135,10 +174,12 @@ then send: cd <cwd> and grok --resume / codex resume / mark <message>.
 If restored_at is set, the file is already consumed and restore errors unless
 --force is supplied. --force does not bypass the live-session duplicate check.
 Before creating tabs, restore scans every running iTerm install and skips matching
-live grok/codex sessions or mark messages. A live restore aborts if this safety
-scan fails; dry-run warns and shows the unfiltered saved layout.
-On full success, restored_at is written so the checkpoint cannot be applied twice.
-By default each window is placed on its recorded macOS Space (Switch/Create).
+live grok/codex sessions, mark messages, or commands with matching cwd + argv.
+A live restore aborts if this safety scan fails or a foreground command identity
+cannot be established; dry-run warns and shows the unfiltered saved layout.
+On full success with no pending confirmations, restored_at marks the checkpoint
+consumed. By default each window is placed on its recorded macOS Space
+(Switch/Create).
 If already on that Desktop, Switch is skipped. If Switch fails after retries
 (Mission Control AX flake), restore warns and continues on the current Desktop
 instead of aborting.
@@ -151,6 +192,7 @@ Examples:
   kool iterm2 sessions restore --file ~/Desktop/pre-reboot.json
   kool iterm2 sessions restore --ignore-macos-space
   kool iterm2 sessions restore --same-app
+  kool iterm2 sessions restore --deny-unknown
 `
 
 const sessionHelp = `iterm2 session — inspect or drive a single iTerm2 session
@@ -222,6 +264,8 @@ func runSessions(args []string, stdout, stderr io.Writer) error {
 		return runSessionsSave(args[1:], stdout, stderr)
 	case "restore":
 		return runSessionsRestore(args[1:], stdout, stderr)
+	case "decisions":
+		return runSessionsDecisions(args[1:], stdout, stderr)
 	case "auto-backup":
 		return runSessionsAutoBackup(args[1:], stdout, stderr)
 	default:

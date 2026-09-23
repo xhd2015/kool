@@ -45,29 +45,31 @@ type SnapshotTab struct {
 
 // SnapshotSession is one pane/session. Id is the iTerm2 session unique ID (UUID).
 type SnapshotSession struct {
-	Index             int              `json:"index"`
-	ID                string           `json:"id"`
-	Name              string           `json:"name"`
-	TTY               string           `json:"tty"`
-	Profile           string           `json:"profile"`
-	ItermIsProcessing bool             `json:"iterm_is_processing"`
-	Idle              *bool            `json:"idle"` // nil = unknown
-	Cwd               *string          `json:"cwd"`
-	ShellPID          *int             `json:"shell_pid"`
-	PID               *int             `json:"pid"`
-	PPID              *int             `json:"ppid"`
-	Stat              *string          `json:"stat"`
-	Command           *string          `json:"command"`
-	CommandLine       *string          `json:"command_line"`
-	StartTime         *string          `json:"start_time"`
-	StartTimeUnix     *int64           `json:"start_time_unix"`
-	DurationSeconds   *int64           `json:"duration_seconds"`
-	Duration          *string          `json:"duration"`
-	Etime             *string          `json:"etime"`
-	RSSKB             *int64           `json:"rss_kb"`
-	Processes         []SnapshotProc   `json:"processes"`
+	Index             int            `json:"index"`
+	ID                string         `json:"id"`
+	Name              string         `json:"name"`
+	TTY               string         `json:"tty"`
+	Profile           string         `json:"profile"`
+	ItermIsProcessing bool           `json:"iterm_is_processing"`
+	Idle              *bool          `json:"idle"` // nil = unknown
+	Cwd               *string        `json:"cwd"`
+	ShellPID          *int           `json:"shell_pid"`
+	PID               *int           `json:"pid"`
+	PPID              *int           `json:"ppid"`
+	Stat              *string        `json:"stat"`
+	Command           *string        `json:"command"`
+	CommandLine       *string        `json:"command_line"`
+	StartTime         *string        `json:"start_time"`
+	StartTimeUnix     *int64         `json:"start_time_unix"`
+	DurationSeconds   *int64         `json:"duration_seconds"`
+	Duration          *string        `json:"duration"`
+	Etime             *string        `json:"etime"`
+	RSSKB             *int64         `json:"rss_kb"`
+	Processes         []SnapshotProc `json:"processes"`
 	// Agent is set when procresolve finds a grok/codex session on a busy pane.
 	Agent *SessionAgent `json:"agent,omitempty"`
+	// Foreground contains live launcher evidence, separate from the chosen leaf.
+	Foreground *ForegroundCommand `json:"foreground,omitempty"`
 	// Layout hints (not required for id resolution).
 	WindowIndex int `json:"window_index,omitempty"`
 	TabIndex    int `json:"tab_index,omitempty"`
@@ -111,7 +113,7 @@ type SnapshotProc struct {
 	Command         string  `json:"command"`
 }
 
-func boolPtr(v bool) *bool       { return &v }
-func intPtr(v int) *int          { return &v }
-func int64Ptr(v int64) *int64    { return &v }
-func strPtr(v string) *string    { return &v }
+func boolPtr(v bool) *bool    { return &v }
+func intPtr(v int) *int       { return &v }
+func int64Ptr(v int64) *int64 { return &v }
+func strPtr(v string) *string { return &v }

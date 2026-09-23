@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	sessionsSaveVersion = 1
+	sessionsSaveVersion = 2
 	sessionsSaveSource  = "kool-iterm2-sessions-save"
 )
 
@@ -92,17 +92,22 @@ func (w SaveWindow) MarshalJSON() ([]byte, error) {
 
 // SaveTab is one critical pane to restore as a tab (cd + resume_cmd).
 type SaveTab struct {
-	SourceTabIndex  int    `json:"source_tab_index,omitempty"`
-	SourcePaneIndex int    `json:"source_pane_index,omitempty"`
-	Name            string `json:"name,omitempty"`
-	Cwd             string `json:"cwd"`
-	Kind            string `json:"kind"` // grok | codex | mark
-	SessionID       string `json:"session_id,omitempty"`
-	Message         string `json:"message,omitempty"` // mark only
-	Title           string `json:"title,omitempty"`
-	ResumeCmd       string `json:"resume_cmd"`
-	ItermSessionID  string `json:"iterm_session_id,omitempty"`
-	SourceCmdLine   string `json:"source_command_line,omitempty"`
+	SourceTabIndex  int           `json:"source_tab_index,omitempty"`
+	SourcePaneIndex int           `json:"source_pane_index,omitempty"`
+	Name            string        `json:"name,omitempty"`
+	Cwd             string        `json:"cwd"`
+	Kind            string        `json:"kind"` // grok | codex | mark | command
+	Command         *SavedCommand `json:"command,omitempty"`
+	SessionID       string        `json:"session_id,omitempty"`
+	Message         string        `json:"message,omitempty"` // mark only
+	Title           string        `json:"title,omitempty"`
+	ResumeCmd       string        `json:"resume_cmd"`
+	ItermSessionID  string        `json:"iterm_session_id,omitempty"`
+	SourceCmdLine   string        `json:"source_command_line,omitempty"`
+	// ResolvedAllow / ResolvedDeny are in-memory restore-time decisions (from
+	// the decision store or the confirmation prompt). Never serialized.
+	ResolvedAllow bool `json:"-"`
+	ResolvedDeny  bool `json:"-"`
 }
 
 // DefaultSessionsSavePath is ~/.config/iterm2/sessions-save.json.
@@ -433,7 +438,7 @@ func classifyCriticalTab(win SnapshotWindow, tab SnapshotTab, s SnapshotSession)
 		base.ResumeCmd = resumeCmdForMark(msg)
 		return &base, ""
 	}
-	return nil, ""
+	return classifyForegroundTab(base, s)
 }
 
 func resumeCmdForAgent(kind, sessionID string) string {
@@ -520,7 +525,7 @@ func ReadSaveDocument(path string) (*SaveDocument, error) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("invalid checkpoint JSON: %w", err)
 	}
-	if doc.Version != sessionsSaveVersion {
+	if doc.Version != 1 && doc.Version != sessionsSaveVersion {
 		return nil, fmt.Errorf("unsupported checkpoint version %d (want %d)", doc.Version, sessionsSaveVersion)
 	}
 	if doc.Summary.ByKind == nil {
@@ -542,11 +547,21 @@ func WriteSaveDocument(path string, doc *SaveDocument) error {
 		return err
 	}
 	data = append(data, '\n')
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	// Exact argv can contain credentials. CreateTemp uses 0600 and a unique
+	// name, avoiding both world-readable checkpoints and shared .tmp races.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".sessions-checkpoint-*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // extractCriticalFromWindow classifies critical tabs in one live window.
@@ -640,6 +655,12 @@ func formatSaveWindowBlock(w io.Writer, win SaveWindow, color bool, leadingBlank
 				id = "(no message)"
 			}
 		}
+		if tab.Kind == "command" {
+			id = "restart"
+			if commandNeedsReview(tab) {
+				id = "review required"
+			}
+		}
 		kind := paintKind(color, tab.Kind)
 		// Pad plain kind for monochrome column alignment; colored codes skip pad.
 		kindCol := kind
@@ -648,7 +669,11 @@ func formatSaveWindowBlock(w io.Writer, win SaveWindow, color bool, leadingBlank
 		}
 		cwd := paint(color, ansiGray, tab.Cwd)
 		fmt.Fprintf(w, "      tab%d  %s  %s  %s\n", i+1, kindCol, id, cwd)
-		fmt.Fprintf(w, "            %s\n", paint(color, ansiGray, tab.ResumeCmd))
+		command := tab.ResumeCmd
+		if tab.Kind == "command" {
+			command = commandDisplay(tab)
+		}
+		fmt.Fprintf(w, "            %s\n", paint(color, ansiGray, command))
 	}
 }
 
@@ -1040,6 +1065,8 @@ func criticalMatchKey(tab SaveTab) string {
 			return ""
 		}
 		return kind + ":" + tab.SessionID
+	case "command":
+		return commandMatchKey(tab)
 	case "mark":
 		return "mark:" + tab.Message
 	default:
@@ -1050,6 +1077,9 @@ func criticalMatchKey(tab SaveTab) string {
 // criticalIdentity returns the identity string shown in already-running warnings.
 func criticalIdentity(tab SaveTab) string {
 	kind := strings.ToLower(strings.TrimSpace(tab.Kind))
+	if kind == "command" {
+		return commandDisplay(tab)
+	}
 	if kind == "mark" {
 		return tab.Message
 	}
@@ -1195,6 +1225,9 @@ func matchCheckpointSkips(doc *SaveDocument, live *liveCriticalIndex, stderr io.
 	for wi, win := range doc.Windows {
 		tabSkipped[wi] = make([]bool, len(win.Tabs))
 		for ti, tab := range win.Tabs {
+			if !commandExecutable(tab) {
+				continue
+			}
 			hit, ok := live.take(tab)
 			if !ok {
 				continue
@@ -1218,7 +1251,10 @@ func countRemainingWouldCreate(doc *SaveDocument, tabSkipped [][]bool) (windows,
 	}
 	for wi, win := range doc.Windows {
 		n := 0
-		for ti := range win.Tabs {
+		for ti, tab := range win.Tabs {
+			if !commandExecutable(tab) {
+				continue
+			}
 			if tabSkipped != nil && wi < len(tabSkipped) && ti < len(tabSkipped[wi]) && tabSkipped[wi][ti] {
 				continue
 			}
@@ -1249,6 +1285,9 @@ func filterSaveDocRemaining(doc *SaveDocument, tabSkipped [][]bool) *SaveDocumen
 	for wi, win := range doc.Windows {
 		var tabs []SaveTab
 		for ti, tab := range win.Tabs {
+			if !commandExecutable(tab) {
+				continue
+			}
 			if tabSkipped != nil && wi < len(tabSkipped) && ti < len(tabSkipped[wi]) && tabSkipped[wi][ti] {
 				continue
 			}
@@ -1272,8 +1311,10 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 	var ignoreMacOSSpace bool
 	var sameApp bool
 	var force bool
+	var denyUnknown bool
 	remain, err := lessflags.Bool("--dry-run", &dryRun).
 		Bool("--force", &force).
+		Bool("--deny-unknown", &denyUnknown).
 		String("-f,--file", &fileFlag).
 		Bool("--color", &forceColor).
 		Bool("--no-color", &forceNoColor).
@@ -1330,6 +1371,43 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		WriteWarning(stderr, fmt.Sprintf("host in file is %q, this machine is %q", doc.Host, host))
 	}
 
+	// Decision preflight: resolve recorded allow/deny into in-memory flags and
+	// collect commands that still need confirmation. Non-executable review
+	// commands (no exact argv/cwd) are auto-denied with a reason warning.
+	decisionsPath := effectiveDecisionsPath()
+	store, storeWarns := ReadDecisionsDocument(decisionsPath)
+	for _, w := range storeWarns {
+		WriteWarning(stderr, w)
+	}
+	type askItem struct{ wi, ti int }
+	var asks []askItem
+	for wi := range doc.Windows {
+		for ti := range doc.Windows[wi].Tabs {
+			tab := &doc.Windows[wi].Tabs[ti]
+			if tab.Kind != "command" {
+				continue
+			}
+			if rec, ok := decisionFor(store, *tab); ok {
+				if rec.Decision == decisionAllow {
+					tab.ResolvedAllow = true
+					WriteNotice(stderr, fmt.Sprintf("'%s' auto-allowed (saved decision %s)", commandDisplay(*tab), rec.DecidedAt))
+				} else {
+					tab.ResolvedDeny = true
+					WriteNotice(stderr, fmt.Sprintf("'%s' auto-denied (saved decision %s)", commandDisplay(*tab), rec.DecidedAt))
+				}
+				continue
+			}
+			switch commandAction(*tab) {
+			case "ask":
+				asks = append(asks, askItem{wi: wi, ti: ti})
+			case "deny":
+				if reason := commandReviewReason(*tab); reason != "" {
+					WriteWarning(stderr, fmt.Sprintf("command skipped: %q: %s", commandDisplay(*tab), reason))
+				}
+			}
+		}
+	}
+
 	// Already-running scan covers every running iTerm install. Dry-run can still
 	// show an unknown/full plan when capture fails; live restore fails safely.
 	live, snapWarns, capErr := scanLiveCriticalAcrossApps(doc, !dryRun)
@@ -1384,6 +1462,59 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 
+	// Confirmation phase: every command that still needs a decision is resolved
+	// now. Non-TTY stdin cannot prompt: error out, or --deny-unknown skips.
+	storeDirty := false
+	if len(asks) > 0 {
+		if !sessionsIsStdinTTY() {
+			if !denyUnknown {
+				names := make([]string, 0, len(asks))
+				for _, a := range asks {
+					names = append(names, "  "+commandDisplay(doc.Windows[a.wi].Tabs[a.ti]))
+				}
+				WriteError(stderr, fmt.Sprintf(
+					"sessions restore: %d command(s) need confirmation and stdin is not a TTY:\n%s\n  re-run in a terminal to choose, or pass --deny-unknown to skip unrecorded commands",
+					len(asks), strings.Join(names, "\n")))
+				return errs.NewSilenceExitCode(1)
+			}
+			for _, a := range asks {
+				tab := &doc.Windows[a.wi].Tabs[a.ti]
+				tab.ResolvedDeny = true
+				WriteNotice(stderr, fmt.Sprintf("'%s' has no saved decision; --deny-unknown skipped it", commandDisplay(*tab)))
+			}
+		} else {
+			for _, a := range asks {
+				tab := &doc.Windows[a.wi].Tabs[a.ti]
+				decision, always, perr := promptCommandDecision(*tab, stdout, stderr)
+				if perr != nil {
+					// Abort: leave the checkpoint recoverable when --force reopened it.
+					if uerr := leaveCommandReviewsPending(path, doc); uerr != nil {
+						WriteError(stderr, uerr.Error())
+						return errs.NewSilenceExitCode(1)
+					}
+					WriteError(stderr, fmt.Sprintf("sessions restore: confirmation aborted: %v", perr))
+					return errs.NewSilenceExitCode(1)
+				}
+				if always {
+					key := commandMatchKey(*tab)
+					recordDecision(store, key, tab.Cwd, tab.Command.Argv, decision, sessionsNowFn())
+					storeDirty = true
+					WriteNotice(stderr, fmt.Sprintf("recorded %s for '%s'", decision, commandDisplay(*tab)))
+				}
+				if decision == decisionAllow {
+					tab.ResolvedAllow = true
+				} else {
+					tab.ResolvedDeny = true
+				}
+			}
+			if storeDirty {
+				if err := WriteDecisionsDocument(decisionsPath, store); err != nil {
+					WriteWarning(stderr, fmt.Sprintf("could not save decisions to %s: %v", decisionsPath, err))
+				}
+			}
+		}
+	}
+
 	// Live: all remaining 0 → still stamp restored_at; no AS create (E1).
 	if remainTabs == 0 {
 		now := sessionsNowFn()
@@ -1435,6 +1566,27 @@ func runSessionsRestore(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 
+	// Auto-restart commands can regress if package scripts change while windows
+	// are being placed; leave the checkpoint unconsumed in that case. Commands
+	// resolved by a user decision are never re-validated (the decision wins).
+	regressed := false
+	for _, win := range doc.Windows {
+		for _, tab := range win.Tabs {
+			if tab.Kind == "command" && tab.Command != nil && tab.Command.RestorePolicy == "restart" && commandReviewReason(tab) != "" {
+				regressed = true
+				break
+			}
+		}
+	}
+	if regressed {
+		if err := leaveCommandReviewsPending(path, doc); err != nil {
+			WriteError(stderr, err.Error())
+			return errs.NewSilenceExitCode(1)
+		}
+		WriteWarning(stderr, "checkpoint left unconsumed: a restart command no longer qualifies for automatic restart")
+		formatRestorePlan(stdout, doc, path, false, color, ignoreMacOSSpace, tabSkipped, skippedCount, remainWindows, remainTabs, plan)
+		return nil
+	}
 	now := sessionsNowFn()
 	ts := now.Format("2006-01-02T15:04:05-0700")
 	doc.RestoredAt = &ts
@@ -1459,7 +1611,10 @@ func restoreTabSkipped(tabSkipped [][]bool, wi, ti int) bool {
 
 func remainingTabsInWindow(win SaveWindow, skipped []bool) int {
 	remaining := 0
-	for ti := range win.Tabs {
+	for ti, tab := range win.Tabs {
+		if !commandExecutable(tab) {
+			continue
+		}
 		if ti < len(skipped) && skipped[ti] {
 			continue
 		}
@@ -1510,6 +1665,16 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 			windowLabel := "new window — would create"
 			if remainingTabsInWindow(win, skipped) == 0 {
 				windowLabel = "saved window (would not create — all tabs already running)"
+				for _, tab := range win.Tabs {
+					if commandAction(tab) == "ask" {
+						windowLabel = "saved window (would not create — commands need confirmation)"
+						break
+					}
+					if commandAction(tab) == "deny" {
+						windowLabel = "saved window (would not create — commands skipped)"
+						break
+					}
+				}
 			}
 			fmt.Fprintf(w, "\n  %s\n", paint(color, ansiBold, windowLabel))
 			if !ignoreMacOSSpace {
@@ -1536,14 +1701,25 @@ func formatRestorePlan(w io.Writer, doc *SaveDocument, path string, dryRun bool,
 				}
 			}
 			for ti, tab := range win.Tabs {
-				if restoreTabSkipped(tabSkipped, wi, ti) {
-					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "already running — would skip"))
-				} else {
-					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "would restore"))
+				switch commandAction(tab) {
+				case "ask":
+					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiYellow, "would ask — 1 deny once, 2 allow once, 3 deny always, 4 allow always"))
+				case "deny":
+					fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "would skip"))
+				default:
+					if restoreTabSkipped(tabSkipped, wi, ti) {
+						fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "already running — would skip"))
+					} else {
+						fmt.Fprintf(w, "    tab  %s\n", paint(color, ansiGray, "would restore"))
+					}
 				}
-				fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, "cd "+shellSingleQuote(tab.Cwd)))
-				if tab.ResumeCmd != "" {
-					fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, tab.ResumeCmd))
+				fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, "cd "+shellQuoteArgIfNeeded(tab.Cwd)))
+				command := tab.ResumeCmd
+				if tab.Kind == "command" {
+					command = commandDisplay(tab)
+				}
+				if command != "" {
+					fmt.Fprintf(w, "         %s\n", formatRestoreCommand(color, command))
 				}
 			}
 		}

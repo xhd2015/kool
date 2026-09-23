@@ -42,6 +42,9 @@ end tell`, tellLit)
 		`  set titleWarnings to ""`,
 	}
 
+	// Defense in depth: callers cannot bypass review policy by invoking the
+	// script builder directly or by putting shell text in resume_cmd.
+	doc = filterSaveDocRemaining(doc, nil)
 	for _, win := range doc.Windows {
 		lines = append(lines, `  set newWindow to (create window with default profile)`)
 		for i, tab := range win.Tabs {
@@ -55,13 +58,16 @@ end tell`, tellLit)
 				)
 			}
 
-			if tab.Cwd != "" {
+			if tab.Kind == "command" {
+				line := "cd " + shellQuoteArgIfNeeded(tab.Cwd) + " && " + quoteCommandArgv(tab.Command.Argv)
+				lines = append(lines, fmt.Sprintf(`    write text "%s"`, lib.EscapeCommandForAppleScript(line)))
+			} else if tab.Cwd != "" {
 				escapedCwd := lib.EscapePathForAppleScript(tab.Cwd)
 				lines = append(lines,
 					fmt.Sprintf(`    write text ("cd " & quoted form of "%s")`, escapedCwd),
 				)
 			}
-			if tab.ResumeCmd != "" {
+			if tab.Kind != "command" && tab.ResumeCmd != "" {
 				lines = append(lines,
 					fmt.Sprintf(`    write text "%s"`, lib.EscapeCommandForAppleScript(tab.ResumeCmd)),
 				)
