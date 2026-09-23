@@ -60,6 +60,9 @@ func TestCreateGoCLIIntoEmptyExistingDir(t *testing.T) {
 	if !strings.Contains(mainGo, `"git-hooks/run"`) {
 		t.Fatalf("cmd/git-hooks/main.go did not dispatch to generated run package:\n%s", mainGo)
 	}
+	if _, err := os.Stat(filepath.Join(dir, "main.go")); err == nil {
+		t.Fatal("root main.go must not exist; product entry is cmd/git-hooks/main.go")
+	}
 
 	runGo := mustReadCreateTest(t, filepath.Join(dir, "run", "run.go"))
 	for _, want := range []string{

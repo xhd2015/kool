@@ -23,6 +23,7 @@ func TestGoReactAgentCLITemplateShipsAgentCLI(t *testing.T) {
 
 	// The agent CLI files exist.
 	for _, name := range []string{
+		filepath.Join("cmd", "demo", "main.go"),
 		filepath.Join("run", "run.go"),
 		filepath.Join("run", "server.go"),
 		filepath.Join("run", "client.go"),
@@ -35,6 +36,9 @@ func TestGoReactAgentCLITemplateShipsAgentCLI(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Fatalf("missing generated %s: %v", name, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.go")); err == nil {
+		t.Fatal("root main.go must not exist; product entry is cmd/demo/main.go")
 	}
 
 	// Dispatcher covers the agent verb set.
