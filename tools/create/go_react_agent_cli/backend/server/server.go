@@ -561,6 +561,7 @@ func RegisterAPI(mux *http.ServeMux) error {
 
 	RegisterCounterAPI(mux)
 	RegisterPageMetaAPI(mux)
+	RegisterImagesAPI(mux)
 
 	// Unknown API paths get a JSON 404 instead of the SPA fallback, so CLI
 	// and agent callers see a clean error. Specific routes above win over

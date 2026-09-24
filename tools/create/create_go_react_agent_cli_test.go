@@ -2,6 +2,7 @@ package create
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -111,19 +112,29 @@ func TestGoReactAgentCLISharesBaseTemplateFiles(t *testing.T) {
 	variantRoot := "go_react_agent_cli/backend"
 
 	variantOnly := map[string]bool{
-		"run/run.go":           true, // dispatcher replaces the base single-command run.go
-		"run/server.go":        true,
-		"run/client.go":        true,
-		"run/skill.go":         true,
-		"run/dispatch_test.go": true,
-		"run/client_test.go":   true,
-		"run/skill_test.go":    true,
-		"skill/skill.go":       true,
-		"skill/skill_test.go":  true,
-		"skill/SKILL.md":       true,
-		"server/server.go":     true, // adds the JSON 404 fallback
-		"README.md":            true, // CLI-focused docs
-		"AGENTS.md":            true, // adds the CLI≈web alignment rules for the CLI verbs
+		"run/run.go":               true, // dispatcher replaces the base single-command run.go
+		"run/server.go":            true,
+		"run/client.go":            true,
+		"run/skill.go":             true,
+		"run/dispatch_test.go":     true,
+		"run/client_test.go":       true,
+		"run/skill_test.go":        true,
+		"run/imageupload.go":       true, // post --file plus the image library renders
+		"run/imageupload_test.go":  true,
+		"skill/skill.go":           true,
+		"skill/skill_test.go":      true,
+		"skill/SKILL.md":           true,
+		"server/server.go":         true, // adds the JSON 404 fallback and the image API
+		"server/images.go":         true, // the unified image library
+		"server/images_api.go":     true,
+		"server/images_audit.go":   true,
+		"server/images_guard.go":   true,
+		"server/images_sniff.go":   true,
+		"server/images_json.go":    true,
+		"server/images_test.go":    true,
+		"server/gallery.go":        true, // the demo container and the delete guard registry
+		"README.md":                true, // CLI-focused docs
+		"AGENTS.md":                true, // adds the CLI≈web alignment rules for the CLI verbs
 	}
 
 	baseFS := goReactTemplateFS
@@ -228,6 +239,230 @@ func TestGoReactAgentCLISharesBaseTemplateFiles(t *testing.T) {
 	}
 	if err := walkFrontend(baseFrontend); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestGoReactAgentCLITemplateShipsUnifiedImageLibrary pins the image half of the
+// scaffold: one content-addressed library in the data dir, ids from the shared
+// sequence, an audit that judges bytes, and a delete guard driven by one
+// container registry.
+func TestGoReactAgentCLITemplateShipsUnifiedImageLibrary(t *testing.T) {
+	dir := copyAgentCLIBackend(t, "demo")
+
+	for _, name := range []string{
+		filepath.Join("server", "images.go"),
+		filepath.Join("server", "images_api.go"),
+		filepath.Join("server", "images_audit.go"),
+		filepath.Join("server", "images_guard.go"),
+		filepath.Join("server", "images_sniff.go"),
+		filepath.Join("server", "images_json.go"),
+		filepath.Join("server", "gallery.go"),
+		filepath.Join("server", "images_test.go"),
+		filepath.Join("run", "imageupload.go"),
+		filepath.Join("run", "imageupload_test.go"),
+	} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Fatalf("missing generated %s: %v", name, err)
+		}
+	}
+
+	// The library: dedup by content, a commit marker written last, bytes that
+	// decide the format, and an id from the shared sequence with a floor. The
+	// library is split across focused files, so assert on the whole set.
+	libraryFiles := []string{
+		"images.go", "images_api.go", "images_audit.go",
+		"images_guard.go", "images_sniff.go", "images_json.go", "gallery.go",
+	}
+	var library strings.Builder
+	for _, name := range libraryFiles {
+		library.WriteString(mustReadCreateTest(t, filepath.Join(dir, "server", name)))
+	}
+	libraryGo := library.String()
+	for _, want := range []string{
+		"func md5Hex(", "findByMD5Locked", "// meta.json LAST",
+		"func sniffImageMagic(", "func sniffImageType(", "not an image: detected",
+		"imageContainers", "func (s *imageStore) Delete(", "cannot rewrite",
+		"idalloc.New(", "func (s *imageStore) maxImageID(", "validationError",
+		"detachGalleryFile", "gallery.json", "retired",
+		`"/api/ids"`, `"/api/images"`, `"/api/images/"`, `"/api/gallery"`, `"/api/data/"`,
+		"func RegisterImagesAPI(", "maxAllocatedIDs", "func writeStoreError(", "immutable",
+	} {
+		if !strings.Contains(libraryGo, want) {
+			t.Fatalf("the generated image library is missing %q", want)
+		}
+	}
+
+	// Every file of the library stays inside the project's file-size rule.
+	for _, name := range libraryFiles {
+		content := mustReadCreateTest(t, filepath.Join(dir, "server", name))
+		if lines := strings.Count(content, "\n"); lines > 500 {
+			t.Fatalf("server/%s is %d lines, over the 500-line cap", name, lines)
+		}
+	}
+
+	serverGo := mustReadCreateTest(t, filepath.Join(dir, "server", "server.go"))
+	if !strings.Contains(serverGo, "RegisterImagesAPI(mux)") {
+		t.Fatalf("server/server.go does not register the image API:\n%s", serverGo)
+	}
+
+	// The CLI: an upload verb, a forced delete, and a path-first read.
+	upload := mustReadCreateTest(t, filepath.Join(dir, "run", "imageupload.go"))
+	for _, want := range []string{"func uploadImage(", "multipart.NewWriter(", "func renderImage(", "func imageAddress(", "tabwriter"} {
+		if !strings.Contains(upload, want) {
+			t.Fatalf("run/imageupload.go missing %q:\n%s", want, upload)
+		}
+	}
+	client := mustReadCreateTest(t, filepath.Join(dir, "run", "client.go"))
+	for _, want := range []string{`"--file"`, `"--force"`, `"--no-verify"`, "func doRequestData(", "func errorDetail("} {
+		if !strings.Contains(client, want) {
+			t.Fatalf("run/client.go missing %q:\n%s", want, client)
+		}
+	}
+	dispatch := mustReadCreateTest(t, filepath.Join(dir, "run", "run.go"))
+	for _, want := range []string{"/api/images", "/api/ids", "/api/gallery"} {
+		if !strings.Contains(dispatch, want) {
+			t.Fatalf("run/run.go root help missing path %q:\n%s", want, dispatch)
+		}
+	}
+
+	// The docs an agent reads.
+	skillMD := mustReadCreateTest(t, filepath.Join(dir, "skill", "SKILL.md"))
+	for _, want := range []string{"/api/images", "storage/unified-assets", "NOT AN IMAGE", "images/<id>/"} {
+		if !strings.Contains(skillMD, want) {
+			t.Fatalf("skill/SKILL.md missing %q:\n%s", want, skillMD)
+		}
+	}
+	agents := mustReadCreateTest(t, filepath.Join(dir, "AGENTS.md"))
+	for _, want := range []string{"One container registry", "images/<id>", "go test ./server/"} {
+		if !strings.Contains(agents, want) {
+			t.Fatalf("AGENTS.md missing %q:\n%s", want, agents)
+		}
+	}
+
+	// No placeholder survives into the new sources.
+	for _, name := range []string{
+		filepath.Join("server", "images.go"),
+		filepath.Join("server", "images_api.go"),
+		filepath.Join("server", "images_audit.go"),
+		filepath.Join("server", "images_guard.go"),
+		filepath.Join("server", "images_sniff.go"),
+		filepath.Join("server", "images_json.go"),
+		filepath.Join("server", "gallery.go"),
+		filepath.Join("server", "images_test.go"),
+		filepath.Join("run", "imageupload.go"),
+		filepath.Join("run", "imageupload_test.go"),
+	} {
+		content := mustReadCreateTest(t, filepath.Join(dir, name))
+		if strings.Contains(content, "__PROJECT_NAME__") || strings.Contains(content, "__MODULE_NAME__") {
+			t.Fatalf("generated %s has unresolved placeholders:\n%s", name, content)
+		}
+	}
+}
+
+// TestGoReactAgentCLITemplateRendersAndPassesItsOwnTests compiles the rendered
+// backend and runs the scaffold's shipped tests. The template sources carry
+// //go:build ignore, so nothing else in this repo compiles them: without this
+// test a template that does not build after placeholder substitution would only
+// be discovered by whoever runs `kool create` and then `go build`.
+//
+// The rendered module resolves its dependencies from the local module cache, so
+// on a machine that has never built a generated project the test skips instead
+// of failing on a missing download.
+func TestGoReactAgentCLITemplateRendersAndPassesItsOwnTests(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping rendered build in -short mode")
+	}
+	moduleRoot := koolModuleRoot(t)
+	dir := t.TempDir()
+	if err := copyTemplateDir(goReactAgentCLITemplateFS, "go_react_agent_cli/backend", dir, "demo", "example.com/demo"); err != nil {
+		t.Fatal(err)
+	}
+	// A filesystem replace for kool itself keeps the render portable: the
+	// generated run package imports github.com/xhd2015/kool/pkgs/web.
+	goMod := "module example.com/demo\n\ngo 1.25.10\n\n" +
+		"require github.com/xhd2015/kool v0.0.0\n\n" +
+		"replace github.com/xhd2015/kool => " + moduleRoot + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cacheProxy := "file://" + filepath.Join(goEnv(t, "GOMODCACHE"), "cache", "download")
+	env := append(os.Environ(), "GOFLAGS=-mod=mod", "GOSUMDB=off", "GOWORK=off", "GOPROXY="+cacheProxy)
+
+	if out, err := runGo(t, dir, env, "mod", "tidy"); err != nil {
+		skipIfOffline(t, out)
+		t.Fatalf("go mod tidy: %v\n%s", err, out)
+	}
+	if out, err := runGo(t, dir, env, "build", "./server/", "./run/"); err != nil {
+		skipIfOffline(t, out)
+		t.Fatalf("the rendered backend does not build: %v\n%s", err, out)
+	}
+	out, err := runGo(t, dir, env, "test", "./server/", "./run/")
+	if err != nil {
+		skipIfOffline(t, out)
+		t.Fatalf("the scaffold's own tests fail: %v\n%s", err, out)
+	}
+	for _, pkg := range []string{"example.com/demo/server", "example.com/demo/run"} {
+		if !strings.Contains(out, pkg) {
+			t.Fatalf("go test did not report %s:\n%s", pkg, out)
+		}
+	}
+}
+
+// koolModuleRoot walks up from the package directory to the module root.
+func koolModuleRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("cannot find the kool module root")
+		}
+		dir = parent
+	}
+}
+
+func goEnv(t *testing.T, key string) string {
+	t.Helper()
+	out, err := exec.Command("go", "env", key).Output()
+	if err != nil {
+		t.Fatalf("go env %s: %v", key, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func runGo(t *testing.T, dir string, env []string, args ...string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("go", args...)
+	cmd.Dir = dir
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// skipIfOffline turns "this machine cannot fetch the module" into a skip. A
+// compile error or a failing test never matches these markers, so those still
+// fail.
+func skipIfOffline(t *testing.T, output string) {
+	t.Helper()
+	for _, marker := range []string{
+		"cannot find module providing package",
+		"no required module provides package",
+		"module lookup disabled",
+		"dial tcp",
+		"connection refused",
+		"i/o timeout",
+		"missing go.sum entry",
+	} {
+		if strings.Contains(output, marker) {
+			t.Skipf("module cache cannot resolve the rendered module (%s); skipping", marker)
+		}
 	}
 }
 

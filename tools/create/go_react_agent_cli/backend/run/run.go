@@ -13,13 +13,20 @@ Start the server, then talk to its API with the HTTP verb commands.
 
 Commands:
   server    Start the web UI and API server (default port 8080)
-  get       GET <URI> and print the response body
+  get       GET <URI> and print the response body (the image library renders)
   put       PUT <URI> with an optional JSON body (literal, @file, or - for stdin)
-  post      POST <URI> with an optional JSON body
-  delete    DELETE <URI>
+  post      POST <URI> with an optional JSON body, or --file to upload an image
+  delete    DELETE <URI> (--force detaches an image a page still shows)
   skill     Show or install the __PROJECT_NAME__ agent skill
 
 Paths:
+  /api/images       the image library: get audits it, get /api/images/<id>
+                    prints where the bytes are, post --file uploads, delete
+                    /api/images/<id> removes (refused while a page shows it)
+  /api/gallery      the demo container that references images (get, put)
+  /api/ids          the shared id sequence (get the last id, post {"count":n})
+  /api/data/images/<id>/image.<ext>
+                    the stored bytes, served from the data dir
   /api/counter      the counter record (get, post)
   /api/page-meta    server-owned card meta: title / hint / empty per card
   /api/pages/home   the Home page document (cards in web order, meta included)

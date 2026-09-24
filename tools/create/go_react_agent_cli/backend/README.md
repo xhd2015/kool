@@ -61,6 +61,46 @@ order, each with `meta`, an `empty` flag and its rows — so an agent reading th
 API learns what every card is for without opening a `.tsx`. The React card
 imports the same part over the `@pagemeta/` alias.
 
+## Images
+
+The scaffold ships a unified image library (`server/images*.go`: the store, the
+routes, the audit, the delete guard, the sniffer; `server/gallery.go`: the demo
+container). One store for the whole app, under
+`~/.<project>/images/<id>/`: the bytes as `image.<ext>` and the `meta.json` that
+commits the record. Ids come from the same `id.json` sequence as everything
+else, and identical bytes reuse the record — so an id's bytes never change and
+its URL is cacheable forever.
+
+```sh
+go run ./cmd/__PROJECT_NAME__ post /api/images --file photo.jpg --name 成都
+# uploaded image 7 · 成都
+# path /Users/you/.__PROJECT_NAME__/images/7/image.jpg
+# url  /api/data/images/7/image.jpg
+
+go run ./cmd/__PROJECT_NAME__ get /api/images       # audit: size, usage, state
+go run ./cmd/__PROJECT_NAME__ get /api/images/7     # path first, then the verdict
+go run ./cmd/__PROJECT_NAME__ delete /api/images/7  # refused while a page shows it
+go run ./cmd/__PROJECT_NAME__ delete /api/images/7 --force  # detach, then delete
+```
+
+Three properties are enforced, and each has a test in `server/images_test.go`:
+
+- **Bytes decide the format.** A file whose bytes are not a picture is rejected
+  (`not an image: detected text/xml; the file name says .jpg`) and the audit
+  keeps reporting it as `NOT AN IMAGE` — a 200 and an `image/jpeg` mime are not
+  evidence of a picture.
+- **One registry drives the audit and the delete.** `imageContainers` in
+  `server/gallery.go` lists every file that can reference an image; the demo
+  `gallery.json` is one. Deleting a referenced image is refused (the message
+  names the page) until `--force` detaches it, so no dangling id is left. A
+  reference in a file this build does not know about refuses even `--force`.
+- **Ids are one sequence.** `idalloc` with a floor of the largest image id on
+  disk, so a lost `id.json` reseeds instead of re-issuing an id.
+
+Add your own container by giving it an `image_ids` field and registering it in
+`imageContainers`. Full recipe:
+`go-best-practice skill --show storage/unified-assets`.
+
 ## Agent skill
 
 `skill/SKILL.md` is embedded in the binary and teaches agents the whole

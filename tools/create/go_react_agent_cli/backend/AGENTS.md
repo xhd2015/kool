@@ -98,3 +98,41 @@ implementation: the spl repo's `ai-workshop` package (`pagepath.go`,
 get/put/post/delete client ships the transport half (2, 6's flags, 7); the
 page documents (3), the shared text catalog (4), write feedback (5) and
 recorded-server discovery (6) bind as you add real pages.
+
+## Images: One Store, One Registry, One Sequence
+
+Every uploaded image goes into the shared library — never a per-entity image
+directory, never bytes inline in a document. `server/images.go` owns it.
+
+- **One store.** `~/.<project>/images/<id>/{image.<ext>, meta.json}`, with
+  `meta.json` written LAST: its presence is what makes the record complete, so
+  a partial upload is ignored by every reader. There is no `images.json`
+  catalog — the directory listing is the index.
+- **One sequence.** Image ids come from the same `id.json` as every entity, via
+  `idalloc` with a floor of the largest image id on disk, so a lost `id.json`
+  reseeds instead of re-issuing an id. Never invent an id (`time.Now()`,
+  `max+1`, a per-entity counter).
+- **Bytes decide the format.** Sniff magic bytes; the file name may only
+  explain a rejection. Never let an extension or a `Content-Type` make
+  non-image bytes acceptable — that is how a downloaded XML error page becomes
+  an `image/jpeg` served with a 200.
+- **One container registry.** Every file that carries an `image_id` /
+  `image_ids` field belongs in `imageContainers` (`server/gallery.go`). The
+  audit and the forced delete both drive off that one table: two hand-written
+  walks disagree, and `delete --force` then leaves a dangling id. A reference
+  in an unregistered file refuses the delete rather than dangling.
+- **Documents reference ids, nothing else.** Store `{"image_id":"7"}`, never a
+  path and never bytes. Validate the reference when the document is written, so
+  a typo fails at author time instead of showing a hole later.
+- **Reads print an address.** `get /api/images/<id>` prints the absolute path of
+  the stored bytes on the first line, so the next step can open the file.
+
+Before finishing a change that touches images, verify with:
+
+```sh
+go test ./server/ && rg -n "time.Now\(\).UnixNano|images\.json" server/
+```
+
+The first command runs the library's own guards (dedup, rejection, audit,
+delete guard, floor reseed); the second must return no matches. Full recipe:
+`go-best-practice skill --show storage/unified-assets`.
