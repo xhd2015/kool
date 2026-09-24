@@ -3,6 +3,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -19,6 +20,8 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -138,27 +141,28 @@ const DefaultVitePort = 6193
 type ServeConfig struct {
 	Port         int
 	Dev          bool
-	RoutePrefix  string
+	Route        RouteOptions
 	VitePort     int  // proxy target in Dev; 0 → DefaultVitePort when ExternalVite
 	ExternalVite bool // Dev: proxy only; do not spawn Vite (air / script/dev)
 }
 
-func Serve(port int, dev bool, routePrefix string) error {
+func Serve(port int, dev bool, route RouteOptions) error {
 	return ServeWithConfig(ServeConfig{
-		Port:        port,
-		Dev:         dev,
-		RoutePrefix: routePrefix,
+		Port:  port,
+		Dev:   dev,
+		Route: route,
 	})
 }
 
 func ServeWithConfig(cfg ServeConfig) error {
-	routePrefix := NormalizeRoutePrefix(cfg.RoutePrefix)
+	route := NormalizeRoute(cfg.Route)
+	routePrefix := route.Prefix
 	mux := http.NewServeMux()
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		Handler:      MountRoutePrefix(routePrefix, mux),
+		Handler:      MountRoutePrefix(mux, route),
 	}
 
 	if cfg.Dev {
@@ -197,11 +201,11 @@ func ServeWithConfig(cfg ServeConfig) error {
 			}
 		}
 
-		if err := ProxyDev(mux, vitePort, routePrefix); err != nil {
+		if err := ProxyDev(mux, vitePort, route); err != nil {
 			return err
 		}
 	} else {
-		err := Static(mux, StaticOptions{RoutePrefix: routePrefix})
+		err := Static(mux, StaticOptions{Route: route})
 		if err != nil {
 			return err
 		}
@@ -212,53 +216,75 @@ func ServeWithConfig(cfg ServeConfig) error {
 		return err
 	}
 
-	fmt.Printf("Serving directory preview at %s\n", localURL(cfg.Port, routePrefix, "/"))
+	fmt.Printf("Serving directory preview at %s\n", localURL(cfg.Port, route, "/"))
+	printRootRoute(cfg.Port, route)
 
 	return httpServer.ListenAndServe()
 }
 
-func ProxyDev(mux *http.ServeMux, vitePort int, routePrefix string) error {
+func ProxyDev(mux *http.ServeMux, vitePort int, route RouteOptions) error {
 	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", vitePort))
 	if err != nil {
 		return fmt.Errorf("invalid proxy target: %v", err)
 	}
-	return proxyDevTarget(mux, targetURL, routePrefix)
+	return proxyDevTarget(mux, targetURL, route)
 }
 
 // DevHandler builds the development handler used by an external supervisor.
 // It proxies frontend requests to frontendURL, serves API routes locally, and
-// mounts the complete app under routePrefix.
-func DevHandler(frontendURL string, routePrefix string) (http.Handler, error) {
+// mounts the complete app below route.Prefix — plus the root route when
+// route.KeepRoot is set, so one process can answer both entry points.
+func DevHandler(frontendURL string, route RouteOptions) (http.Handler, error) {
 	targetURL, err := url.Parse(frontendURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid frontend URL: %v", err)
 	}
 	mux := http.NewServeMux()
-	if err := proxyDevTarget(mux, targetURL, routePrefix); err != nil {
+	if err := proxyDevTarget(mux, targetURL, route); err != nil {
 		return nil, err
 	}
 	if err := RegisterAPI(mux); err != nil {
 		return nil, err
 	}
-	return MountRoutePrefix(routePrefix, mux), nil
+	return MountRoutePrefix(mux, route), nil
 }
 
-func proxyDevTarget(mux *http.ServeMux, targetURL *url.URL, routePrefix string) error {
+func proxyDevTarget(mux *http.ServeMux, targetURL *url.URL, route RouteOptions) error {
 	if targetURL.Scheme == "" || targetURL.Host == "" {
 		return fmt.Errorf("invalid proxy target: %q", targetURL.String())
 	}
+	route = NormalizeRoute(route)
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	routePrefix = NormalizeRoutePrefix(routePrefix)
 	defaultDirector := proxy.Director
 	proxy.Director = func(r *http.Request) {
+		requestPrefix := RequestRoutePrefix(r)
 		defaultDirector(r)
-		if routePrefix == "" {
-			return
+		if route.Prefix != "" {
+			r.URL.Path = joinRoutePrefix(route.Prefix, r.URL.Path)
+			if r.URL.RawPath != "" {
+				r.URL.RawPath = joinRoutePrefix(route.Prefix, r.URL.RawPath)
+			}
 		}
-		r.URL.Path = joinRoutePrefix(routePrefix, r.URL.Path)
-		if r.URL.RawPath != "" {
-			r.URL.RawPath = joinRoutePrefix(routePrefix, r.URL.RawPath)
+		// The HTML rewrite below needs the prefix the browser actually used,
+		// which the inbound request carries in its context.
+		*r = *withRequestRoutePrefix(r, requestPrefix)
+	}
+	// Vite's own HTML is served through this proxy in dev, so the prefix has to
+	// be injected per request here too.
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+			return nil
 		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return err
+		}
+		html := prepareFrontendHTML(body, RequestRoutePrefix(resp.Request), true)
+		resp.Body = io.NopCloser(bytes.NewReader(html))
+		resp.ContentLength = int64(len(html))
+		resp.Header.Set("Content-Length", strconv.Itoa(len(html)))
+		return nil
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -269,12 +295,11 @@ func proxyDevTarget(mux *http.ServeMux, targetURL *url.URL, routePrefix string) 
 }
 
 type StaticOptions struct {
-	IndexHtml   string // Custom HTML content to serve instead of embedded index.html
-	RoutePrefix string
+	IndexHtml string // Custom HTML content to serve instead of embedded index.html
+	Route     RouteOptions
 }
 
 func Static(mux *http.ServeMux, opts StaticOptions) error {
-	routePrefix := NormalizeRoutePrefix(opts.RoutePrefix)
 	// Serve static files from the embedded React build
 	reactFileSystem, err := fs.Sub(distFS, "__PROJECT_NAME__-react/dist")
 	if err != nil {
@@ -307,7 +332,7 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 
 		// Use custom IndexHtml if provided
 		if opts.IndexHtml != "" {
-			w.Write(prepareFrontendHTML([]byte(opts.IndexHtml), routePrefix, true))
+			w.Write(prepareFrontendHTML([]byte(opts.IndexHtml), RequestRoutePrefix(r), true))
 			return
 		}
 
@@ -325,9 +350,25 @@ func Static(mux *http.ServeMux, opts StaticOptions) error {
 			return
 		}
 
-		w.Write(prepareFrontendHTML(content, routePrefix, true))
+		w.Write(prepareFrontendHTML(content, RequestRoutePrefix(r), true))
 	})
 	return nil
+}
+
+// RouteOptions mounts the app below one optional path prefix.
+type RouteOptions struct {
+	// Prefix is a path like /demo. Empty or "/" means the host root.
+	Prefix string
+	// KeepRoot also serves the unprefixed root route, so one process can answer
+	// a prefixed front door and a direct domain at the same time.
+	KeepRoot bool
+}
+
+// NormalizeRoute cleans a route: the prefix takes its canonical form and an
+// empty prefix means the root route.
+func NormalizeRoute(route RouteOptions) RouteOptions {
+	route.Prefix = NormalizeRoutePrefix(route.Prefix)
+	return route
 }
 
 // NormalizeRoutePrefix converts values like "my-app" and "/my-app/" to
@@ -344,40 +385,90 @@ func NormalizeRoutePrefix(prefix string) string {
 	return prefix
 }
 
-// MountRoutePrefix mounts handler below routePrefix, stripping it before the
-// request reaches handler. Empty and root prefixes leave handler unchanged.
-func MountRoutePrefix(routePrefix string, handler http.Handler) http.Handler {
-	routePrefix = NormalizeRoutePrefix(routePrefix)
-	if routePrefix == "" {
+// ValidateRoutePrefix rejects prefixes that are not plain path segments, so a
+// bad flag fails at startup instead of serving broken links.
+func ValidateRoutePrefix(prefix string) error {
+	normalized := NormalizeRoutePrefix(prefix)
+	if normalized == "" {
+		return nil
+	}
+	for _, segment := range strings.Split(strings.TrimPrefix(normalized, "/"), "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return fmt.Errorf("invalid route prefix %q: use path segments like /demo", prefix)
+		}
+		for _, r := range segment {
+			valid := r == '-' || r == '_' || r == '.' ||
+				(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+			if !valid {
+				return fmt.Errorf("invalid route prefix %q: use path segments like /demo", prefix)
+			}
+		}
+	}
+	return nil
+}
+
+// routePrefixKey carries the route prefix the current request arrived under.
+type routePrefixKey struct{}
+
+// RequestRoutePrefix is the prefix this request arrived under: the mounted
+// prefix, or "" when it came in on the root route.
+func RequestRoutePrefix(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if value, ok := r.Context().Value(routePrefixKey{}).(string); ok {
+		return value
+	}
+	return ""
+}
+
+func withRequestRoutePrefix(r *http.Request, prefix string) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), routePrefixKey{}, prefix))
+}
+
+// MountRoutePrefix mounts handler below route.Prefix, stripping the prefix
+// before the request reaches handler. The effective prefix travels in the
+// request context so the HTML handler can inject it per request: one process
+// then serves both /demo/… (prefix kept) and /… (prefix cleared, KeepRoot).
+// An empty prefix leaves handler unchanged.
+func MountRoutePrefix(handler http.Handler, route RouteOptions) http.Handler {
+	route = NormalizeRoute(route)
+	prefix := route.Prefix
+	if prefix == "" {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == routePrefix {
-			http.Redirect(w, r, routePrefix+"/", http.StatusTemporaryRedirect)
-			return
-		}
-		if !strings.HasPrefix(r.URL.Path, routePrefix+"/") {
+		requestPath := r.URL.Path
+		switch {
+		case requestPath == prefix:
+			http.Redirect(w, r, prefix+"/", http.StatusTemporaryRedirect)
+		case strings.HasPrefix(requestPath, prefix+"/"):
+			handler.ServeHTTP(w, withRequestRoutePrefix(stripRoutePrefix(r, prefix), prefix))
+		case route.KeepRoot:
+			handler.ServeHTTP(w, withRequestRoutePrefix(r, ""))
+		default:
 			http.NotFound(w, r)
-			return
 		}
-
-		r2 := new(http.Request)
-		*r2 = *r
-		u2 := new(url.URL)
-		*u2 = *r.URL
-		u2.Path = strings.TrimPrefix(r.URL.Path, routePrefix)
-		if u2.Path == "" {
-			u2.Path = "/"
-		}
-		if u2.RawPath != "" {
-			u2.RawPath = strings.TrimPrefix(u2.RawPath, routePrefix)
-			if u2.RawPath == "" {
-				u2.RawPath = "/"
-			}
-		}
-		r2.URL = u2
-		handler.ServeHTTP(w, r2)
 	})
+}
+
+func stripRoutePrefix(r *http.Request, prefix string) *http.Request {
+	r2 := new(http.Request)
+	*r2 = *r
+	u2 := new(url.URL)
+	*u2 = *r.URL
+	u2.Path = strings.TrimPrefix(r.URL.Path, prefix)
+	if u2.Path == "" {
+		u2.Path = "/"
+	}
+	if u2.RawPath != "" {
+		u2.RawPath = strings.TrimPrefix(u2.RawPath, prefix)
+		if u2.RawPath == "" {
+			u2.RawPath = "/"
+		}
+	}
+	r2.URL = u2
+	return r2
 }
 
 func joinRoutePrefix(routePrefix string, requestPath string) string {
@@ -391,20 +482,43 @@ func joinRoutePrefix(routePrefix string, requestPath string) string {
 	if routePrefix == "" {
 		return requestPath
 	}
-	if requestPath == "/" {
-		return routePrefix + "/"
+	if prefixRootPath(requestPath, routePrefix) == requestPath {
+		// Already under the prefix (a Vite --base page): never double it.
+		return requestPath
 	}
 	return routePrefix + requestPath
 }
 
-func localURL(port int, routePrefix string, requestPath string) string {
-	return fmt.Sprintf("http://localhost:%d%s", port, joinRoutePrefix(routePrefix, requestPath))
+// prefixRootPath puts the prefix in front of a root-absolute path once.
+func prefixRootPath(pathname, routePrefix string) string {
+	if pathname == routePrefix || strings.HasPrefix(pathname, routePrefix+"/") {
+		return pathname
+	}
+	return routePrefix + pathname
+}
+
+func localURL(port int, route RouteOptions, requestPath string) string {
+	return fmt.Sprintf("http://localhost:%d%s", port, joinRoutePrefix(route.Prefix, requestPath))
+}
+
+// printRootRoute reports the second entry point of a dual-route deployment, so
+// the root route is visible at startup instead of only in the docs.
+func printRootRoute(port int, route RouteOptions) {
+	route = NormalizeRoute(route)
+	if route.Prefix == "" {
+		return
+	}
+	if route.KeepRoot {
+		fmt.Printf("Root route: %s\n", localURL(port, RouteOptions{}, "/"))
+		return
+	}
+	fmt.Printf("Root route: disabled (pass --keep-root-route to serve it)\n")
 }
 
 func prepareFrontendHTML(indexHTML []byte, routePrefix string, rewriteRootAssets bool) []byte {
 	routePrefix = NormalizeRoutePrefix(routePrefix)
 	html := string(indexHTML)
-	if rewriteRootAssets && routePrefix != "" {
+	if rewriteRootAssets {
 		html = prefixRootAbsoluteHTMLAttrs(html, routePrefix)
 	}
 	routePrefixJSON, _ := json.Marshal(routePrefix)
@@ -419,14 +533,26 @@ func prepareFrontendHTML(indexHTML []byte, routePrefix string, rewriteRootAssets
 	return []byte(html)
 }
 
+var rootAbsoluteAttrRe = regexp.MustCompile(`(src|href)="(/[^"]*)"`)
+var moduleImportRe = regexp.MustCompile(`(import\s+")(/[^"]*)"`)
+
+// prefixRootAbsoluteHTMLAttrs rewrites root-absolute asset URLs so a page served
+// under a prefix loads its own files. Values already under the prefix are left
+// alone, which keeps the rewrite safe for HTML a dev server already prefixed
+// with --base.
 func prefixRootAbsoluteHTMLAttrs(html string, routePrefix string) string {
-	for _, attr := range []string{"src", "href"} {
-		needle := attr + `="/`
-		replacement := attr + `="` + routePrefix + `/`
-		html = strings.ReplaceAll(html, needle, replacement)
+	routePrefix = NormalizeRoutePrefix(routePrefix)
+	if routePrefix == "" {
+		return html
 	}
-	html = strings.ReplaceAll(html, `import "/`, `import "`+routePrefix+`/`)
-	return html
+	html = rootAbsoluteAttrRe.ReplaceAllStringFunc(html, func(match string) string {
+		parts := rootAbsoluteAttrRe.FindStringSubmatch(match)
+		return parts[1] + `="` + prefixRootPath(parts[2], routePrefix) + `"`
+	})
+	return moduleImportRe.ReplaceAllStringFunc(html, func(match string) string {
+		parts := moduleImportRe.FindStringSubmatch(match)
+		return parts[1] + prefixRootPath(parts[2], routePrefix) + `"`
+	})
 }
 
 func RegisterAPI(mux *http.ServeMux) error {

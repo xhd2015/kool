@@ -14,10 +14,11 @@ import (
 )
 
 type ServeOptions struct {
-	Static       StaticOptions
-	Route        func(mux *http.ServeMux) error // Optional custom route registration
+	Static StaticOptions
+	// ExtraRoutes registers custom routes after the built-in ones.
+	ExtraRoutes  func(mux *http.ServeMux) error
 	Dev          bool
-	RoutePrefix  string
+	Route        RouteOptions
 	VitePort     int
 	ExternalVite bool
 }
@@ -60,7 +61,7 @@ func ServeComponent(port int, opts ServeOptions) error {
 		} else {
 			var subProcessDone chan struct{}
 			var err error
-			vitePort, subProcessDone, err = EnsureFrontendDevServer(ctx, opts.RoutePrefix)
+			vitePort, subProcessDone, err = EnsureFrontendDevServer(ctx, opts.Route.Prefix)
 			if err != nil {
 				return err
 			}
@@ -72,13 +73,13 @@ func ServeComponent(port int, opts ServeOptions) error {
 			}
 		}
 
-		err := ProxyDev(mux, vitePort, opts.RoutePrefix)
+		err := ProxyDev(mux, vitePort, opts.Route)
 		if err != nil {
 			return err
 		}
 	} else {
 		staticOpts := opts.Static
-		staticOpts.RoutePrefix = opts.RoutePrefix
+		staticOpts.Route = opts.Route
 		err := Static(mux, staticOpts)
 		if err != nil {
 			return err
@@ -91,16 +92,17 @@ func ServeComponent(port int, opts ServeOptions) error {
 	}
 
 	// Register custom routes if provided
-	if opts.Route != nil {
-		err = opts.Route(mux)
+	if opts.ExtraRoutes != nil {
+		err = opts.ExtraRoutes(mux)
 		if err != nil {
 			return err
 		}
 	}
 
-	fmt.Printf("Serving at %s\n", localURL(port, opts.RoutePrefix, "/"))
+	fmt.Printf("Serving at %s\n", localURL(port, opts.Route, "/"))
+	printRootRoute(port, opts.Route)
 
-	server.Handler = MountRoutePrefix(opts.RoutePrefix, mux)
+	server.Handler = MountRoutePrefix(mux, opts.Route)
 	return server.ListenAndServe()
 }
 

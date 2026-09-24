@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"__MODULE_NAME__/server"
@@ -15,21 +16,30 @@ import (
 )
 
 const (
-	routePrefixEnv  = "KOOL_GO_REACT_ROUTE_PREFIX"
-	routePrefixHelp = "  --route-prefix PREFIX  Mount UI and API below PREFIX, e.g. demo\n"
+	routePrefixEnv = "KOOL_GO_REACT_ROUTE_PREFIX"
+	keepRootEnv    = "KOOL_GO_REACT_KEEP_ROOT_ROUTE"
+	routeFlagHelp  = "  --route-prefix PREFIX  Mount UI and API below PREFIX, e.g. demo\n" +
+		"  --keep-root-route      Also serve the unprefixed root route (direct domains)\n"
 )
 
 // Run parses project-specific development flags and delegates process lifecycle
 // management to dot-pkgs' Go/Air and Vite supervisor.
 func Run(args []string) error {
-	routePrefix, routePrefixSet, args, err := parseArgs(args)
+	flags, args, err := parseArgs(args)
 	if err != nil {
 		return err
 	}
-	if !routePrefixSet {
-		routePrefix = server.NormalizeRoutePrefix(os.Getenv(routePrefixEnv))
+	route := flags.route
+	if !flags.prefixSet {
+		route.Prefix = os.Getenv(routePrefixEnv)
 	}
-	restoreEnv, err := setRoutePrefixEnv(routePrefix)
+	if !flags.keepRootSet {
+		if value, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(keepRootEnv))); err == nil {
+			route.KeepRoot = value
+		}
+	}
+	route = server.NormalizeRoute(route)
+	restoreEnv, err := setRouteEnv(route)
 	if err != nil {
 		return err
 	}
@@ -46,43 +56,64 @@ func Run(args []string) error {
 		BuildPackage: "./script/dev",
 		BackendPort:  8080,
 		FrontendPort: server.DefaultVitePort,
-		BrowserPath:  routePrefixBrowserPath(routePrefix),
+		BrowserPath:  routePrefixBrowserPath(route.Prefix),
 		WatchDirs:    []string{"internal/dev", "server", "script/dev"},
 		Frontend: &devserver.Vite{
 			Dir:        "__PROJECT_NAME__-react",
 			ConfigFile: "vite.config.ts",
 			Install:    []string{"bun", "install"},
 			Command: append([]string{"bun", "run", "dev", "--"},
-				routePrefixViteArgs(routePrefix)...),
+				routePrefixViteArgs(route.Prefix)...),
 		},
 		BackendHandler: func(_ context.Context, backend devserver.Backend) (http.Handler, error) {
-			return server.DevHandler(backend.FrontendURL, routePrefix)
+			return server.DevHandler(backend.FrontendURL, route)
 		},
 	})
 	if err == nil && hasHelp(args) {
 		// dot-pkgs owns the shared flags; append this template's one extra flag.
-		fmt.Fprint(os.Stdout, routePrefixHelp)
+		fmt.Fprint(os.Stdout, routeFlagHelp)
 	}
 	return err
 }
 
-func parseArgs(args []string) (routePrefix string, routePrefixSet bool, remaining []string, err error) {
+// routeFlags is what this entrypoint takes out of argv before the shared
+// supervisor sees the rest.
+type routeFlags struct {
+	route       server.RouteOptions
+	prefixSet   bool
+	keepRootSet bool
+}
+
+func parseArgs(args []string) (routeFlags, []string, error) {
+	var flags routeFlags
+	var remaining []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" {
-			return routePrefix, routePrefixSet, append(remaining, args[i:]...), nil
+			flags, err := flags.normalize()
+			if err != nil {
+				return flags, nil, err
+			}
+			return flags, append(remaining, args[i:]...), nil
 		}
 		switch {
 		case arg == "--route-prefix":
 			if i+1 >= len(args) {
-				return "", false, nil, fmt.Errorf("--route-prefix requires a value")
+				return flags, nil, fmt.Errorf("--route-prefix requires a value")
 			}
 			i++
-			routePrefix = server.NormalizeRoutePrefix(args[i])
-			routePrefixSet = true
+			flags.route.Prefix = args[i]
+			flags.prefixSet = true
 		case strings.HasPrefix(arg, "--route-prefix="):
-			routePrefix = server.NormalizeRoutePrefix(strings.TrimPrefix(arg, "--route-prefix="))
-			routePrefixSet = true
+			flags.route.Prefix = strings.TrimPrefix(arg, "--route-prefix=")
+			flags.prefixSet = true
+		case arg == "--keep-root-route":
+			flags.route.KeepRoot = true
+			flags.keepRootSet = true
+		case strings.HasPrefix(arg, "--keep-root-route="):
+			value := strings.TrimPrefix(arg, "--keep-root-route=")
+			flags.route.KeepRoot = value == "" || value == "true" || value == "1"
+			flags.keepRootSet = true
 		case arg == "--no-air":
 			// Preserve the original go-react template flag while dot-pkgs uses
 			// the more explicit --no-use-air spelling.
@@ -91,25 +122,62 @@ func parseArgs(args []string) (routePrefix string, routePrefixSet bool, remainin
 			remaining = append(remaining, arg)
 		}
 	}
-	return routePrefix, routePrefixSet, remaining, nil
+	flags, err := flags.normalize()
+	if err != nil {
+		return flags, nil, err
+	}
+	return flags, remaining, nil
 }
 
-func setRoutePrefixEnv(routePrefix string) (func(), error) {
-	previous, existed := os.LookupEnv(routePrefixEnv)
+// normalize canonicalizes the parsed route and rejects an unusable prefix, so
+// both the `--` passthrough and the normal path agree on what was requested.
+func (f routeFlags) normalize() (routeFlags, error) {
+	f.route = server.NormalizeRoute(f.route)
+	if err := server.ValidateRoutePrefix(f.route.Prefix); err != nil {
+		return f, err
+	}
+	return f, nil
+}
+
+// setRouteEnv publishes the effective route to child processes: the supervisor
+// restarts this entrypoint without the original arguments, so the flags have to
+// survive as environment.
+func setRouteEnv(route server.RouteOptions) (func(), error) {
+	restorePrefix, err := setEnv(routePrefixEnv, route.Prefix)
+	if err != nil {
+		return nil, err
+	}
+	keepRoot := ""
+	if route.KeepRoot {
+		keepRoot = "true"
+	}
+	restoreKeepRoot, err := setEnv(keepRootEnv, keepRoot)
+	if err != nil {
+		restorePrefix()
+		return nil, err
+	}
+	return func() {
+		restoreKeepRoot()
+		restorePrefix()
+	}, nil
+}
+
+func setEnv(key, value string) (func(), error) {
+	previous, existed := os.LookupEnv(key)
 	var err error
-	if routePrefix == "" {
-		err = os.Unsetenv(routePrefixEnv)
+	if value == "" {
+		err = os.Unsetenv(key)
 	} else {
-		err = os.Setenv(routePrefixEnv, routePrefix)
+		err = os.Setenv(key, value)
 	}
 	if err != nil {
 		return nil, err
 	}
 	return func() {
 		if existed {
-			_ = os.Setenv(routePrefixEnv, previous)
+			_ = os.Setenv(key, previous)
 		} else {
-			_ = os.Unsetenv(routePrefixEnv)
+			_ = os.Unsetenv(key)
 		}
 	}, nil
 }

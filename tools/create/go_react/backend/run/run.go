@@ -21,6 +21,7 @@ Options:
   --vite-port PORT         Vite proxy port when using --external-vite (default: 6193)
   --port PORT              listen on PORT (default: auto-select starting at 8080)
   --route-prefix PREFIX    mount the whole app under PREFIX, e.g. my-app
+  --keep-root-route        also serve the unprefixed root route (direct domains)
   --component NAME         render a single named component (default: full app)
   -h, --help               show this help
 `
@@ -37,12 +38,14 @@ func Run(args []string) error {
 	var port int
 	var vitePort int
 	var routePrefix string
+	var keepRoot bool
 	args, err := lessflags.
 		Bool("--dev", &devFlag).
 		Bool("--external-vite", &externalVite).
 		Int("--port", &port).
 		Int("--vite-port", &vitePort).
 		String("--route-prefix", &routePrefix).
+		Bool("--keep-root-route", &keepRoot).
 		String("--component", &component).
 		Help("-h,--help", help).
 		Parse(args)
@@ -82,7 +85,7 @@ func Run(args []string) error {
 		}
 		return server.ServeComponent(port, server.ServeOptions{
 			Dev:          devFlag,
-			RoutePrefix:  routePrefix,
+			Route:        server.NormalizeRoute(server.RouteOptions{Prefix: routePrefix, KeepRoot: keepRoot}),
 			VitePort:     vitePort,
 			ExternalVite: externalVite,
 			Static: server.StaticOptions{
@@ -94,7 +97,7 @@ func Run(args []string) error {
 	return server.ServeWithConfig(server.ServeConfig{
 		Port:         port,
 		Dev:          devFlag,
-		RoutePrefix:  routePrefix,
+		Route:        server.NormalizeRoute(server.RouteOptions{Prefix: routePrefix, KeepRoot: keepRoot}),
 		VitePort:     vitePort,
 		ExternalVite: externalVite,
 	})

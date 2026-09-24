@@ -74,4 +74,5 @@ __PROJECT_NAME__ get http://localhost:8080/api/counter   # full-URL form
 
 - Check the server is up with `__PROJECT_NAME__ get /ping` before other calls.
 - Use `--dry-run` to show an agent's intended write before committing to it.
-- In dev mode use `--route-prefix` to mount the app under a sub-path.
+- In dev mode use `--route-prefix` to mount the app under a sub-path; add
+  `--keep-root-route` to serve the unprefixed root route at the same time.

@@ -29,6 +29,16 @@ go run ./cmd/__PROJECT_NAME__ server --route-prefix my-app
 
 Then open `http://localhost:<port>/my-app/`.
 
+Add `--keep-root-route` to keep serving the unprefixed root route as well, so
+one process answers both a prefixed front door and a direct domain:
+
+```sh
+go run ./cmd/__PROJECT_NAME__ server --route-prefix my-app --keep-root-route
+```
+
+Then both `http://localhost:<port>/my-app/` and `http://localhost:<port>/` work.
+Without the flag the root route returns 404.
+
 ## API
 
 Unknown `/api/*` paths return a JSON 404 (not the UI page), so CLI and agent
@@ -73,6 +83,7 @@ Options:
 ```sh
 go run ./script/dev --port 9000
 go run ./script/dev --route-prefix my-app # serves http://localhost:<port>/my-app/
+go run ./script/dev --route-prefix my-app --keep-root-route # serves /my-app/ and /
 go run ./script/dev --no-air          # compatibility alias: no backend hot reload
 go run ./script/dev --no-open
 ```
